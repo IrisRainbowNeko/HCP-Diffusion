@@ -10,7 +10,7 @@ This toolbox supports **colossal-AI**, which can significantly reduce GPU memory
 
 HCP-Diffusion can unify existing training methods for text-to-image generation (e.g., Prompt-tuning, Textual Inversion, DreamArtist, Fine-tuning, DreamBooth, LoRA, ControlNet, etc) and model structures through a single ```.yaml``` configuration file.
 
-The toolbox has also implemented a upgraded version of DreamArtist with LoRA, named DreamArtist++, for one-shot text-to-image generation.
+The toolbox has also implemented an upgraded version of DreamArtist with LoRA, named DreamArtist++, for one-shot text-to-image generation.
 Compared to DreamArtist, DreamArtist++ is more stable with higher image quality and generation controllability, and faster training speed.
 
 ## Features
