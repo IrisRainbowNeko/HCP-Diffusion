@@ -39,7 +39,7 @@ class LoraBlock(SinglePluginBlock):
             self.layer = build_layer(self.host, 'conv', rank, dropout, bias, rank_groups)
         else:
             raise NotImplementedError('lora support only Linear and Conv2d now.')
-        self.register_buffer('scale', torch.tensor(1.0 if scale == 0 else scale / self.rank))
+        self.register_buffer('scale', torch.tensor(1.0 if scale == 0 else scale / self.layer.rank))
 
     def set_mask(self, mask_range):
         self.mask_range = mask_range
