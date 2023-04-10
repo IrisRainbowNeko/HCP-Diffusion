@@ -17,7 +17,7 @@ import torch
 from torch import nn
 
 from .utils import dict_get
-from models.lora import collapse_lora_weight, LoraBlock, LoraGroup
+from models.lora import LoraBlock, LoraGroup
 from .ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):
