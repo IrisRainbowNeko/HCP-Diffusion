@@ -131,10 +131,18 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                 lora_block_state = {k: v for k, v in lora_block_state.items() if k in match_layers}
             # add lora to host and load weights
             for host_name, lora_state in lora_block_state.items():
-                rank = lora_state['lora_down.weight'].shape[0]
+                rank_groups=dict_get(lora_state, 'layer.rank_groups', 1)
+                if rank_groups>1:
+                    if len(lora_state['layer.lora_down.weight'].shape)==3:
+                        rank = rank_groups*lora_state['layer.lora_down.weight'].shape[2]
+                    else:
+                        rank = lora_state['layer.lora_down.weight'].shape[0]
+                else:
+                    rank = lora_state['layer.lora_down.weight'].shape[0]
                 del lora_state['scale']
                 lora_block_dict = LoraBlock.warp_model(named_modules[host_name], rank, dict_get(item, 'dropout', 0.0),
-                                                 dict_get(item, 'alpha', 1.0), bias='lora_up.bias' in lora_state)
+                                                 dict_get(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
+                                                 rank_groups=rank_groups)
                 all_lora_blocks[f'{host_name}.lora_block'] = lora_block_dict['lora_block']
                 lora_block_dict['lora_block'].load_state_dict(lora_state, strict=False)
                 lora_block_dict['lora_block'].set_mask(dict_get(item, 'mask', None))

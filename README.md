@@ -32,6 +32,13 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 * Tag shuffle and dropout
 * safetensors support
 
+## Install
+```bash
+git clone https://github.com/7eu7d7/HCP-Diffusion.git
+cd HCP-Diffusion
+pip install -r requirements.txt
+```
+
 ## User guidance
 
 Training:

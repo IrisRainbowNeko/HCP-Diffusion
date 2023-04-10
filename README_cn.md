@@ -32,6 +32,13 @@ Prompt-tuning (textual inversion), DreamArtist, Fine-tuning, DreamBooth, lora, c
 * Tag shuffle and dropout
 * safetensors支持
 
+## 安装
+```bash
+git clone https://github.com/7eu7d7/HCP-Diffusion.git
+cd HCP-Diffusion
+pip install -r requirements.txt
+```
+
 ## 使用教程
 
 训练命令:
