@@ -1,0 +1,100 @@
+
+exp_dir: exps/
+mixed_precision: 'fp16'
+allow_tf32: False
+seed: 114514
+ckpt_type: 'safetensors' # [torch, safetensors]
+
+vis_info:
+  prompt: null
+  negative_prompt: ''
+
+train:
+  gradient_accumulation_steps: 1
+  workers: 4
+  max_grad_norm: 1.0
+  set_grads_to_none: False
+  save_step: 100
+  log_step: 20
+  cfg_scale: '1.0' # for DreamArtist
+
+  resume:
+    ckpt_path: ''
+    start_step: 0
+
+  loss:
+    criterion:
+      _target_: torch.nn.MSELoss
+      reduction: 'none' # support for attention mask
+    prior_loss_weight: 1.0
+    type: 'eps' # 'eps' or 'sample'
+
+  optimizer:
+    type: adamw
+    weight_decay: 1e-3
+    weight_decay_pt: 5e-4
+
+  scale_lr: True # auto scale lr with total batch size
+  scheduler:
+    name: 'one_cycle'
+    num_warmup_steps: 200
+    num_training_steps: 1000
+    scheduler_kwargs: {} # args for scheduler
+
+  scale_lr_pt: True
+  scheduler_pt: ${.scheduler}
+
+model:
+  revision: null
+  pretrained_model_name_or_path: null
+  tokenizer_name: null
+  tokenizer_repeats: 3
+  enable_xformers: True
+  gradient_checkpointing: True
+  ema_unet: 0 # 0 to disable
+  ema_text_encoder: 0 # 0 to disable
+  clip_skip: 0
+
+  noise_scheduler: DDPMScheduler
+
+data:
+  batch_size: 4
+  prompt_template: 'prompt_tuning_template/name.txt'
+  caption_file: null # path to image captions (file_words)
+  cache_latents: True
+  att_mask: null
+  att_mask_encode: False
+  bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
+  image_transforms:
+    _target_: torchvision.transforms.Compose # "_target_" for hydra.utils.instantiate
+    transforms:
+      - _target_: torchvision.transforms.ToTensor
+      - _target_: torchvision.transforms.Normalize
+        _args_: [[0.5], [0.5]]
+  tag_transforms:
+    _target_: torchvision.transforms.Compose
+    transforms:
+      - _target_: utils.caption_tools.TagShuffle
+      - _target_: utils.caption_tools.TagDropout
+        p: 0.1
+      - _target_: utils.caption_tools.TemplateFill
+        word_names: {} # Replace placeholders with specific words or embeddings
+  bucket:
+    _target_: data.bucket.arb_from_files # aspect ratio bucket
+    img_root: 'imgs/train' # images directory of train images
+    target_area: {_target_: "builtins.eval", _args_: ['512*512']} # Expected area of training images: width * height
+    num_bucket: 5
+
+data_class: # for DreamBooth
+  batch_size: 1
+  prompt_template: 'prompt_tuning_template/name.txt'
+  caption_file: null
+  att_mask: null
+  att_mask_encode: False
+  bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
+  image_transforms: ${..data.image_transforms}
+  tag_transforms: ${..data.tag_transforms}
+  bucket:
+    _target_: data.bucket.FixedBucket # aspect ratio bucket
+    img_root: 'imgs/train_class'
+    target_size: [512, 512]

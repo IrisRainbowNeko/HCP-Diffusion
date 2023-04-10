@@ -1,0 +1,27 @@
+a photo of a {pt1} {class}
+a rendering of a {pt1} {class}
+a cropped photo of the {pt1} {class}
+the photo of a {pt1} {class}
+a photo of a clean {pt1} {class}
+a photo of a dirty {pt1} {class}
+a dark photo of the {pt1} {class}
+a photo of my {pt1} {class}
+a photo of the cool {pt1} {class}
+a close-up photo of a {pt1} {class}
+a bright photo of the {pt1} {class}
+a cropped photo of a {pt1} {class}
+a photo of the {pt1} {class}
+a good photo of the {pt1} {class}
+a photo of one {pt1} {class}
+a close-up photo of the {pt1} {class}
+a rendition of the {pt1} {class}
+a photo of the clean {pt1} {class}
+a rendition of a {pt1} {class}
+a photo of a nice {pt1} {class}
+a good photo of a {pt1} {class}
+a photo of the nice {pt1} {class}
+a photo of the small {pt1} {class}
+a photo of the weird {pt1} {class}
+a photo of the large {pt1} {class}
+a photo of a cool {pt1} {class}
+a photo of a small {pt1} {class}

@@ -1,0 +1,56 @@
+# down部分总共6个 (Resnet+Transformer) 块，分别对应于:
+#   1:
+#     down_blocks.0.resnets.0
+#     down_blocks.0.attentions.0.transformer_blocks.0
+#   2:
+#     down_blocks.0.resnets.1
+#     down_blocks.0.attentions.1.transformer_blocks.0
+#   3:
+#     down_blocks.1.resnets.0
+#     down_blocks.1.attentions.0.transformer_blocks.0
+#   ......
+
+# up部分总共9个 (Resnet+Transformer) 块，分别对应于:
+#   1:
+#     up_blocks.1.resnets.0
+#     up_blocks.1.attentions.0.transformer_blocks.0
+#   2:
+#     up_blocks.1.resnets.1
+#     up_blocks.1.attentions.1.transformer_blocks.0
+#   3:
+#     up_blocks.1.resnets.2
+#     up_blocks.1.attentions.2.transformer_blocks.0
+#   4:
+#     up_blocks.2.resnets.0
+#     up_blocks.2.attentions.0.transformer_blocks.0
+#   ......
+
+tokenizer_pt:
+  emb_dir: 'embs/'
+  replace: False
+  train: []
+  #train:
+  #  - {name: pt1, lr: 1e-3}
+
+unet:
+  -
+    lr: 1e-5
+    layers:
+      # 只动resnet的GroupNorm层
+      - 're:.*\.resnets.*\.norm?'
+
+lora_unet:
+  -
+    lr: 1e-4
+    layers:
+      # 只动k,v部分. k,v来源于text encoder (Custom Diffusion)
+      - 're:down.*\.to_k$'
+      - 're:down.*\.to_v$'
+  -
+    lr: 6e-5
+    layers:
+      - 're:up.*\.to_k$'
+      - 're:up.*\.to_v$'
+
+text_encoder: null
+lora_text_encoder: null

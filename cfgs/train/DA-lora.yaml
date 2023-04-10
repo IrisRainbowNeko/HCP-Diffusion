@@ -1,0 +1,95 @@
+_base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml]
+
+unet: null
+
+lora_unet:
+  - lr: 1e-4
+    rank: 3
+    type: p
+    layers:
+      - 're:.*\.attn.?$'
+      #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
+  - lr: 2e-5 # Low negative unet lr prevents image collapse
+    rank: 3
+    type: n
+    layers:
+      - 're:.*\.attn.?$'
+      #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
+  #  - lr: 1e-4
+  #    rank: 2
+  #    type: p
+  #    layers:
+  #      - 're:.*\.resnets$' # Increases fitness, but potentially reduces controllability and change style
+  #  - lr: 1e-4
+  #    rank: 2
+  #    type: n
+  #    layers:
+  #      - 're:.*\.resnets$' # Increases fitness, but potentially reduces controllability and change style
+
+lora_text_encoder:
+  - lr: 1e-5
+    rank: 1
+    type: p
+    layers:
+      - 're:.*self_attn$'
+      - 're:.*mlp$'
+  - lr: 1e-5
+    rank: 1
+    type: n
+    layers:
+      - 're:.*self_attn$'
+      - 're:.*mlp$'
+
+tokenizer_pt:
+  train: # prompt tuning embeddings
+    - { name: 'pt-botdog1', lr: 0.003 }
+    - { name: 'pt-botdog1-neg', lr: 0.003 }
+
+train:
+  gradient_accumulation_steps: 1
+  save_step: 100
+
+  #cfg_scale: '1.0-3.0:cos'
+  cfg_scale: '3.0'
+
+  scheduler:
+    name: 'constant_with_warmup'
+    num_warmup_steps: 50
+    num_training_steps: 1000
+
+model:
+  #pretrained_model_name_or_path: '/mnt/f/code/daam/models/any3.0'
+  pretrained_model_name_or_path: '/mnt/f/code/stable-diffusion-v1-5'
+  tokenizer_repeats: 1
+  ema_unet: 0
+  ema_text_encoder: 0
+
+data:
+  batch_size: 4
+  prompt_template: 'prompt_tuning_template/object.txt'
+  caption_file: null
+  cache_latents: True
+  tag_transforms:
+    transforms:
+      - _target_: utils.caption_tools.TemplateFill
+        word_names:
+          pt1: [pt-botdog1, pt-botdog1-neg]
+  bucket:
+    img_root: 'imgs/'
+    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+    num_bucket: 1
+
+data_class:
+  batch_size: 1
+  prompt_template: 'prompt_tuning_template/caption.txt'
+  caption_file: db/v15/image_captions.json
+  cache_latents: True
+  tag_transforms:
+    transforms:
+      - _target_: utils.caption_tools.TemplateFill
+        word_names:
+          pt1: ['', '']
+  bucket:
+    _target_: data.bucket.FixedBucket
+    img_root: 'db/v15'
+    target_size: 512

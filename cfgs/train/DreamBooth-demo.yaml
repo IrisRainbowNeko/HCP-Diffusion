@@ -1,0 +1,71 @@
+_base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml]
+
+unet:
+  -
+    lr: 1e-6
+    layers:
+      - ''
+
+text_encoder: null
+
+lora_unet: null
+lora_text_encoder: null
+
+tokenizer_pt:
+  train: null
+
+train:
+  gradient_accumulation_steps: 1
+  save_step: 200
+
+  cfg_scale: '1.0'
+
+  scheduler:
+    name: 'constant_with_warmup'
+    num_warmup_steps: 50
+    num_training_steps: 600
+
+model:
+  #pretrained_model_name_or_path: '/mnt/f/code/daam/models/any3.0'
+  pretrained_model_name_or_path: '/mnt/f/code/stable-diffusion-v1-5'
+  tokenizer_repeats: 1
+  ema_unet: 0
+  ema_text_encoder: 0
+
+data:
+  batch_size: 3
+  prompt_template: 'prompt_tuning_template/object.txt'
+  caption_file: null
+  cache_latents: True
+  tag_transforms:
+    transforms:
+      - _target_: utils.caption_tools.TagShuffle
+      - _target_: utils.caption_tools.TagDropout
+        p: 0.1
+      - _target_: utils.caption_tools.TemplateFill
+        word_names:
+          pt1: sks
+          class: dog
+  bucket:
+    img_root: 'imgs/'
+    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+    num_bucket: 1
+
+data_class:
+  batch_size: 1
+  prompt_template: 'prompt_tuning_template/object.txt'
+  caption_file: null
+  cache_latents: True
+  tag_transforms:
+    transforms:
+      - _target_: utils.caption_tools.TagShuffle
+      - _target_: utils.caption_tools.TagDropout
+        p: 0.1
+      - _target_: utils.caption_tools.TemplateFill
+        word_names:
+          pt1: ''
+          class: dog
+  bucket:
+    _target_: data.bucket.FixedBucket
+    img_root: 'db/dog'
+    target_size: 512
