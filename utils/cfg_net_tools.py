@@ -76,7 +76,8 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
             for layer_name in get_match_layers(item.layers, named_modules):
                 layer = named_modules[layer_name]
                 lora_block_dict = LoraBlock.warp_model(layer, dict_get(item, 'rank', 4), dict_get(item, 'dropout', 0.0),
-                                                 dict_get(item, 'scale', 1.0), dict_get(item, 'svd_init', False))
+                                                 dict_get(item, 'scale', 1.0), dict_get(item, 'svd_init', False),
+                                                 rank_groups=dict_get(item, 'rank_groups', 1))
                 block_type = dict_get(item, 'type', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
                     if block_type is None:
