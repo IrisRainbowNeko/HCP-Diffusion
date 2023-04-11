@@ -3,7 +3,7 @@ import sys
 import torch
 from loguru import logger
 
-from train_ac import Trainer, TextImagePairDataset, RatioBucket, load_config_with_cli
+from hcpdiff.train_ac import Trainer, TextImagePairDataset, RatioBucket, load_config_with_cli
 from hcpdiff.data import collate_fn_ft
 
 class TrainerSingleCard(Trainer):

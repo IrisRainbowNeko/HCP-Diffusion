@@ -37,7 +37,7 @@ from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff
 from hcpdiff.utils.emb_utils import load_emb
 from hcpdiff.data import collate_fn_ft
-from visualizer import Visualizer
+from hcpdiff.visualizer import Visualizer
 from hcpdiff.utils.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 class Trainer:
@@ -230,12 +230,12 @@ class Trainer:
 
     @torch.no_grad()
     def load_resume(self):
-        if self.cfgs.resume is not None:
-            for ckpt in self.cfgs.resume.ckpt_path.unet:
+        if self.cfgs.train.resume is not None:
+            for ckpt in self.cfgs.train.resume.ckpt_path.unet:
                 self.ckpt_manager.load_ckpt_to_model(self.unet, ckpt, model_ema=var_get(self, 'ema_unet', None))
-            for ckpt in self.cfgs.resume.ckpt_path.TE:
+            for ckpt in self.cfgs.train.resume.ckpt_path.TE:
                 self.ckpt_manager.load_ckpt_to_model(self.text_encoder, ckpt, model_ema=var_get(self, 'ema_text_encoder', None))
-            for name, ckpt in self.cfgs.resume.ckpt_path.words:
+            for name, ckpt in self.cfgs.train.resume.ckpt_path.words:
                 self.ex_words_emb[name].data = load_emb(ckpt)
 
     def make_hooks(self):
@@ -332,8 +332,8 @@ class Trainer:
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
         logger.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
         self.global_step = 0
-        if self.cfgs.resume is not None:
-            self.global_step = self.cfgs.resume.start_step
+        if self.cfgs.train.resume is not None:
+            self.global_step = self.cfgs.train.resume.start_step
 
         if self.train_loader_class is not None:
             self.data_iter_class = iter(cycle_data(self.train_loader_class, arb=self.arb_class))

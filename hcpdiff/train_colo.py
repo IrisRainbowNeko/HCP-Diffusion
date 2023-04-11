@@ -21,7 +21,7 @@ from colossalai.nn.parallel.utils import get_static_torch_model
 from colossalai.utils import get_current_device
 from colossalai.utils.model.colo_init_context import ColoInitContext
 
-from train_ac import Trainer, get_scheduler, ModelEMA
+from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
 from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
 from hcpdiff.utils.utils import import_model_class_from_model_name_or_path, load_config_with_cli
