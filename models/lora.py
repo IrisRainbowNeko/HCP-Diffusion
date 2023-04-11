@@ -85,7 +85,7 @@ class LoraBlock(SinglePluginBlock):
     def warp_model(cls, model: nn.Module, rank, dropout=0.0, scale=1.0, svd_init=False, bias=False, mask=None, rank_groups=1, **kwargs):# -> Dict[str, LoraBlock]:
         lora_block_dict = {}
         if isinstance(model, nn.Linear) or isinstance(model, nn.Conv2d):
-            lora_block_dict['lora_block'] = cls.warp_layer(model, rank, dropout, scale, svd_init, bias=bias, mask=mask)
+            lora_block_dict['lora_block'] = cls.warp_layer(model, rank, dropout, scale, svd_init, bias=bias, mask=mask, rank_groups=rank_groups)
         else:
             # there maybe multiple lora block, avoid insert lora into lora_block
             named_modules = {name: layer for name, layer in model.named_modules() if 'lora_block' not in name}

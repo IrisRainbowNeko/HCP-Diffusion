@@ -114,7 +114,7 @@ class LoraLayerLinearGroup(LoraLayerLinear):
         x = repeat(x, 'b l c -> b l (g c)', g=self.rank_groups)
         x = rearrange(x, 'b l (g c) -> b g l c', g=self.rank_groups)
         x = self.dropout(self.lora_up(self.lora_down(x)))
-        x = torch.prod(x, dim=1, dtype=torch.float16)
+        x = torch.prod(x, dim=1, dtype=torch.float16)**(1/self.rank_groups).to(dtype=x.dtype)
         return x
 
     def get_collapsed_param(self):
@@ -139,7 +139,7 @@ class LoraLayerConv2dGroup(LoraLayerLinear):
 
     def forward(self, x):
         x = self.dropout(self.lora_up(self.lora_down(x)))
-        x = torch.prod(rearrange(x, 'b (g c) h w -> b g c h w'), dim=1)
+        x = torch.prod(rearrange(x, 'b (g c) h w -> b g c h w'), dim=1, dtype=torch.float16)**(1/self.rank_groups).to(dtype=x.dtype)
         return x
 
     def get_collapsed_param(self):
