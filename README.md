@@ -61,8 +61,8 @@ python visualizer.py --pretrained_model pretrained_model_path
 ```
 
 + [Model Training Tutorial](doc/guide_train.md)
-+ [DreamArtist++ Tutorial](doc/guide_DA_cn.md)
-+ [Model Inference Tutorial](doc/guide_infer_cn.md)
++ [DreamArtist++ Tutorial](doc/guide_DA.md)
++ [Model Inference Tutorial](doc/guide_infer.md)
 
 ## Team
 

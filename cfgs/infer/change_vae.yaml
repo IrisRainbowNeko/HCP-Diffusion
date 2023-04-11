@@ -1,0 +1,6 @@
+_base_: [cfgs/infer/v1.yaml]
+
+new_components:
+  vae:
+    _target_: diffusers.AutoencoderKL.from_pretrained
+    pretrained_model_name_or_path: 'any3.0/vae' # path to vae model

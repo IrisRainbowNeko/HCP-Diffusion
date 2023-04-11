@@ -70,8 +70,8 @@ def merge_to_base_model(base_model:nn.Module, cfg_part):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
-    parser.add_argument('--cfg', type=str, default='cfgs/merge/v1.yaml')
-    parser.add_argument('--base_model', type=str, default='cfgs/merge/v1.yaml')
+    parser.add_argument('--cfg', type=str, default='cfgs/infer/v1.yaml')
+    parser.add_argument('--base_model', type=str, default='cfgs/infer/v1.yaml')
     parser.add_argument('--revision', type=str, default=None)
     parser.add_argument('--out_dir', type=str, default=None)
     args = parser.parse_args()

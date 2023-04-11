@@ -1,29 +1,33 @@
 import torch
-from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionPipeline, UNet2DConditionModel
+from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionPipeline, UNet2DConditionModel, EulerAncestralDiscreteScheduler
 from diffusers.utils.import_utils import is_xformers_available
 import argparse
+import sys
 from omegaconf import OmegaConf
 from matplotlib import pyplot as plt
+import hydra
 
 import os
-from utils.utils import to_validate_file, load_config, str2bool
+from utils.utils import to_validate_file, load_config, str2bool, load_config_with_cli
 from utils.cfg_net_tools import load_hcpdiff
 from models import EmbeddingPTHook, TEEXHook, TokenizerHook
 
 class Visualizer:
-    def __init__(self, pretrained, new_components={}, emb_dir='embs/', N_repeats=3, cfg_merge=None):
-        self.cfg_merge=cfg_merge
+    def __init__(self, cfgs):
+        self.cfgs_raw = cfgs
+        self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
+        self.cfg_merge=cfgs.merge
 
-        comp = StableDiffusionPipeline.from_pretrained(pretrained, safety_checker=None, requires_safety_checker=False).components
-        comp.update(new_components)
+        comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained, safety_checker=None, requires_safety_checker=False).components
+        comp.update(cfgs.new_components)
         self.pipe = StableDiffusionPipeline(**comp)
 
-        if cfg_merge:
+        if self.cfg_merge:
             self.merge_model()
 
         self.pipe = self.pipe.to("cuda")
-        emb, _ = EmbeddingPTHook.hook_from_dir(emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=N_repeats)
-        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=N_repeats)
+        emb, _ = EmbeddingPTHook.hook_from_dir(cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=cfgs.N_repeats)
+        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=cfgs.N_repeats)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():
@@ -31,9 +35,7 @@ class Visualizer:
             #self.te_hook.enable_xformers()
 
     def merge_model(self):
-        cfgs = load_config(self.cfg_merge)
-        self.cfgs = cfgs
-        for cfg_group in cfgs.values():
+        for cfg_group in self.cfg_merge.values():
             if hasattr(cfg_group, 'type'):
                 if cfg_group.type == 'unet':
                     load_hcpdiff(self.pipe.unet, cfg_group)
@@ -57,12 +59,8 @@ class Visualizer:
             img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.png"))
 
             if save_cfg:
-                info = OmegaConf.create()
-                info.prompt = p
-                info.neg_prompt = pn
-                info = OmegaConf.merge(info, self.cfgs)
                 with open(os.path.join(root, f"{num_img_exist}-info.yaml"), 'w', encoding='utf-8') as f:
-                    f.write(OmegaConf.to_yaml(info))
+                    f.write(OmegaConf.to_yaml(self.cfgs_raw))
             num_img_exist+=1
 
     def show_latent(self, prompt, negative_prompt='', **kwargs):
@@ -81,29 +79,18 @@ class Visualizer:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
-    parser.add_argument('--pretrained_model', type=str, default='')
-    parser.add_argument('--prompt', type=str, default='')
-    parser.add_argument('--neg_prompt', type=str, default='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry')
-    parser.add_argument('--out_dir', type=str, default='output/')
-    parser.add_argument('--emb_dir', type=str, default='embs/')
-    parser.add_argument('--cfg_merge', type=str, default=None)
-    parser.add_argument('--N_repeat', type=int, default=3)
-    parser.add_argument('--W', type=int, default=512)
-    parser.add_argument('--H', type=int, default=512)
-    parser.add_argument('--bs', type=int, default=4)
-    parser.add_argument('--num', type=int, default=1)
-    parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--save_cfg', type=str2bool, default=True)
-    args = parser.parse_args()
+    parser.add_argument('--cfg', type=str, default='')
+    args, _ = parser.parse_known_args()
+    cfgs = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    if args.seed is not None:
+    os.makedirs(cfgs.out_dir, exist_ok=True)
+    if cfgs.seed is not None:
         G=torch.Generator()
-        G.manual_seed(args.seed)
+        G.manual_seed(cfgs.seed)
     else:
         G=None
 
-    viser = Visualizer(args.pretrained_model, emb_dir=args.emb_dir, N_repeats=args.N_repeat, cfg_merge=args.cfg_merge)
-    for i in range(args.num):
-        viser.vis_to_dir(args.out_dir, prompt=[args.prompt]*args.bs, negative_prompt=[args.neg_prompt]*args.bs, width=args.W, height=args.H,
-                     generator=G, save_cfg=args.save_cfg)
+    viser = Visualizer(cfgs)
+    for i in range(cfgs.num):
+        viser.vis_to_dir(cfgs.out_dir, prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
+                     generator=G, save_cfg=cfgs.save_cfg, **cfgs.infer_args)

@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import torch
 from loguru import logger
 
@@ -43,6 +44,6 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='cfg/train/demo.yaml')
     args, _ = parser.parse_known_args()
 
-    conf = load_config_with_cli(args.cfg)
+    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:]) # skip --cfg
     trainer=TrainerSingleCard(conf)
     trainer.train()
