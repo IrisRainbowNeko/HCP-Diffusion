@@ -11,13 +11,12 @@ cfg_net_tools.py
 
 from typing import Dict, List, Iterable, Tuple, Union
 
-from diffusers import UNet2DConditionModel
 import re
 import torch
 from torch import nn
 
 from .utils import dict_get
-from models.lora import LoraBlock, LoraGroup
+from hcpdiff.models.lora import LoraBlock, LoraGroup
 from .ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):

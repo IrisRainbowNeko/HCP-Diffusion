@@ -70,7 +70,7 @@ data:
   cache_latents: True
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: [pt-botdog1, pt-botdog1-neg]
   bucket:
@@ -87,13 +87,13 @@ data_class:
   cache_latents: True
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TagShuffle
-      - _target_: utils.caption_tools.TagDropout
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle
+      - _target_: hcpdiff.utils.caption_tools.TagDropout
         p: 0.1
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: ['', '']
   bucket:
-    _target_: data.bucket.FixedBucket
+    _target_: hcpdiff.data.bucket.FixedBucket
     img_root: 'imgs/v15'
     target_size: 512

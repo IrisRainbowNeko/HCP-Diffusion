@@ -14,7 +14,7 @@ import os
 from loguru import logger
 from einops import rearrange, repeat
 
-from utils.emb_utils import load_emb
+from hcpdiff.utils.emb_utils import load_emb
 
 class EmbeddingPTHook:
     def __init__(self, token_embedding, N_word=75, N_repeats=3):

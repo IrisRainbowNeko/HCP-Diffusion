@@ -9,7 +9,6 @@ train_colo.py
 """
 
 import argparse
-import os
 import sys
 import torch
 from torch import nn
@@ -18,16 +17,14 @@ import colossalai
 import colossalai.tensor
 from colossalai.context.parallel_mode import ParallelMode
 from colossalai.core import global_context as gpc
-from colossalai.logging import disable_existing_loggers, get_dist_logger
 from colossalai.nn.parallel.utils import get_static_torch_model
 from colossalai.utils import get_current_device
 from colossalai.utils.model.colo_init_context import ColoInitContext
 
 from train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
-from data.utils import collate_fn_ft
-from utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
-from utils.utils import import_model_class_from_model_name_or_path, load_config_with_cli
+from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
+from hcpdiff.utils.utils import import_model_class_from_model_name_or_path, load_config_with_cli
 
 class TEUnetWapper(nn.Module):
     def __init__(self, unet, TE):

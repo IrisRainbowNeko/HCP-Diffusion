@@ -14,10 +14,9 @@ import pickle
 import numpy as np
 import math
 from sklearn.cluster import KMeans
-from utils.img_size_tool import types_support, get_image_size
-from torchvision import transforms
+from hcpdiff.utils.img_size_tool import types_support, get_image_size
 from .utils import resize_crop_fix
-from utils.utils import get_file_ext
+from hcpdiff.utils.utils import get_file_ext
 
 from typing import Tuple, Union
 from loguru import logger
@@ -208,12 +207,15 @@ class RatioBucket(BaseBucket):
     def __len__(self):
         return self.data_len
 
-def arb_from_ratios(img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, ratio_max:float=4, pre_build_arb:str=None):
-    arb = RatioBucket(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
-    arb.build_buckets_from_ratios(ratio_max)
-    return arb
+    @classmethod
+    def from_ratios(cls, img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, ratio_max:float=4,
+                    pre_build_arb:str=None):
+        arb = cls(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+        arb.build_buckets_from_ratios(ratio_max)
+        return arb
 
-def arb_from_files(img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
-    arb = RatioBucket(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
-    arb.build_buckets_from_images()
-    return arb
+    @classmethod
+    def from_files(cls, img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
+        arb = RatioBucket(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+        arb.build_buckets_from_images()
+        return arb
