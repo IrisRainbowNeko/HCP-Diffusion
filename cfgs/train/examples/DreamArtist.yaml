@@ -1,0 +1,45 @@
+_base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml]
+
+tokenizer_pt:
+  train: # prompt tuning embeddings, needs to be created in advance
+    - { name: 'pt-catgirl1', lr: 0.003 }
+    - { name: 'pt-catgirl1-neg', lr: 0.003 }
+
+train:
+  gradient_accumulation_steps: 1
+  save_step: 100
+
+    #cfg_scale: '1.0-3.0:cos' # dynamic CFG with timestamp
+    cfg_scale: '3.0'
+
+  scheduler:
+    name: 'constant_with_warmup'
+    num_warmup_steps: 50
+    num_training_steps: 600
+
+model:
+  pretrained_model_name_or_path: 'runwayml/stable-diffusion-v1-5'
+  tokenizer_repeats: 1
+  ema_unet: 0
+  ema_text_encoder: 0
+
+data:
+  batch_size: 4
+  prompt_template: 'prompt_tuning_template/object.txt'
+  caption_file: null
+  cache_latents: True
+  tag_transforms:
+    transforms:
+      - _target_: utils.caption_tools.TagShuffle
+      - _target_: utils.caption_tools.TagDropout
+        p: 0.1
+      - _target_: utils.caption_tools.TemplateFill
+        word_names:
+          pt1: [pt-catgirl1, pt-catgirl1-neg] # A pair of word for positive and negative branches respectively.
+  bucket:
+    _target_: data.bucket.arb_from_files # aspect ratio bucket
+    img_root: 'imgs/'
+    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+    num_bucket: 1
+
+data_class: null

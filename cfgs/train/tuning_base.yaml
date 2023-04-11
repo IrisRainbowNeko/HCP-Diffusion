@@ -32,25 +32,8 @@ tokenizer_pt:
   #train:
   #  - {name: pt1, lr: 1e-3}
 
-unet:
-  -
-    lr: 1e-5
-    layers:
-      # 只动resnet的GroupNorm层
-      - 're:.*\.resnets.*\.norm?'
-
-lora_unet:
-  -
-    lr: 1e-4
-    layers:
-      # 只动k,v部分. k,v来源于text encoder (Custom Diffusion)
-      - 're:down.*\.to_k$'
-      - 're:down.*\.to_v$'
-  -
-    lr: 6e-5
-    layers:
-      - 're:up.*\.to_k$'
-      - 're:up.*\.to_v$'
+unet: null
+lora_unet: null
 
 text_encoder: null
 lora_text_encoder: null

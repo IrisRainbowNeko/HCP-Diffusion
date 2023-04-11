@@ -1,19 +1,19 @@
-a painting in the style of {pt1}
-a rendering in the style of {pt1}
-a cropped painting in the style of {pt1}
-the painting in the style of {pt1}
-a clean painting in the style of {pt1}
-a dirty painting in the style of {pt1}
-a dark painting in the style of {pt1}
-a picture in the style of {pt1}
-a cool painting in the style of {pt1}
-a close-up painting in the style of {pt1}
-a bright painting in the style of {pt1}
-a cropped painting in the style of {pt1}
-a good painting in the style of {pt1}
-a close-up painting in the style of {pt1}
-a rendition in the style of {pt1}
-a nice painting in the style of {pt1}
-a small painting in the style of {pt1}
-a weird painting in the style of {pt1}
-a large painting in the style of {pt1}
+a painting in the style of {pt1} {class}
+a rendering in the style of {pt1} {class}
+a cropped painting in the style of {pt1} {class}
+the painting in the style of {pt1} {class}
+a clean painting in the style of {pt1} {class}
+a dirty painting in the style of {pt1} {class}
+a dark painting in the style of {pt1} {class}
+a picture in the style of {pt1} {class}
+a cool painting in the style of {pt1} {class}
+a close-up painting in the style of {pt1} {class}
+a bright painting in the style of {pt1} {class}
+a cropped painting in the style of {pt1} {class}
+a good painting in the style of {pt1} {class}
+a close-up painting in the style of {pt1} {class}
+a rendition in the style of {pt1} {class}
+a nice painting in the style of {pt1} {class}
+a small painting in the style of {pt1} {class}
+a weird painting in the style of {pt1} {class}
+a large painting in the style of {pt1} {class}

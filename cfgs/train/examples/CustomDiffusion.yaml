@@ -4,21 +4,24 @@ unet:
   -
     lr: 1e-6
     layers:
-      - ''
+      - 're:.*\.to_k$'
+      - 're:.*\.to_v$'
 
-text_encoder: null
-
-lora_unet: null
-lora_text_encoder: null
+## lora version of CustomDiffusion
+#lora_unet:
+#  -
+#    lr: 1e-4
+#    layers:
+#      - 're:.*\.to_k$'
+#      - 're:.*\.to_v$'
 
 tokenizer_pt:
-  train: null
+  train: # prompt tuning embeddings, needs to be created in advance
+    - { name: 'pt-dog1', lr: 0.003 }
 
 train:
   gradient_accumulation_steps: 1
-  save_step: 200
-
-  cfg_scale: '1.0'
+  save_step: 100
 
   scheduler:
     name: 'constant_with_warmup'
@@ -26,14 +29,13 @@ train:
     num_training_steps: 600
 
 model:
-  #pretrained_model_name_or_path: '/mnt/f/code/daam/models/any3.0'
-  pretrained_model_name_or_path: '/mnt/f/code/stable-diffusion-v1-5'
+  pretrained_model_name_or_path: 'runwayml/stable-diffusion-v1-5'
   tokenizer_repeats: 1
   ema_unet: 0
   ema_text_encoder: 0
 
 data:
-  batch_size: 3
+  batch_size: 4
   prompt_template: 'prompt_tuning_template/object.txt'
   caption_file: null
   cache_latents: True
@@ -44,9 +46,10 @@ data:
         p: 0.1
       - _target_: utils.caption_tools.TemplateFill
         word_names:
-          pt1: sks
+          pt1: pt-dog1
           class: dog
   bucket:
+    _target_: data.bucket.arb_from_files
     img_root: 'imgs/'
     target_area: {_target_: "builtins.eval", _args_: ['512*512']}
     num_bucket: 1
@@ -62,8 +65,7 @@ data_class:
       - _target_: utils.caption_tools.TagDropout
         p: 0.1
       - _target_: utils.caption_tools.TemplateFill
-        word_names:
-          pt1: ''
+        word_names: # class word only
           class: dog
   bucket:
     _target_: data.bucket.FixedBucket
