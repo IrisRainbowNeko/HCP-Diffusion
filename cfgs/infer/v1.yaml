@@ -5,7 +5,7 @@ prompt: ''
 neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
 out_dir: 'output/'
 emb_dir: 'embs/'
-N_repeat: 1
+N_repeats: 1
 bs: 4
 num: 1
 seed: null
