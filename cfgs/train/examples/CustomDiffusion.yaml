@@ -41,15 +41,15 @@ data:
   cache_latents: True
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TagShuffle
-      - _target_: utils.caption_tools.TagDropout
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle
+      - _target_: hcpdiff.utils.caption_tools.TagDropout
         p: 0.1
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: pt-dog1
           class: dog
   bucket:
-    _target_: data.bucket.arb_from_files
+    _target_: hcpdiff.data.bucket.RatioBucket.from_files
     img_root: 'imgs/'
     target_area: {_target_: "builtins.eval", _args_: ['512*512']}
     num_bucket: 1
@@ -61,13 +61,13 @@ data_class:
   cache_latents: True
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TagShuffle
-      - _target_: utils.caption_tools.TagDropout
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle
+      - _target_: hcpdiff.utils.caption_tools.TagDropout
         p: 0.1
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names: # class word only
           class: dog
   bucket:
-    _target_: data.bucket.FixedBucket
+    _target_: hcpdiff.data.bucket.FixedBucket
     img_root: 'db/dog'
     target_size: 512

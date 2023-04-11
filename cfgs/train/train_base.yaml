@@ -78,13 +78,13 @@ data:
   tag_transforms:
     _target_: torchvision.transforms.Compose
     transforms:
-      - _target_: utils.caption_tools.TagShuffle
-      - _target_: utils.caption_tools.TagDropout
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle
+      - _target_: hcpdiff.utils.caption_tools.TagDropout
         p: 0.1
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names: {} # Replace placeholders with specific words or embeddings
   bucket:
-    _target_: data.bucket.arb_from_files # aspect ratio bucket
+    _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
     img_root: 'imgs/train' # images directory of train images
     target_area: {_target_: "builtins.eval", _args_: ['512*512']} # Expected area of training images: width * height
     num_bucket: 5
@@ -99,6 +99,6 @@ data_class: # for DreamBooth
   image_transforms: ${..data.image_transforms}
   tag_transforms: ${..data.tag_transforms}
   bucket:
-    _target_: data.bucket.FixedBucket # aspect ratio bucket
+    _target_: hcpdiff.data.bucket.FixedBucket # aspect ratio bucket
     img_root: 'imgs/train_class'
     target_size: [512, 512]

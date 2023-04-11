@@ -9,16 +9,15 @@ pair_dataset.py
 """
 
 import os.path
-import random
 
 import torch
 from PIL import Image
 import cv2
 from torch.utils.data import Dataset
 from .bucket import BaseBucket
-from utils.caption_tools import *
-from utils.utils import _default, get_file_name, get_file_ext
-from utils.img_size_tool import types_support
+from hcpdiff.utils.caption_tools import *
+from hcpdiff.utils.utils import _default, get_file_name, get_file_ext
+from hcpdiff.utils.img_size_tool import types_support
 from tqdm.auto import tqdm
 
 import json

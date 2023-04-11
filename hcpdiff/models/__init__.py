@@ -1,3 +1,4 @@
+from .plugin import PluginBlock, PluginGroup, SinglePluginBlock, MultiPluginBlock
 from .lora import LoraBlock
 from .text_emb_ex import EmbeddingPTHook
 from .textencoder_ex import TEEXHook

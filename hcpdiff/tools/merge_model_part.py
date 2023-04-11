@@ -1,5 +1,5 @@
 import sys
-sys.path.append('./')
+sys.path.append('/')
 
 import torch
 from torch import nn
@@ -7,9 +7,9 @@ import argparse
 
 from diffusers import UNet2DConditionModel, StableDiffusionPipeline
 
-from models.lora import collapse_lora_weight
-from utils.cfg_net_tools import get_layers_with_block, get_match_layers
-from utils.utils import str2bool, load_config, import_model_class_from_model_name_or_path
+from hcpdiff.models.lora import collapse_lora_weight
+from hcpdiff.utils.cfg_net_tools import get_layers_with_block, get_match_layers
+from hcpdiff.utils.utils import load_config, import_model_class_from_model_name_or_path
 
 def get_blocks_from_lora_state(state_dict):
     return list({name[:name.rfind('lora_block.')-1] for name in state_dict.keys() if name.rfind('lora_block.')!=-1})

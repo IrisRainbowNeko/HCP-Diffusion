@@ -10,14 +10,13 @@ lora.py
 
 import torch
 from torch import nn
-import math
-from einops import repeat, rearrange
+from einops import repeat
 
-from utils.utils import low_rank_approximate, make_mask
+from hcpdiff.utils.utils import make_mask
 from .plugin import SinglePluginBlock, PluginGroup
 from .lora_layers import build_layer
 
-from typing import Dict, Union, Tuple
+from typing import Union, Tuple
 
 class LoraBlock(SinglePluginBlock):
     def __init__(self, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False, inplace=True, rank_groups=1):

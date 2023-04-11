@@ -16,7 +16,7 @@ train:
   max_grad_norm: 1.0 #梯度剪裁，防止梯度爆炸
   set_grads_to_none: False #重置梯度时是否设置为None
   save_step: 100 # 保存模型的步数间隔
-  log_step: 20 # 输入训练信息的步数间隔
+  log_step: 20 # 输出训练信息的步数间隔
   
   # DreamArtist中的CFG强度，1.0表示不使用DreamArtist
   # 支持动态CFG，随diffusion的时间步动态变化

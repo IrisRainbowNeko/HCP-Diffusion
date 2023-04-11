@@ -37,13 +37,13 @@ data:
   cache_latents: True
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TagShuffle
-      - _target_: utils.caption_tools.TagDropout
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle
+      - _target_: hcpdiff.utils.caption_tools.TagDropout
         p: 0.1
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names: {}
   bucket:
-    _target_: data.bucket.arb_from_files # aspect ratio bucket
+    _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
     img_root: 'imgs/'
     target_area: {_target_: "builtins.eval", _args_: ['512*512']}
     num_bucket: 10

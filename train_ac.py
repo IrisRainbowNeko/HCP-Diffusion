@@ -10,41 +10,35 @@ train_ac.py
 
 
 import argparse
-import hashlib
 import itertools
-import math
 import os
-import warnings
 import sys
 
-import accelerate
 import torch
-from torch import nn
 import torch.utils.checkpoint
 import transformers
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from transformers import AutoTokenizer, PretrainedConfig
+from transformers import AutoTokenizer
 from omegaconf import OmegaConf
 import hydra
 from loguru import logger
 import time
 
 import diffusers
-from diffusers import AutoencoderKL, DDPMScheduler, UNet2DConditionModel
+from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 
-from data import TextImagePairDataset, RatioBucket
-from utils.utils import get_scheduler, import_model_class_from_model_name_or_path, cycle_data,\
+from hcpdiff.data import TextImagePairDataset, RatioBucket
+from hcpdiff.utils.utils import get_scheduler, import_model_class_from_model_name_or_path, cycle_data,\
     load_config_with_cli, get_cfg_range, var_get
-from models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
-from models import lora, LoraBlock
-from utils.ema import ModelEMA
-from utils.cfg_net_tools import make_hcpdiff
-from utils.emb_utils import load_emb
-from data.utils import collate_fn_ft
+from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
+from hcpdiff.utils.ema import ModelEMA
+from hcpdiff.utils.cfg_net_tools import make_hcpdiff
+from hcpdiff.utils.emb_utils import load_emb
+from hcpdiff.data import collate_fn_ft
 from visualizer import Visualizer
-from utils.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.utils.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 class Trainer:
     def __init__(self, cfgs_raw):

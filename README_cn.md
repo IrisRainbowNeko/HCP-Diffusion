@@ -53,11 +53,10 @@ torchrun --nproc_per_node 1 train_colo.py --cfg cfgs/train/配置文件.yaml
 
 生成图像:
 ```yaml
-python visualizer.py --pretrained_model pretrained_model_path
-        --prompt positive_prompt \
-        --neg_prompt negative_prompt \
-        --seed 42 \
-        [--cfg_merge cfg_file_of_load_lora_or_model_part]
+python visualizer.py --cfg cfgs/infer/cfg.yaml pretrained_model=pretrained_model_path \
+        prompt='positive_prompt' \
+        neg_prompt='negative_prompt' \
+        seed=42
 ```
 
 + [模型训练教程](doc/guide_train_cn.md)

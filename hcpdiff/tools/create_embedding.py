@@ -1,13 +1,13 @@
 import sys
-sys.path.append('./')
+sys.path.append('/')
 
 import argparse
 import os.path
 
 import torch
-from utils.utils import str2bool, import_model_class_from_model_name_or_path
+from hcpdiff.utils.utils import str2bool, import_model_class_from_model_name_or_path
 from transformers import AutoTokenizer
-from utils.emb_utils import save_emb
+from hcpdiff.utils.emb_utils import save_emb
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
