@@ -18,9 +18,13 @@ train:
   log_step: 20
   cfg_scale: '1.0' # for DreamArtist
 
-  resume:
-    ckpt_path: ''
-    start_step: 0
+  resume: null
+#  resume:
+#    ckpt_path:
+#      unet: []
+#      TE: []
+#      words: {}
+#    start_step: 0
 
   loss:
     criterion:

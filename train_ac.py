@@ -41,7 +41,7 @@ from models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
 from models import lora, LoraBlock
 from utils.ema import ModelEMA
 from utils.cfg_net_tools import make_hcpdiff
-from utils.emb_utils import save_emb
+from utils.emb_utils import load_emb
 from data.utils import collate_fn_ft
 from visualizer import Visualizer
 from utils.ckpt_manager import CkptManagerPKL, CkptManagerSafe
@@ -75,6 +75,7 @@ class Trainer:
         self.lr=1e-5 # no usage, place set lr in cfgs
         self.train_TE = (cfgs.text_encoder is not None) or (cfgs.lora_text_encoder is not None)
 
+        self.build_ckpt_manager()
         self.build_model()
         self.make_hooks()
         self.config_model()
@@ -94,10 +95,10 @@ class Trainer:
         else: # DreamArtist
             self.cfg_context = DreamArtistPTContext(self.cfg_scale, self.num_train_timesteps)
 
-        self.build_ckpt_manager()
-
         with torch.no_grad():
             self.build_ema()
+
+        self.load_resume()
 
         if cfgs.allow_tf32:
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -233,6 +234,16 @@ class Trainer:
         if not self.train_TE:
             self.text_encoder.to(self.device, dtype=weight_dtype)
 
+    @torch.no_grad()
+    def load_resume(self):
+        if self.cfgs.resume is not None:
+            for ckpt in self.cfgs.resume.ckpt_path.unet:
+                self.ckpt_manager.load_ckpt_to_model(self.unet, ckpt, model_ema=var_get(self, 'ema_unet', None))
+            for ckpt in self.cfgs.resume.ckpt_path.TE:
+                self.ckpt_manager.load_ckpt_to_model(self.text_encoder, ckpt, model_ema=var_get(self, 'ema_text_encoder', None))
+            for name, ckpt in self.cfgs.resume.ckpt_path.words:
+                self.ex_words_emb[name].data = load_emb(ckpt)
+
     def make_hooks(self):
         # Hook tokenizer and embedding to support pt
         self.embedding_hook, self.ex_words_emb = EmbeddingPTHook.hook_from_dir(
@@ -327,6 +338,8 @@ class Trainer:
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
         logger.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
         self.global_step = 0
+        if self.cfgs.resume is not None:
+            self.global_step = self.cfgs.resume.start_step
 
         if self.train_loader_class is not None:
             self.data_iter_class = iter(cycle_data(self.train_loader_class, arb=self.arb_class))
