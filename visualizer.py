@@ -18,7 +18,7 @@ class Visualizer:
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.cfg_merge=cfgs.merge
 
-        comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained, safety_checker=None, requires_safety_checker=False).components
+        comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False).components
         comp.update(cfgs.new_components)
         self.pipe = StableDiffusionPipeline(**comp)
 
