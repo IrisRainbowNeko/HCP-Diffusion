@@ -97,11 +97,12 @@ class LoraLayerConv2d(LoraLayerBase):
 
 class LoraLayerLinearGroup(LoraLayerLinear):
     def __init__(self, host, rank, dropout=0.1, bias=False, rank_groups=1):
+        self.rank_groups_raw = rank_groups
         super().__init__(host, rank, dropout, bias)
-        self.register_buffer('rank_groups', torch.tensor(rank_groups))
 
     def build_layers(self):
         host=self.host()
+        self.register_buffer('rank_groups', torch.tensor(self.rank_groups_raw, dtype=torch.int))
         self.lora_down = GroupLinear(host.in_features*self.rank_groups, self.rank, groups=self.rank_groups, bias=False)
         self.lora_up = GroupLinear(self.rank, host.out_features*self.rank_groups, groups=self.rank_groups, bias=self.bias)
 
@@ -111,8 +112,9 @@ class LoraLayerLinearGroup(LoraLayerLinear):
 
     def forward(self, x):
         x = repeat(x, 'b l c -> b l (g c)', g=self.rank_groups)
+        x = rearrange(x, 'b l (g c) -> b g l c', g=self.rank_groups)
         x = self.dropout(self.lora_up(self.lora_down(x)))
-        x = torch.prod(x, dim=1)
+        x = torch.prod(x, dim=1, dtype=torch.float16)
         return x
 
     def get_collapsed_param(self):
@@ -120,11 +122,12 @@ class LoraLayerLinearGroup(LoraLayerLinear):
 
 class LoraLayerConv2dGroup(LoraLayerLinear):
     def __init__(self, host, rank, dropout=0.1, bias=False, rank_groups=1):
+        self.rank_groups_raw=rank_groups
         super().__init__(host, rank, dropout, bias)
-        self.register_buffer('rank_groups', torch.tensor(rank_groups))
 
     def build_layers(self):
         host=self.host()
+        self.register_buffer('rank_groups', torch.tensor(self.rank_groups_raw))
         self.lora_down = nn.Conv2d(host.in_channels*self.rank_groups, self.rank, kernel_size=host.kernel_size, stride=host.stride,
                                    padding=host.padding, dilation=host.dilation, groups=self.rank_groups, bias=False)
         self.lora_up = nn.Conv2d(self.rank, host.out_channels*self.rank_groups, kernel_size=1, stride=1, padding=0,
