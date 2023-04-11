@@ -1,3 +1,13 @@
+"""
+layers.py
+====================
+    :Name:        GroupLinear and other layers
+    :Author:      Dong Ziyi
+    :Affiliation: HCP Lab, SYSU
+    :Created:     09/04/2023
+    :Licence:     Apache-2.0
+"""
+
 import torch
 from torch import nn
 import math

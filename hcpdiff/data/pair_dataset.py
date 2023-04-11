@@ -5,7 +5,7 @@ pair_dataset.py
     :Author:      Dong Ziyi
     :Affiliation: HCP Lab, SYSU
     :Created:     10/03/2023
-    :Licence:     MIT
+    :Licence:     Apache-2.0
 """
 
 import os.path

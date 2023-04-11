@@ -1,11 +1,11 @@
 """
-lora.py
+lora_layers.py
 ====================
-    :Name:        lora tools
+    :Name:        lora layers
     :Author:      Dong Ziyi
     :Affiliation: HCP Lab, SYSU
-    :Created:     10/03/2023
-    :Licence:     MIT
+    :Created:     09/04/2023
+    :Licence:     Apache-2.0
 """
 
 from typing import Union

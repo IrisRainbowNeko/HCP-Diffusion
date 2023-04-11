@@ -5,7 +5,7 @@ text_emb_ex.py
     :Author:      Dong Ziyi
     :Affiliation: HCP Lab, SYSU
     :Created:     10/03/2023
-    :Licence:     MIT
+    :Licence:     Apache-2.0
 """
 
 import torch
