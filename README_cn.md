@@ -63,6 +63,7 @@ python visualizer.py --pretrained_model pretrained_model_path
 + [模型训练教程](doc/guide_train_cn.md)
 + [DreamArtist++使用教程](doc/guide_DA_cn.md)
 + [图像生成教程](doc/guide_infer_cn.md)
++ [配置文件说明](doc/guide_cfg_cn.md)
 
 ## Team
 
