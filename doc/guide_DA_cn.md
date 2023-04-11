@@ -51,7 +51,7 @@ lora_text_encoder:
 data:
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: [my-cat, my-cat-neg] #触发词需要正负一对
 ```
@@ -62,7 +62,7 @@ data_class:
   caption_file: dataset/image_captions.json #训练text-image对
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: ['', ''] #由于使用了DreamArtist++，所有填充词都需要正负一对
 ```

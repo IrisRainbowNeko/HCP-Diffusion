@@ -52,7 +52,7 @@ The trigger words for each branch are defined in the data file (which needs to b
 data:
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: [my-cat, my-cat-neg] # Trigger words require a positive or negative pair
 ```
@@ -65,7 +65,7 @@ data_class:
   caption_file: dataset/image_captions.json # Training text-image pair
   tag_transforms:
     transforms:
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: ['', ''] # Due to the use of DreamArtist++, all fill words need to be positive and negative pairs.
 ```

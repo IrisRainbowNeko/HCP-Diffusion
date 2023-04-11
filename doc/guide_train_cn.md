@@ -11,7 +11,7 @@ HCP-Diffusion可以通过```.yaml```配置文件，配置各种训练阶段可�
 
 配置文件中的值，可以在cli中修改:
 ```bash
-accelerate launch train_ac.py --cfg cfgs/train/配置文件.yaml data.batch_size=2 seed=1919810
+accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/配置文件.yaml data.batch_size=2 seed=1919810
 ```
 
 # 数据集配置
@@ -44,7 +44,7 @@ Bucket可以将图像分组排列组合，把具有相同特性的图像放入�
 
 可以从prompt数据库中随机抽取，生成图像，作为这一部分数据。
 ```bash
-python tools/gen_from_ptlist.py --model 预训练模型 --prompt_file prompt数据库.parquet --out_dir 图像输出路径
+python -m hcpdiff.tools.gen_from_ptlist --model 预训练模型 --prompt_file prompt数据库.parquet --out_dir 图像输出路径
 ```
 
 ## prompt模板使用 (配合tag_transforms)
@@ -60,7 +60,7 @@ prompt模板可以在训练阶段将其中的占位符替换成指定的文本�
 tag_transforms:
     _target_: torchvision.transforms.Compose
     transforms:
-      - _target_: utils.caption_tools.TemplateFill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
           pt1: my-cat # A custom embedding
           pt2: sofa
@@ -95,7 +95,7 @@ prompt-tuning训练word embedding，一个word embedding可以占多个词的位
 
 首先需要创建自定义word：
 ```bash
-python tools/create_embedding.py 预训练模型路径 word名称 一个word占几个词 [--init_text 初始化单词]
+python -m hcpdiff.tools.create_embedding 预训练模型路径 word名称 一个word占几个词 [--init_text 初始化单词]
 # 随机初始化 --init_text *标准差
 ```
 

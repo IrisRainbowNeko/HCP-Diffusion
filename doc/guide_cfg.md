@@ -104,15 +104,15 @@ data:
   tag_transforms: # Text augmentation and preprocessing
     _target_: torchvision.transforms.Compose
     transforms:
-      - _target_: utils.caption_tools.TagShuffle # Shuffle the caption by ","
-      - _target_: utils.caption_tools.TagDropout # Split the caption by "," and random delete
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle # Shuffle the caption by ","
+      - _target_: hcpdiff.utils.caption_tools.TagDropout # Split the caption by "," and random delete
         p: 0.1 # Probability of deletion
-      - _target_: utils.caption_tools.TemplateFill # Fill the prompt template, randomly choice one line in template to fill
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill # Fill the prompt template, randomly choice one line in template to fill
         word_names:
           pt1: pt-cat1 # Replace {pt1} in the template with pt-cat1
           class: cat # Replace {class} in the template with cat
   bucket: # What bucket to use for image processing and grouping
-    _target_: data.bucket.arb_from_files # Automatic clustering and grouping of all images in aspect ratio, avoiding crop as much as possible
+    _target_: hcpdiff.data.bucket.RatioBucket.from_files # Automatic clustering and grouping of all images in aspect ratio, avoiding crop as much as possible
     img_root: 'imgs/train' # images path
     # Image size used for training, value is area
     # Here we use the hydra syntax and call python's eval function to calculate the area

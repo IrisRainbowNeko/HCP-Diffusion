@@ -44,16 +44,16 @@ pip install -r requirements.txt
 Training:
 ```yaml
 # with accelerate
-accelerate launch -m hcpdiff.train_ac.py --cfg cfgs/train/cfg_file.yaml
+accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/cfg_file.yaml
 # with accelerate and only one gpu
-accelerate launch -m hcpdiff.train_ac_single.py --cfg cfgs/train/cfg_file.yaml
+accelerate launch -m hcpdiff.train_ac_single --cfg cfgs/train/cfg_file.yaml
 # with colossal-AI
-torchrun --nproc_per_node 1 -m hcpdiff.train_colo.py --cfg cfgs/train/cfg_file.yaml
+torchrun --nproc_per_node 1 -m hcpdiff.train_colo --cfg cfgs/train/cfg_file.yaml
 ```
 
 Inference:
 ```yaml
-python -m hcpdiff.visualizer.py --cfg cfgs/infer/cfg.yaml pretrained_model=pretrained_model_path \
+python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrained_model_path \
         prompt='positive_prompt' \
         neg_prompt='negative_prompt' \
         seed=42

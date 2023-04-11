@@ -104,15 +104,15 @@ data:
   tag_transforms: # 文本增强与预处理
     _target_: torchvision.transforms.Compose
     transforms:
-      - _target_: utils.caption_tools.TagShuffle # 按 "," 打乱描述的顺序
-      - _target_: utils.caption_tools.TagDropout # 按 "," 分割描述，随机删除
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle # 按 "," 打乱描述的顺序
+      - _target_: hcpdiff.utils.caption_tools.TagDropout # 按 "," 分割描述，随机删除
         p: 0.1 # 删除的概率
-      - _target_: utils.caption_tools.TemplateFill # 填充prompt模板，每次随机从模板文件中抽取一行
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill # 填充prompt模板，每次随机从模板文件中抽取一行
         word_names:
           pt1: pt-cat1 # 将模板中的{pt1}替换为 pt-cat1
           class: cat # 将模板中的{class}替换为 cat
   bucket: # 使用什么样的bucket对图像进行处理和分组
-    _target_: data.bucket.arb_from_files # 按所有图像的比例自动聚类分组，尽可能避免切图
+    _target_: hcpdiff.data.bucket.RatioBucket.from_files # 按所有图像的比例自动聚类分组，尽可能避免切图
     img_root: 'imgs/train' # 图片路径
     # 训练使用的图像尺寸，值为面积
     # 此处使用hydra语法，调用python的eval函数计算面积
