@@ -10,20 +10,20 @@ with open('requirements.txt', encoding='utf8') as f:
         requires.append(f'{x.strip()}')
 
 
-def get_data_files(data_dir):
+def get_data_files(data_dir, prefix=''):
     file_dict = {}
     for root, dirs, files in os.walk(data_dir, topdown=False):
         for name in files:
-            if root not in file_dict:
-                file_dict[root] = []
-            file_dict[root].append(os.path.join(root, name))
+            if prefix+root not in file_dict:
+                file_dict[prefix+root] = []
+            file_dict[prefix+root].append(os.path.join(root, name))
     return [(k, v) for k, v in file_dict.items()]
 
 
 setuptools.setup(
     name="hcpdiff",
     py_modules=["hcpdiff"],
-    version="0.1.0",
+    version="0.1.1",
     author="Ziyi Dong",
     author_email="dzy7eu7d7@gmail.com",
     description="A universal Stable-Diffusion toolbox",
@@ -50,8 +50,8 @@ setuptools.setup(
     },
 
     data_files=[
-        *get_data_files('prompt_tuning_template'),
-        *get_data_files('cfgs'),
+        *get_data_files('prompt_tuning_template', prefix='hcpdiff/'),
+        *get_data_files('cfgs', prefix='hcpdiff/'),
     ],
 
     install_requires=requires
