@@ -34,11 +34,20 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 
 ## Install
 
+Install with pip:
+```bash
+pip install hcpdiff
+# Start a new project and make initialization
+hcpinit
+```
 
+Install from source:
 ```bash
 git clone https://github.com/7eu7d7/HCP-Diffusion.git
 cd HCP-Diffusion
-pip install -r requirements.txt
+pip install -e .
+# Modified based on this project or start a new project and make initialization
+hcpinit
 ```
 
 ## User guidance

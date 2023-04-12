@@ -33,10 +33,20 @@ Prompt-tuning (textual inversion), DreamArtist, Fine-tuning, DreamBooth, lora, c
 * safetensors支持
 
 ## 安装
+通过pip安装:
+```bash
+pip install hcpdiff
+# 新建一个项目并进行初始化
+hcpinit
+```
+
+从源码安装:
 ```bash
 git clone https://github.com/7eu7d7/HCP-Diffusion.git
 cd HCP-Diffusion
-pip install -r requirements.txt
+pip install -e .
+# 基于此项目直接修改，或新建一个项目并进行初始化
+hcpinit
 ```
 
 ## 使用教程
