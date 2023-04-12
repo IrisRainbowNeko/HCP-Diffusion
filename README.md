@@ -70,6 +70,20 @@ python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrain
         seed=42
 ```
 
+The framework is based on diffusers. So it needs to convert the original stable diffusion model into a supported format using the [scripts provided by diffusers](https://github.com/huggingface/diffusers/blob/main/scripts/convert_original_stable_diffusion_to_diffusers.py).
++ Download the [config file](https://huggingface.co/runwayml/stable-diffusion-v1-5/blob/main/v1-inference.yaml)
++ Convert models based on config file
+
+```bash
+python -m hcpdiff.tools.sd2diffusers \
+    --checkpoint_path "path_to_stable_diffusion_model" \
+    --original_config_file "path_to_config_file" \
+    --dump_path "save_directory" \
+    [--extract_ema] # Extract ema model
+    [--from_safetensors] # Whether the original model is in safetensors format
+    [--to_safetensors] # Whether to save to safetensors format
+```
+
 + [Model Training Tutorial](doc/guide_train.md)
 + [DreamArtist++ Tutorial](doc/guide_DA.md)
 + [Model Inference Tutorial](doc/guide_infer.md)

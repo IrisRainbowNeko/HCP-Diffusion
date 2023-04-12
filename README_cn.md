@@ -69,6 +69,21 @@ python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrain
         seed=42
 ```
 
+该框架基于diffusers，可以使用 [diffusers提供的脚本](https://github.com/huggingface/diffusers/blob/main/scripts/convert_original_stable_diffusion_to_diffusers.py)
+把原版stable diffusion模型转换成支持的格式:
++ 首先下载[配置文件](https://huggingface.co/runwayml/stable-diffusion-v1-5/blob/main/v1-inference.yaml)
++ 根据配置文件转换模型
+
+```bash
+python -m hcpdiff.tools.sd2diffusers \
+    --checkpoint_path "stable diffusion模型路径" \
+    --original_config_file "下载的配置文件路径" \
+    --dump_path "储存路径(文件夹)" \
+    [--extract_ema] # 是否提取ema模型
+    [--from_safetensors] # 原模型是不是safetensors格式
+    [--to_safetensors] # 是否存成safetensors格式
+```
+
 + [模型训练教程](doc/guide_train_cn.md)
 + [DreamArtist++使用教程](doc/guide_DA_cn.md)
 + [图像生成教程](doc/guide_infer_cn.md)
