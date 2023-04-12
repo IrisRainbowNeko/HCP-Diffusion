@@ -9,47 +9,64 @@ caption_tools.py
 """
 
 import random
-import numpy as np
-from typing import List, Dict, Union
 from string import Formatter
+from typing import List, Dict, Union
+
+import numpy as np
+
 
 class TagShuffle:
     def __call__(self, data):
-        template, text = data
-        if text is None:
+        if 'caption' in data:
+            text = data['caption']
+            if text is not None:
+                tags = text.split(',')
+                random.shuffle(tags)
+                data['caption'] = ','.join(tags)
             return data
-        tags = text.split(',')
-        random.shuffle(tags)
-        return template, ','.join(tags)
+        else:
+            for i, item in enumerate(data['prompt']):
+                tags = item.split(',')
+                random.shuffle(tags)
+                data['prompt'][i] = ','.join(tags)
+            return data
 
     def __repr__(self):
         return 'TagShuffle()'
+
 
 class TagDropout:
     def __init__(self, p=0.1):
         self.p = p
 
     def __call__(self, data):
-        template, text = data
-        if text is None:
+        if 'caption' in data:
+            text = data['caption']
+            if text is not None:
+                tags = np.array(text.split(','))
+                data['caption'] = ','.join(tags[np.random.random(len(tags)) > self.p])
             return data
-        tags = np.array(text.split(','))
-        return template, ','.join(tags[np.random.random(len(tags))>self.p])
+        else:
+            for i, item in enumerate(data['prompt']):
+                tags = item.split(',')
+                data['prompt'][i] = ','.join(tags[np.random.random(len(tags)) > self.p])
+            return data
 
     def __repr__(self):
         return f'TagDropout(p={self.p})'
 
+
 class TemplateFill:
-    def __init__(self, word_names:Dict[str, Union[str, List[str]]]):
+    def __init__(self, word_names: Dict[str, Union[str, List[str]]]):
         self.word_names = word_names
-        self.DA_names = {k:v for k,v in word_names.items() if not isinstance(v, str)}
-        self.dream_artist=len(self.DA_names)>0
+        self.DA_names = {k: v for k, v in word_names.items() if not isinstance(v, str)}
+        self.dream_artist = len(self.DA_names) > 0
 
     def __call__(self, data):
-        template, caption = data
+        template, caption = data['prompt'], data['caption']
 
         keys_need = {i[1] for i in Formatter().parse(template) if i[1] is not None}
-        fill_dict={k:v for k,v in self.word_names.items() if k in keys_need}
+        fill_dict = {k: v for k, v in self.word_names.items() if k in keys_need}
 
         if (caption is not None) and ('caption' in keys_need):
             fill_dict.update(caption=caption)
@@ -57,14 +74,14 @@ class TemplateFill:
         # skip keys that not provide
         for k in keys_need:
             if k not in fill_dict:
-                fill_dict[k]=''
+                fill_dict[k] = ''
 
         if self.dream_artist:
-            fill_dict_pos = {k:(v if isinstance(v, str) else v[0]) for k,v in fill_dict.items()}
-            fill_dict_neg = {k:(v if isinstance(v, str) else v[1]) for k,v in fill_dict.items()}
-            return template.format(**fill_dict_neg), template.format(**fill_dict_pos)
+            fill_dict_pos = {k: (v if isinstance(v, str) else v[0]) for k, v in fill_dict.items()}
+            fill_dict_neg = {k: (v if isinstance(v, str) else v[1]) for k, v in fill_dict.items()}
+            return {'prompt':[template.format(**fill_dict_neg), template.format(**fill_dict_pos)]}
         else:
-            return template.format(**fill_dict)
+            return {'prompt':[template.format(**fill_dict)]}
 
     def __repr__(self):
         return f'TemplateFill(\nword_names={self.word_names}\n)'

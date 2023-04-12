@@ -18,4 +18,4 @@ torch
 torchvision
 tqdm
 transformers==4.25.1
-xformers
+xformers>=0.0.17

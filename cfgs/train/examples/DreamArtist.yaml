@@ -9,8 +9,8 @@ train:
   gradient_accumulation_steps: 1
   save_step: 100
 
-    #cfg_scale: '1.0-3.0:cos' # dynamic CFG with timestamp
-    cfg_scale: '3.0'
+  #cfg_scale: '1.0-3.0:cos' # dynamic CFG with timestamp
+  cfg_scale: '3.0'
 
   scheduler:
     name: 'constant_with_warmup'

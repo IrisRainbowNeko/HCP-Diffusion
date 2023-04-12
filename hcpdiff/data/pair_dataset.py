@@ -133,7 +133,7 @@ class TextImagePairDataset(Dataset):
             image = self.latents[img_name]
 
         caption_ist = self.caption_dict[img_name] if img_name in self.caption_dict else None
-        prompt_ist = self.tag_transforms((random.choice(self.prompt_template), caption_ist))
+        prompt_ist = self.tag_transforms({'prompt':random.choice(self.prompt_template), 'caption':caption_ist})['prompt']
 
         # tokenize Sp or (Sn, Sp)
         prompt_ids = self.tokenizer(
