@@ -31,6 +31,12 @@ data:
   bucket: null # Image provider, describing the way images are arranged and grouped
 ```
 
+If there is already have ```.txt``` caption file for each image, 
+you can convert it to ```.json``` caption file with the following command:
+```yaml
+python -m hcpdiff.tools.convert_caption_txt2json --data_root path_to_dataset
+```
+
 ## Bucket
 Bucket can group images, putting images with the same properties into the same batch.
 

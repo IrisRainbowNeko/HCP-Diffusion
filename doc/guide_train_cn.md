@@ -21,12 +21,17 @@ accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/配置文件.yaml data.ba
 data:
   batch_size: 4 # 这一部分数据的batch_size
   prompt_template: 'prompt_tuning_template/object.txt' # prompt填充模板，配合caption与自定义词使用
-  caption_file: null # path to image captions file
+  caption_file: null # 描述文件(tags)的路径
   cache_latents: True # 是否在训练前将图像用VAE编码缓存
   att_mask: null # attention mask所在目录
   image_transforms: null # 图像变换与数据增强
   tag_transforms: null # prompt变换与数据增强，填充模板
   bucket: null # 图像数据的提供者，描述图像的排列与组合方式
+```
+
+如果已有针对每个图片的```.txt```标注，可以通过下面的命令转换成```.json```标注:
+```yaml
+python -m hcpdiff.tools.convert_caption_txt2json --data_root 数据集路径
 ```
 
 ## Bucket
