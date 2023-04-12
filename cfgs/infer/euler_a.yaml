@@ -11,17 +11,17 @@ merge: # can be null
 
   group1:
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
     part:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
 
   group2:
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
     part: null

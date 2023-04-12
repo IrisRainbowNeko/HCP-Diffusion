@@ -26,11 +26,11 @@ merge: # can be null
     type: 'unet'
     base_model_alpha: 1.0 # base model weight to merge with lora or part
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
         mask: [0.5, 1]
-      - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.safetensors'
         alpha: 0.65
         layers: 'all'
         mask: [0, 0.5]
@@ -40,11 +40,11 @@ merge: # can be null
     type: 'TE'
     base_model_alpha: 1.0 # base model weight to infer with lora or part
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
         mask: [0.5, 1]
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-neg-600.ckpt'
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-neg-600.safetensors'
         alpha: 0.65
         layers: 'all'
         mask: [0, 0.5]
