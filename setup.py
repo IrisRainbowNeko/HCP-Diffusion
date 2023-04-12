@@ -1,11 +1,11 @@
 import setuptools
 import os
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
 
 requires = []
-with open('requirements.txt') as f:
+with open('requirements.txt', encoding='utf8') as f:
     for x in f.readlines():
         requires.append(f'{x.strip()}')
 
@@ -39,7 +39,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
-        'Scientific/Engineering :: Artificial Intelligence',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
     python_requires='>=3.7',
 
