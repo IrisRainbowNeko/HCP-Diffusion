@@ -67,3 +67,5 @@ data_class:
           pt1: ['', ''] #由于使用了DreamArtist++，所有填充词都需要正负一对
 ```
 生成用的prompt可以从prompt数据库中随机抽取。
+
+prompt数据库可以从这里选一个: [prompt数据库](https://huggingface.co/datasets/7eu7d7/HCP-Diffusion-datas/tree/main)

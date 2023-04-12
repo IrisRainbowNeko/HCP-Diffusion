@@ -71,3 +71,4 @@ data_class:
 ```
 The prompt used for generation can be randomly selected from the prompt database.
 
+prompt dataset can be selected from here: [prompt dataset](https://huggingface.co/datasets/7eu7d7/HCP-Diffusion-datas/tree/main)
