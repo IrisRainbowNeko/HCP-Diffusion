@@ -34,12 +34,11 @@ def convert_ldm_clip_checkpoint(checkpoint):
     add_prefix = 'embeddings.position_ids' in checkpoint
 
     for key in keys:
-        t_key = key
         if key.startswith("cond_stage_model.transformer"):
             t_key = key[len("cond_stage_model.transformer.") :]
-        if add_prefix:
-            t_key = 'text_model.'+t_key
-        text_model_dict[t_key] = checkpoint[key]
+            if add_prefix:
+                t_key = 'text_model.'+t_key
+            text_model_dict[t_key] = checkpoint[key]
 
     text_model.load_state_dict(text_model_dict)
 
