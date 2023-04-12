@@ -16,14 +16,38 @@
 
 import argparse
 import torch
+from transformers import CLIPTextModel
 
+import diffusers.pipelines.stable_diffusion.convert_from_ckpt as convert_from_ckpt
 try:
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from_original_stable_diffusion_ckpt as load_sd_ckpt
 except:
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import load_pipeline_from_original_stable_diffusion_ckpt as load_sd_ckpt
 
+def convert_ldm_clip_checkpoint(checkpoint):
+    text_model = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
+
+    keys = list(checkpoint.keys())
+
+    text_model_dict = {}
+
+    add_prefix = 'embeddings.position_ids' in checkpoint
+
+    for key in keys:
+        t_key = key
+        if key.startswith("cond_stage_model.transformer"):
+            t_key = key[len("cond_stage_model.transformer.") :]
+        if add_prefix:
+            t_key = 'text_model.'+t_key
+        text_model_dict[t_key] = checkpoint[key]
+
+    text_model.load_state_dict(text_model_dict)
+
+    return text_model
 
 if __name__ == "__main__":
+    convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
