@@ -64,6 +64,15 @@ python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrain
 + [图像生成教程](doc/guide_infer_cn.md)
 + [配置文件说明](doc/guide_cfg_cn.md)
 
+使用xformers减少显存使用并加速训练:
+```bash
+# use conda
+conda install xformers -c xformers
+
+# use pip
+pip install xfromers>=0.0.17
+```
+
 ## Team
 
 该工具箱由 [HCP-Lab, SYSU](https://www.sysu-hcp.net/) 维护，

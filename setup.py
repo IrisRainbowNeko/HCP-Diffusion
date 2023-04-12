@@ -1,16 +1,29 @@
 import setuptools
+import os
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-requires=[]
+requires = []
 with open('requirements.txt') as f:
     for x in f.readlines():
-        requires.append(f'"{x.strip()}"')
+        requires.append(f'{x.strip()}')
+
+
+def get_data_files(data_dir):
+    file_dict = {}
+    for root, dirs, files in os.walk(data_dir, topdown=False):
+        for name in files:
+            if root not in file_dict:
+                file_dict[root] = []
+            file_dict[root].append(os.path.join(root, name))
+    return [(k, v) for k, v in file_dict.items()]
+
 
 setuptools.setup(
-    name="hcpdiff", # Replace with your own username
-    version="1.0.0",
+    name="hcpdiff",
+    py_modules=["hcpdiff"],
+    version="0.1.0",
     author="Ziyi Dong",
     author_email="dzy7eu7d7@gmail.com",
     description="A universal Stable-Diffusion toolbox",
@@ -37,8 +50,8 @@ setuptools.setup(
     },
 
     data_files=[
-        ('prompt_tuning_template', ['*.txt']),
-        ('cfgs', ['*']),
+        *get_data_files('prompt_tuning_template'),
+        *get_data_files('cfgs'),
     ],
 
     install_requires=requires

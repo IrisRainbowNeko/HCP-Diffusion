@@ -64,6 +64,15 @@ python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrain
 + [Model Inference Tutorial](doc/guide_infer.md)
 + [Configuration file explanation](doc/guide_cfg.md)
 
+Use xformer to reduce VRAM usage and accelerate training:
+```bash
+# use conda
+conda install xformers -c xformers
+
+# use pip
+pip install xfromers>=0.0.17
+```
+
 ## Team
 
 This toolbox is maintained by [HCP-Lab, SYSU](https://www.sysu-hcp.net/).
