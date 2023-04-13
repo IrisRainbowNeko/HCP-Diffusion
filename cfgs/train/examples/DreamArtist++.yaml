@@ -8,13 +8,13 @@ lora_unet:
     type: p
     layers:
       - 're:.*\.attn.?$'
-      - 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
+      #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
   - lr: 4e-5 # Low negative unet lr prevents image collapse
     rank: 0.01875
     type: n
     layers:
       - 're:.*\.attn.?$'
-      - 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
+      #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
   #  - lr: 1e-4
   #    rank: 0.01875
   #    type: p
@@ -55,6 +55,11 @@ train:
   scheduler:
     name: 'constant_with_warmup'
     num_warmup_steps: 50
+    num_training_steps: 1000
+
+  scheduler_pt:
+    name: 'one_cycle'
+    num_warmup_steps: 200
     num_training_steps: 1000
 
 model:
