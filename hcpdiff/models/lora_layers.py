@@ -28,7 +28,7 @@ class LoraLayerBase(nn.Module):
         self.bias = bias
 
         if isinstance(self.rank, float):
-            self.rank = max(round(host.out_features * self.rank), 1)
+            self.rank = max(round(host().out_features * self.rank), 1)
 
         self.build_layers()
 
