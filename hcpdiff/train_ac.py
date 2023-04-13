@@ -31,7 +31,7 @@ from diffusers.utils.import_utils import is_xformers_available
 
 from hcpdiff.data import TextImagePairDataset, RatioBucket
 from hcpdiff.utils.utils import get_scheduler, import_model_class_from_model_name_or_path, cycle_data,\
-    load_config_with_cli, get_cfg_range, var_get
+    load_config_with_cli, get_cfg_range
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
 from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff
@@ -188,7 +188,8 @@ class Trainer:
             self.ckpt_manager = CkptManagerSafe()
         else:
             raise NotImplementedError(f'Not support ckpt type: {self.cfgs.ckpt_type}')
-        self.ckpt_manager.set_save_dir(os.path.join(self.exp_dir, 'ckpts'), emb_dir=self.cfgs.tokenizer_pt.emb_dir)
+        if self.is_local_main_process:
+            self.ckpt_manager.set_save_dir(os.path.join(self.exp_dir, 'ckpts'), emb_dir=self.cfgs.tokenizer_pt.emb_dir)
 
     def get_unet_raw(self):
         return self.unet.module
@@ -232,9 +233,9 @@ class Trainer:
     def load_resume(self):
         if self.cfgs.train.resume is not None:
             for ckpt in self.cfgs.train.resume.ckpt_path.unet:
-                self.ckpt_manager.load_ckpt_to_model(self.unet, ckpt, model_ema=var_get(self, 'ema_unet', None))
+                self.ckpt_manager.load_ckpt_to_model(self.unet, ckpt, model_ema=getattr(self, 'ema_unet', None))
             for ckpt in self.cfgs.train.resume.ckpt_path.TE:
-                self.ckpt_manager.load_ckpt_to_model(self.text_encoder, ckpt, model_ema=var_get(self, 'ema_text_encoder', None))
+                self.ckpt_manager.load_ckpt_to_model(self.text_encoder, ckpt, model_ema=getattr(self, 'ema_text_encoder', None))
             for name, ckpt in self.cfgs.train.resume.ckpt_path.words:
                 self.ex_words_emb[name].data = load_emb(ckpt)
 
@@ -348,9 +349,11 @@ class Trainer:
                 if self.global_step % self.cfgs.train.save_step == 0:
                     self.save_model()
                 if self.global_step % self.cfgs.train.log_step == 0:
-                    logger.info('Step [{}/{}], LR {:.2e}, Loss: {:.5f}'
+                    lr_model = self.lr_scheduler.get_last_lr()[0] if hasattr(self, 'lr_scheduler') else 0.
+                    lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
+                    logger.info('Step [{}/{}], LR_model: {:.2e}, LR_word: {:.2e}, Loss: {:.5f}'
                                 .format(self.global_step, self.cfgs.train.scheduler.num_training_steps,
-                                        self.lr_scheduler.get_last_lr()[0], loss_sum / self.cfgs.train.log_step))
+                                        lr_model, lr_word, loss_sum / self.cfgs.train.log_step))
                     loss_sum = 0
 
             if self.global_step >= self.cfgs.train.scheduler.num_training_steps:
@@ -462,11 +465,11 @@ class Trainer:
 
     def save_model(self, from_raw=False):
         unet_raw=self.get_unet_raw()
-        self.ckpt_manager.save_model_with_lora(unet_raw, self.lora_unet, model_ema=var_get(self, 'ema_unet', None),
+        self.ckpt_manager.save_model_with_lora(unet_raw, self.lora_unet, model_ema=getattr(self, 'ema_unet', None),
                                                name='unet', step=self.global_step)
         if self.train_TE:
             TE_raw = self.get_text_encoder_raw()
-            self.ckpt_manager.save_model_with_lora(TE_raw, self.lora_TE, model_ema=var_get(self, 'ema_text_encoder', None),
+            self.ckpt_manager.save_model_with_lora(TE_raw, self.lora_TE, model_ema=getattr(self, 'ema_text_encoder', None),
                                                    name='text_encoder', step=self.global_step)
 
         if self.DA_lora:

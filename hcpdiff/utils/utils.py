@@ -121,9 +121,6 @@ def _default(v, default):
 def dict_get(data, key, default):
     return data[key] if key in data else default
 
-def var_get(data, key, default):
-    return getattr(data, key) if hasattr(data, key) else default
-
 def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
     text_encoder_config = PretrainedConfig.from_pretrained(
         pretrained_model_name_or_path,
