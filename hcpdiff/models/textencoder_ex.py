@@ -47,6 +47,7 @@ class TEEXHook:
         prompt_embeds = self.text_enc(
             text_input_ids.to(self.device),
             attention_mask=attention_mask,
+            output_hidden_states=True,
         )
         return prompt_embeds
 
@@ -56,10 +57,10 @@ class TEEXHook:
 
     def forward_hook(self, host, feat_in:Tuple[torch.Tensor], feat_out):
         if self.clip_skip>0:
-            encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip]
+            encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
         else:
-            encoder_hidden_states = feat_out[0]  # Get the text embedding for conditioning
+            encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
 
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
         BOS, EOS = encoder_hidden_states[:, 0, :1, :], encoder_hidden_states[:, -1, -1:, :]
@@ -128,5 +129,5 @@ class TEEXHook:
         layer.forward = forward
 
     @classmethod
-    def hook_pipe(cls, pipe, N_repeats=3):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device=pipe._execution_device)
+    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0):
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device=pipe._execution_device, clip_skip=clip_skip)

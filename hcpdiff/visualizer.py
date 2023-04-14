@@ -29,7 +29,7 @@ class Visualizer:
 
         self.pipe = self.pipe.to("cuda")
         emb, _ = EmbeddingPTHook.hook_from_dir(cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=cfgs.N_repeats)
-        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=cfgs.N_repeats)
+        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=cfgs.N_repeats, clip_skip=cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():
