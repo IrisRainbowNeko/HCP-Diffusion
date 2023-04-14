@@ -27,9 +27,6 @@ class LoraLayerBase(nn.Module):
         self.host_type = None
         self.bias = bias
 
-        if isinstance(self.rank, float):
-            self.rank = max(round(host().out_features * self.rank), 1)
-
         self.build_layers()
 
     def build_layers(self):
@@ -82,6 +79,8 @@ class LoraLayerLinear(LoraLayerBase):
 
     def build_layers(self):
         host = self.host()
+        if isinstance(self.rank, float):
+            self.rank = max(round(host.out_features * self.rank), 1)
         self.lora_down = nn.Linear(host.in_features, self.rank, bias=False)
         self.lora_up = nn.Linear(self.rank, host.out_features, bias=self.bias)
 
@@ -93,6 +92,8 @@ class LoraLayerConv2d(LoraLayerBase):
 
     def build_layers(self):
         host = self.host()
+        if isinstance(self.rank, float):
+            self.rank = max(round(host.out_channels * self.rank), 1)
         self.lora_down = nn.Conv2d(host.in_channels, self.rank, kernel_size=host.kernel_size, stride=host.stride,
                                    padding=host.padding, dilation=host.dilation, groups=host.groups, bias=False)
         self.lora_up = nn.Conv2d(self.rank, host.out_channels, kernel_size=1, stride=1, padding=0, groups=host.groups, bias=self.bias)
