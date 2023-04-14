@@ -52,9 +52,11 @@ class Visualizer:
         os.makedirs(root, exist_ok=True)
         num_img_exist = len([x for x in os.listdir(root) if x.endswith('.png')])
 
-        emb_n, emb_p = self.te_hook.encode_prompt_to_emb(negative_prompt + prompt).chunk(2)
-        emb_p = self.te_hook.mult_attn(emb_p, self.token_ex.parse_attn_mult(prompt))
-        emb_n = self.te_hook.mult_attn(emb_n, self.token_ex.parse_attn_mult(negative_prompt))
+        mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
+        mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
+        emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n + clean_text_p).chunk(2)
+        emb_p = self.te_hook.mult_attn(emb_p, mult_p)
+        emb_n = self.te_hook.mult_attn(emb_n, mult_n)
         images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
 
         for p, pn, img in zip(prompt, negative_prompt, images):

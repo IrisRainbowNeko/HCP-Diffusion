@@ -65,10 +65,11 @@ class TokenizerHook:
                 mult *= next(mult_iter)
             else:
                 mult_seq.append(mult)
-        return torch.tensor(mult_seq)
+        return torch.tensor(mult_seq), clean_str
 
     def parse_attn_mult(self, text):
         if isinstance(text, str):
-            return [self.parse_attn_mult_one(text)]
+            mult_seq, clean_str = self.parse_attn_mult_one(text)
+            return [mult_seq], [clean_str]
         else:
-            return [self.parse_attn_mult_one(item) for item in text]
+            return list(zip(*[self.parse_attn_mult_one(item) for item in text]))
