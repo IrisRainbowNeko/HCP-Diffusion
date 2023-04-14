@@ -19,10 +19,12 @@ class Visualizer:
         self.cfgs_raw = cfgs
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.cfg_merge = cfgs.merge
-        if cfgs.infer_dtype == 'float32':
-            weight_dtype = torch.float32
-        else:
+
+        if cfgs.fp16:
             weight_dtype = torch.float16
+        else:
+            weight_dtype = torch.float32
+
         comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False, torch_dtype=weight_dtype).components
         comp.update(cfgs.new_components)
         self.pipe = StableDiffusionPipeline(**comp)
@@ -47,7 +49,7 @@ class Visualizer:
                 elif cfg_group.type == 'TE':
                     load_hcpdiff(self.pipe.text_encoder, cfg_group)
 
-        if self.cfgs.infer_dtype == 'float16':
+        if self.cfgs.fp16:
             self.pipe.unet.to(torch.float16)
             self.pipe.text_encoder.to(torch.float16)
 
