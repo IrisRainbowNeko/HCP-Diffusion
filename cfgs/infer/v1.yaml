@@ -10,6 +10,7 @@ bs: 4
 num: 1
 seed: null
 save_cfg: True
+infer_dtype: 'float16'
 
 infer_args:
   width: 512
