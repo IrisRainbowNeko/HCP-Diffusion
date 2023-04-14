@@ -12,7 +12,7 @@ from omegaconf import OmegaConf
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff
 from hcpdiff.utils.utils import to_validate_file, load_config_with_cli
-
+from torch.cuda.amp import autocast
 
 class Visualizer:
     def __init__(self, cfgs):
@@ -20,12 +20,7 @@ class Visualizer:
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.cfg_merge = cfgs.merge
 
-        if cfgs.fp16:
-            weight_dtype = torch.float16
-        else:
-            weight_dtype = torch.float32
-
-        comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False, torch_dtype=weight_dtype).components
+        comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False).components
         comp.update(cfgs.new_components)
         self.pipe = StableDiffusionPipeline(**comp)
 
@@ -49,10 +44,6 @@ class Visualizer:
                 elif cfg_group.type == 'TE':
                     load_hcpdiff(self.pipe.text_encoder, cfg_group)
 
-        if self.cfgs.fp16:
-            self.pipe.unet.to(torch.float16)
-            self.pipe.text_encoder.to(torch.float16)
-
     def set_scheduler(self, scheduler):
         self.pipe.scheduler = scheduler
 
@@ -63,10 +54,11 @@ class Visualizer:
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
-        emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n + clean_text_p).chunk(2)
-        emb_p = self.te_hook.mult_attn(emb_p, mult_p)
-        emb_n = self.te_hook.mult_attn(emb_n, mult_n)
-        images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
+        with autocast(enabled=self.cfgs.fp16):
+            emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n + clean_text_p).chunk(2)
+            emb_p = self.te_hook.mult_attn(emb_p, mult_p)
+            emb_n = self.te_hook.mult_attn(emb_n, mult_n)
+            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
 
         for p, pn, img in zip(prompt, negative_prompt, images):
             img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.png"))
