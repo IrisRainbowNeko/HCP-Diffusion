@@ -9,8 +9,14 @@ N_repeats: 1
 bs: 4
 num: 1
 seed: null
-save_cfg: True
 fp16: True
+
+save:
+  save_cfg: True
+  image_type: png
+  quality: 95
+#  image_type: webp
+#  quality: 75
 
 infer_args:
   width: 512
