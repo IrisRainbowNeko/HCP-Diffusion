@@ -5,13 +5,13 @@ unet: null
 lora_unet:
   - lr: 1e-4
     rank: 0.01875
-    type: p
+    branch: p
     layers:
       - 're:.*\.attn.?$'
       #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
   - lr: 4e-5 # Low negative unet lr prevents image collapse
     rank: 0.01875
-    type: n
+    branch: n
     layers:
       - 're:.*\.attn.?$'
       #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
@@ -29,13 +29,13 @@ lora_unet:
 lora_text_encoder:
   - lr: 1e-5
     rank: 0.01
-    type: p
+    branch: p
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'
   - lr: 1e-5
     rank: 0.01
-    type: n
+    branch: n
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'
