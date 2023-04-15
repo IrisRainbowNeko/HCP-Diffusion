@@ -11,7 +11,7 @@ ckpt_pkl.py
 import torch
 from torch import nn
 import os
-from hcpdiff.models.lora import LoraBlock, LoraGroup, split_state
+from hcpdiff.models.lora_base import LoraBlock, LoraGroup, split_state
 from hcpdiff.utils.emb_utils import save_emb
 
 class CkptManagerPKL:

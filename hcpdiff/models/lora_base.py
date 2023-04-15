@@ -17,7 +17,7 @@ from .plugin import SinglePluginBlock, PluginGroup, BasePluginBlock
 from typing import Union, Tuple, Dict, Type
 
 class LoraBlock(SinglePluginBlock):
-    def __init__(self, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False, inplace=True):
+    def __init__(self, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False, inplace=True, **kwargs):
         super().__init__(host)
         if hasattr(host, 'lora_block'):
             self.id = len(host.lora_block)
@@ -32,17 +32,15 @@ class LoraBlock(SinglePluginBlock):
 
         if isinstance(host, nn.Linear):
             self.host_type = 'linear'
-            self.layer = self.LinearLayer(host, rank, bias)
+            self.layer = self.LinearLayer(host, rank, bias, dropout)
         elif isinstance(host, nn.Conv2d):
             self.host_type = 'conv'
-            self.layer = self.Conv2dLayer(host, rank, bias)
+            self.layer = self.Conv2dLayer(host, rank, bias, dropout)
         else:
             raise NotImplementedError(f'No lora for {type(host)}')
         self.rank = self.layer.rank
 
-        self.dropout = nn.Dropout(dropout)
-        self.build_layers(self)
-        self.register_buffer('scale', torch.tensor(1.0 if scale == 0 else scale / self.layer.rank))
+        self.register_buffer('scale', torch.tensor(1.0 if scale == 0 else scale / self.rank))
 
     def set_mask(self, mask_range):
         self.mask_range = mask_range
@@ -53,21 +51,21 @@ class LoraBlock(SinglePluginBlock):
             U, V = low_rank_approximate(host.weight, self.rank)
             self.feed_svd(U, V, host.weight)
         else:
-            self.lora_down.reset_parameters()
-            nn.init.zeros_(self.lora_up.weight)
+            self.layer.lora_down.reset_parameters()
+            nn.init.zeros_(self.layer.lora_up.weight)
 
     def forward(self, fea_in:Tuple[torch.Tensor], fea_out:torch.Tensor):
         if self.mask_range is None:
-            return fea_out + self.lora_forward(fea_in[0]) * self.scale
+            return fea_out + self.layer(fea_in[0]) * self.scale
         else:
             # for DreamArtist-lora
             batch_mask = make_mask(self.mask_range[0], self.mask_range[1], fea_out.shape[0])
             if self.inplace:
-                fea_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.lora_forward(fea_in[0][batch_mask, ...]) * self.scale
+                fea_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.scale
                 return fea_out
             else: # colossal-AI dose not support inplace+view
                 new_out = fea_out.clone()
-                new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.lora_forward(fea_in[0][batch_mask, ...]) * self.scale
+                new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.scale
                 return new_out
 
     def remove(self):
@@ -98,10 +96,12 @@ class LoraBlock(SinglePluginBlock):
                     host.bias.data * base_alpha + alpha * re_b.to(host.weight.device, dtype=host.weight.dtype))
 
     class LinearLayer(nn.Module):
-        def __init__(self, host, rank, bias):
+        def __init__(self, host, rank, bias, dropout):
             super().__init__()
+            self.rank=rank
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_features * self.rank), 1)
+            self.dropout = nn.Dropout(dropout)
 
         def feed_svd(self, U, V, weight):
             self.lora_up.weight.data = U.to(device=weight.device, dtype=weight.dtype)
@@ -114,10 +114,12 @@ class LoraBlock(SinglePluginBlock):
             pass
 
     class Conv2dLayer(nn.Module):
-        def __init__(self, host, rank, bias):
+        def __init__(self, host, rank, bias, dropout):
             super().__init__()
+            self.rank = rank
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_channels * self.rank), 1)
+            self.dropout = nn.Dropout(dropout)
 
         def feed_svd(self, U, V, weight):
             self.lora_up.weight.data = U.to(device=weight.device, dtype=weight.dtype)
