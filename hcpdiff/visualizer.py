@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff
 from hcpdiff.utils.utils import to_validate_file, load_config_with_cli
+from hcpdiff.utils.img_size_tool import types_support
 from torch.cuda.amp import autocast
 
 class Visualizer:
@@ -50,7 +51,7 @@ class Visualizer:
     @torch.no_grad()
     def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
         os.makedirs(root, exist_ok=True)
-        num_img_exist = len([x for x in os.listdir(root) if x.endswith('.png')])
+        num_img_exist = len([x for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
@@ -61,7 +62,7 @@ class Visualizer:
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
 
         for p, pn, img in zip(prompt, negative_prompt, images):
-            img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.png"))
+            img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.cfgs.save.image_type}"), quality=self.cfgs.save.quality)
 
             if save_cfg:
                 with open(os.path.join(root, f"{num_img_exist}-info.yaml"), 'w', encoding='utf-8') as f:
@@ -98,4 +99,4 @@ if __name__ == '__main__':
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
         viser.vis_to_dir(cfgs.out_dir, prompt=[cfgs.prompt] * cfgs.bs, negative_prompt=[cfgs.neg_prompt] * cfgs.bs,
-                         generator=G, save_cfg=cfgs.save_cfg, **cfgs.infer_args)
+                         generator=G, save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)
