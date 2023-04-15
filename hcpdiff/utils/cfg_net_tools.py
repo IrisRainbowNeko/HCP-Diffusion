@@ -16,7 +16,8 @@ import torch
 from torch import nn
 
 from .utils import dict_get
-from hcpdiff.models.lora import LoraBlock, LoraGroup
+from hcpdiff.models.lora_base import LoraBlock, LoraGroup
+from hcpdiff.models import lora_layers
 from .ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):
@@ -65,26 +66,22 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
                 layer = named_modules[layer_name]
                 layer.requires_grad_(True)
                 layer.train()
-                #if hasattr(layer, 'lora_block'):
-                #    layer.lora_block.requires_grad_(False)
-                #    layer.lora_block.eval()
                 train_params.append({'params':list(LoraBlock.extract_param_without_lora(layer).values()), 'lr':dict_get(item, 'lr', default_lr)})
 
     if cfg_lora is not None:
         for item in cfg_lora:
             for layer_name in get_match_layers(item.layers, named_modules):
                 layer = named_modules[layer_name]
-                lora_block_dict = LoraBlock.warp_model(layer, dict_get(item, 'rank', 4), dict_get(item, 'dropout', 0.0),
-                                                 dict_get(item, 'scale', 1.0), dict_get(item, 'svd_init', False),
-                                                 rank_groups=dict_get(item, 'rank_groups', 1))
-                block_type = dict_get(item, 'type', None) # for DreamArtist-lora
+                arg_dict = {k:v for k,v in item.items() if k!='layers'}
+                lora_block_dict = lora_layers.layer_map[getattr(arg_dict, 'type', 'lora')].warp_model(layer, **arg_dict)
+                block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
-                    if block_type is None:
+                    if block_branch is None:
                         all_lora_blocks[f'{layer_name}.{k}'] = v
-                    elif block_type=='p':
+                    elif block_branch=='p':
                         all_lora_blocks[f'{layer_name}.{k}'] = v
                         v.set_mask((0.5, 1))
-                    elif block_type == 'n':
+                    elif block_branch == 'n':
                         all_lora_blocks_neg[f'{layer_name}.{k}']=v
                         v.set_mask((0, 0.5))
 
@@ -99,6 +96,12 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
         return train_params, (LoraGroup(all_lora_blocks), LoraGroup(all_lora_blocks_neg))
     else:
         return train_params, LoraGroup(all_lora_blocks)
+
+def make_plugin(model, cfg_plugin, default_lr=1e-5):
+    named_modules = {k:v for k,v in model.named_modules()}
+
+    train_params=[]
+    all_lora_blocks={}
 
 @torch.no_grad()
 def load_hcpdiff(model:nn.Module, cfg_merge):
@@ -137,11 +140,14 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                         rank = rank_groups*lora_state['layer.lora_down.weight'].shape[2]
                     else:
                         rank = lora_state['layer.lora_down.weight'].shape[0]
+                    lora_layer = lora_layers.layer_map['loha_group']
                 else:
                     rank = lora_state['layer.lora_down.weight'].shape[0]
+                    lora_layer = lora_layers.layer_map['lora']
                 del lora_state['scale']
-                lora_block_dict = LoraBlock.warp_model(named_modules[host_name], rank, dict_get(item, 'dropout', 0.0),
-                                                 dict_get(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
+
+                lora_block_dict = lora_layer.warp_model(named_modules[host_name], rank=rank, dropout=dict_get(item, 'dropout', 0.0),
+                                                 scale=dict_get(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
                                                  rank_groups=rank_groups)
                 all_lora_blocks[f'{host_name}.lora_block'] = lora_block_dict['lora_block']
                 lora_block_dict['lora_block'].load_state_dict(lora_state, strict=False)
