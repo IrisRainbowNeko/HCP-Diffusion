@@ -19,7 +19,7 @@ class TrainerSingleCard(Trainer):
 
         if cfg_data.cache_latents:
             self.cache_latents = True
-            train_dataset.cache_latents(self.vae, self.weight_dtype)
+            train_dataset.cache_latents(self.vae, self.weight_dtype, self.device)
 
         # Pytorch Data loader
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg_data.batch_size,
