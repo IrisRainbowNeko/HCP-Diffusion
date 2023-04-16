@@ -2,7 +2,7 @@ import torch
 import os
 
 def load_emb(path):
-    emb=torch.load(path)['string_to_param']['*']
+    emb=torch.load(path, map_location='cpu')['string_to_param']['*']
     emb.requires_grad_(False)
     return emb
 
