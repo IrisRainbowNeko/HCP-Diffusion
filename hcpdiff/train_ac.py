@@ -53,11 +53,11 @@ class Trainer:
             logger.add(os.path.join(self.exp_dir, 'train.log'))
             with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
                 f.write(OmegaConf.to_yaml(cfgs_raw))
+        else:
+            logger.disable("__main__")
 
-        logger.info(f'rank: {self.local_rank}')
-        if self.is_local_main_process:
-            logger.info(f'world_size: {self.world_size}')
-            logger.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
+        logger.info(f'world_size: {self.world_size}')
+        logger.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
 
         if self.is_local_main_process:
             transformers.utils.logging.set_verbosity_warning()
@@ -242,7 +242,8 @@ class Trainer:
     def make_hooks(self):
         # Hook tokenizer and embedding to support pt
         self.embedding_hook, self.ex_words_emb = EmbeddingPTHook.hook_from_dir(
-                        self.cfgs.tokenizer_pt.emb_dir, self.tokenizer, self.text_encoder, N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device)
+                        self.cfgs.tokenizer_pt.emb_dir, self.tokenizer, self.text_encoder, log=self.is_local_main_process,
+                        N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device)
 
         self.text_enc_hook = TEEXHook(self.text_encoder, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device,
                                       clip_skip=self.cfgs.model.clip_skip)
@@ -258,7 +259,7 @@ class Trainer:
 
         if cfg_data.cache_latents:
             self.cache_latents = True
-            train_dataset.cache_latents(self.vae, self.weight_dtype)
+            train_dataset.cache_latents(self.vae, self.weight_dtype, show_prog=self.is_local_main_process)
 
         # Pytorch Data loader
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,

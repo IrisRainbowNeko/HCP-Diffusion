@@ -83,11 +83,11 @@ class TextImagePairDataset(Dataset):
             return f.read().strip().split('\n')
 
     @torch.no_grad()
-    def cache_latents(self, vae, weight_dtype):
+    def cache_latents(self, vae, weight_dtype, show_prog=True):
         self.latents = {}
         self.bucket.rest(0)
 
-        for path, size in tqdm(self.bucket):
+        for path, size in tqdm(self.bucket, disable=not show_prog):
             img_name = os.path.basename(path)
             if img_name not in self.latents:
                 image = self.load_image(path)

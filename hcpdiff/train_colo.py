@@ -33,7 +33,7 @@ class TEUnetWapper(nn.Module):
         self.TE = TE
 
     def forward(self, prompt_ids, noisy_latents, timesteps):
-        encoder_hidden_states = self.TE(prompt_ids)  # Get the text embedding for conditioning
+        encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred
 
