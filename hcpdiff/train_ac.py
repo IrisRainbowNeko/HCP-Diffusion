@@ -109,7 +109,7 @@ class Trainer:
         return self.accelerator.is_local_main_process
 
     def init_context(self, cfgs_raw):
-        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False)
+        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False, find_unused_parameters=True)
         self.accelerator = Accelerator(
             gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
             mixed_precision=self.cfgs.mixed_precision,
