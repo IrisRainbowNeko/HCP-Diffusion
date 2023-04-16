@@ -3,10 +3,23 @@ import sys
 import torch
 from loguru import logger
 
-from hcpdiff.train_ac import Trainer, TextImagePairDataset, RatioBucket, load_config_with_cli
+from accelerate import Accelerator
+from hcpdiff.train_ac import Trainer, TextImagePairDataset, RatioBucket, load_config_with_cli, set_seed
 from hcpdiff.data import collate_fn_ft
 
 class TrainerSingleCard(Trainer):
+    def init_context(self, cfgs_raw):
+        self.accelerator = Accelerator(
+            gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
+            mixed_precision=self.cfgs.mixed_precision,
+            step_scheduler_with_optimizer=False,
+        )
+
+        self.local_rank = 0
+        self.world_size = self.accelerator.num_processes
+
+        set_seed(self.cfgs.seed + self.local_rank)
+
     def build_data(self, cfg_data):
         train_dataset = TextImagePairDataset(cfg_data, self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         if isinstance(train_dataset.bucket, RatioBucket):
