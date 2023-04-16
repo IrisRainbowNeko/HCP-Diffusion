@@ -17,7 +17,7 @@ import sys
 import torch
 import torch.utils.checkpoint
 import transformers
-from accelerate import Accelerator
+from accelerate import Accelerator, DistributedDataParallelKwargs
 from accelerate.utils import set_seed
 from transformers import AutoTokenizer
 from omegaconf import OmegaConf
@@ -109,10 +109,12 @@ class Trainer:
         return self.accelerator.is_local_main_process
 
     def init_context(self, cfgs_raw):
+        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False)
         self.accelerator = Accelerator(
             gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
             mixed_precision=self.cfgs.mixed_precision,
             step_scheduler_with_optimizer=False,
+            kwargs_handlers=[ddp_kwargs], # fix inplace bug in DDP while use data_class
         )
 
         self.local_rank = int(os.environ.get("LOCAL_RANK", -1))
