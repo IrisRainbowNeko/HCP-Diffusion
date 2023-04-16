@@ -73,6 +73,7 @@ class Trainer:
         self.build_model()
         self.make_hooks()
         self.config_model()
+        self.cache_latents=False
         self.train_loader, self.arb_ist=self.build_data(cfgs.data)
         if cfgs.data_class is None:
             self.train_loader_class=None # without DreamBooth
