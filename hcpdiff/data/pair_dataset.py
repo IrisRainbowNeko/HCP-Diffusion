@@ -83,7 +83,7 @@ class TextImagePairDataset(Dataset):
             return f.read().strip().split('\n')
 
     @torch.no_grad()
-    def cache_latents(self, vae, weight_dtype, show_prog=True):
+    def cache_latents(self, vae, weight_dtype, device, show_prog=True):
         self.latents = {}
         self.bucket.rest(0)
 
@@ -94,7 +94,7 @@ class TextImagePairDataset(Dataset):
                 att_mask = self.get_att_map(get_file_name(img_name))
                 image, att_mask = self.process_data(image, att_mask, size)
 
-                image = image.unsqueeze(0).cuda().to(weight_dtype)
+                image = image.unsqueeze(0).to(device, dtype=weight_dtype)
                 latents = vae.encode(image).latent_dist.sample().squeeze(0)
                 self.latents[img_name] = [(latents * 0.18215).cpu(), att_mask]
 

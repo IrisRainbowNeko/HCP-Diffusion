@@ -228,9 +228,9 @@ class Trainer:
         self.weight_dtype = weight_dtype
 
         # Move vae and text_encoder to device and cast to weight_dtype
-        self.vae.to(self.device, dtype=weight_dtype)
+        self.vae = self.vae.to(self.device, dtype=weight_dtype)
         if not self.train_TE:
-            self.text_encoder.to(self.device, dtype=weight_dtype)
+            self.text_encoder = self.text_encoder.to(self.device, dtype=weight_dtype)
 
     @torch.no_grad()
     def load_resume(self):
