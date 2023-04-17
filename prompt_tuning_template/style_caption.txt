@@ -1,0 +1,19 @@
+a painting in the style of {pt1} {class}, {caption}
+a rendering in the style of {pt1} {class}, {caption}
+a cropped painting in the style of {pt1} {class}, {caption}
+the painting in the style of {pt1} {class}, {caption}
+a clean painting in the style of {pt1} {class}, {caption}
+a dirty painting in the style of {pt1} {class}, {caption}
+a dark painting in the style of {pt1} {class}, {caption}
+a picture in the style of {pt1} {class}, {caption}
+a cool painting in the style of {pt1} {class}, {caption}
+a close-up painting in the style of {pt1} {class}, {caption}
+a bright painting in the style of {pt1} {class}, {caption}
+a cropped painting in the style of {pt1} {class}, {caption}
+a good painting in the style of {pt1} {class}, {caption}
+a close-up painting in the style of {pt1} {class}, {caption}
+a rendition in the style of {pt1} {class}, {caption}
+a nice painting in the style of {pt1} {class}, {caption}
+a small painting in the style of {pt1} {class}, {caption}
+a weird painting in the style of {pt1} {class}, {caption}
+a large painting in the style of {pt1} {class}, {caption}
