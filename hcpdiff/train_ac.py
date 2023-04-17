@@ -364,7 +364,8 @@ class Trainer:
                 break
 
         self.wait_for_everyone()
-        self.save_model()
+        if self.is_local_main_process:
+            self.save_model()
 
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()
