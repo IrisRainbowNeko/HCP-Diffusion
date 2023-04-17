@@ -17,8 +17,9 @@ from .plugin import SinglePluginBlock, PluginGroup, BasePluginBlock
 from typing import Union, Tuple, Dict, Type
 
 class LoraBlock(SinglePluginBlock):
-    def __init__(self, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False, inplace=True, **kwargs):
-        super().__init__(host)
+    def __init__(self, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False, inplace=True,
+                 hook_param=None, **kwargs):
+        super().__init__(host, hook_param)
         if hasattr(host, 'lora_block'):
             self.id = len(host.lora_block)
             host.lora_block.append(self)
@@ -32,10 +33,10 @@ class LoraBlock(SinglePluginBlock):
 
         if isinstance(host, nn.Linear):
             self.host_type = 'linear'
-            self.layer = self.LinearLayer(host, rank, bias, dropout)
+            self.layer = self.LinearLayer(host, rank, bias, dropout, self)
         elif isinstance(host, nn.Conv2d):
             self.host_type = 'conv'
-            self.layer = self.Conv2dLayer(host, rank, bias, dropout)
+            self.layer = self.Conv2dLayer(host, rank, bias, dropout, self)
         else:
             raise NotImplementedError(f'No lora for {type(host)}')
         self.rank = self.layer.rank
@@ -96,7 +97,7 @@ class LoraBlock(SinglePluginBlock):
                     host.bias.data * base_alpha + alpha * re_b.to(host.weight.device, dtype=host.weight.dtype))
 
     class LinearLayer(nn.Module):
-        def __init__(self, host, rank, bias, dropout):
+        def __init__(self, host, rank, bias, dropout, block):
             super().__init__()
             self.rank=rank
             if isinstance(self.rank, float):
@@ -114,7 +115,7 @@ class LoraBlock(SinglePluginBlock):
             pass
 
     class Conv2dLayer(nn.Module):
-        def __init__(self, host, rank, bias, dropout):
+        def __init__(self, host, rank, bias, dropout, block):
             super().__init__()
             self.rank = rank
             if isinstance(self.rank, float):
