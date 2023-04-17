@@ -175,3 +175,11 @@ def get_file_name(file: str):
 
 def get_file_ext(file: str):
     return file.rsplit('.',1)[1].lower()
+
+def factorization(dimension: int, factor:int=-1) -> tuple[int, int]:
+    find_one = lambda x: len(x) - (x.rfind('1') + 1)
+    dim_bin = bin(dimension)
+    num = find_one(dim_bin)
+    f_max = (len(dim_bin)-3)>>1 if factor<0 else find_one(bin(factor))
+    num = min(num, f_max)
+    return dimension>>num, 1<<num

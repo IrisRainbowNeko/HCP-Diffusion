@@ -23,29 +23,20 @@ class BasePluginBlock(nn.Module):
         pass
 
 class SinglePluginBlock(BasePluginBlock):
-    def __init__(self, layer:nn.Module):
+    def __init__(self, layer:nn.Module, hook_param=None):
         super().__init__()
         self.host = weakref.ref(layer)
 
-        self.hook_handle = layer.register_forward_hook(self.layer_hook)
+        if hook_param is None:
+            self.hook_handle = layer.register_forward_hook(self.layer_hook)
+        else: # hook for model parameters
+            self.backup = getattr(layer, hook_param)
+            self.target = hook_param
+            self.handle_pre = layer.register_forward_pre_hook(self.pre_hook)
+            self.handle_post = layer.register_forward_hook(self.post_hook)
 
     def layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:torch.Tensor):
         return self(fea_in, fea_out)
-
-    def remove(self):
-        self.hook_handle.remove()
-
-class SinglePluginParameter(BasePluginBlock):
-    def __init__(self, layer:nn.Module, hook_target='weight'):
-        super().__init__()
-        self.host = weakref.ref(layer)
-        self.backup = getattr(layer, hook_target)
-        self.target = hook_target
-        self.handle_pre = layer.register_forward_pre_hook(self.pre_hook)
-        self.handle_post = layer.register_forward_hook(self.post_hook)
-
-    def forward(self, host_param: nn.Parameter):
-        return host_param
 
     def pre_hook(self, host, fea_in:torch.Tensor):
         host.weight_restored = False
@@ -60,8 +51,11 @@ class SinglePluginParameter(BasePluginBlock):
             host.weight_restored = True
 
     def remove(self):
-        self.handle_pre.remove()
-        self.handle_post.remove()
+        if hasattr(self, 'hook_handle'):
+            self.hook_handle.remove()
+        else:
+            self.handle_pre.remove()
+            self.handle_post.remove()
 
 class PluginBlock(BasePluginBlock):
     def __init__(self, from_layer:nn.Module, to_layer:nn.Module, pre_hook_to=False):
