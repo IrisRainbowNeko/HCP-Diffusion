@@ -16,7 +16,7 @@ from einops import rearrange, repeat
 
 from hcpdiff.utils.emb_utils import load_emb
 
-class EmbeddingPTHook:
+class EmbeddingPTHook(nn.Module):
     def __init__(self, token_embedding, N_word=75, N_repeats=3):
         super().__init__()
         self.token_embedding=token_embedding
@@ -25,10 +25,10 @@ class EmbeddingPTHook:
 
         self.N_word=N_word
         self.N_repeats=N_repeats
-        self.emb={}
+        self.emb=nn.ParameterDict()
 
-    def add_emb(self, emb, token_id):
-        self.emb[token_id]=emb
+    def add_emb(self, emb:nn.Parameter, token_id:int):
+        self.emb[str(token_id)]=emb
 
     def forward(self, input_ids):
         '''
@@ -52,7 +52,7 @@ class EmbeddingPTHook:
             for rep_idx in rep_idxs:
                 rep_idx=rep_idx.item()
                 item_new.append(item[rep_idx_last:rep_idx, :])
-                item_new.append(self.emb[ids_raw[rep_idx].item()].to(dtype=item.dtype))
+                item_new.append(self.emb[str(ids_raw[rep_idx].item())].to(dtype=item.dtype))
                 rep_idx_last=rep_idx+1
             item_new.append(item[rep_idx_last:, :])
 

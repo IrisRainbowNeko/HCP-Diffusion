@@ -109,7 +109,7 @@ class Trainer:
         return self.accelerator.is_local_main_process
 
     def init_context(self, cfgs_raw):
-        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False, find_unused_parameters=True)
+        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False)
         self.accelerator = Accelerator(
             gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
             mixed_precision=self.cfgs.mixed_precision,
@@ -124,14 +124,11 @@ class Trainer:
 
     def prepare(self):
         # Prepare everything with accelerator.
-        prepare_obj_list = [self.unet, self.train_loader]
-        prepare_name_list = ['unet', 'train_loader']
+        prepare_obj_list = [self.unet, self.train_loader, self.embedding_hook]
+        prepare_name_list = ['unet', 'train_loader', 'embedding_hook']
         if hasattr(self, 'optimizer'):
             prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
             prepare_name_list.extend(['optimizer', 'lr_scheduler'])
-        if self.train_TE:
-            prepare_obj_list.append(self.text_encoder)
-            prepare_name_list.append('text_encoder')
         if hasattr(self, 'optimizer_pt'):
             prepare_obj_list.extend([self.optimizer_pt, self.lr_scheduler_pt])
             prepare_name_list.extend(['optimizer_pt', 'lr_scheduler_pt'])
@@ -139,6 +136,11 @@ class Trainer:
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
+
+        if self.train_TE:
+            ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False, find_unused_parameters=True)
+            self.accelerator.ddp_handler = ddp_kwargs
+            self.text_encoder = self.accelerator.prepare(self.text_encoder)
 
     def scale_lr(self, parameters):
         bs = self.cfgs.data.batch_size
@@ -424,6 +426,9 @@ class Trainer:
             model_pred, target = self.forward(latents, prompt_ids)
 
             if self.train_loader_class is not None:
+                loss = self.get_loss(model_pred, target, att_mask) # Compute instance loss
+                self.accelerator.backward(loss)
+
                 #DreamBooth prior forward
                 image_cls, att_mask_cls, prompt_ids_cls = next(self.data_iter_class)
                 image_cls = image_cls.to(self.device, dtype=self.weight_dtype)
@@ -432,13 +437,12 @@ class Trainer:
                 latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
                 model_pred_prior, target_prior = self.forward(latents_cls, prompt_ids_cls)
 
-                loss = self.get_loss(model_pred, target, att_mask) # Compute instance loss
                 prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls) # Compute prior loss
-                loss = loss + self.cfgs.train.loss.prior_loss_weight * prior_loss
+                loss = self.cfgs.train.loss.prior_loss_weight * prior_loss
+                self.accelerator.backward(loss)
             else:
                 loss = self.get_loss(model_pred, target, att_mask)
-
-            self.accelerator.backward(loss)
+                self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):
                 if self.accelerator.sync_gradients: # fine-tuning
