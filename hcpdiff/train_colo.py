@@ -24,18 +24,8 @@ from colossalai.utils.model.colo_init_context import ColoInitContext
 from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
 from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
-from hcpdiff.utils.utils import import_model_class_from_model_name_or_path, load_config_with_cli
-
-class TEUnetWapper(nn.Module):
-    def __init__(self, unet, TE):
-        super().__init__()
-        self.unet = unet
-        self.TE = TE
-
-    def forward(self, prompt_ids, noisy_latents, timesteps):
-        encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
-        model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
-        return model_pred
+from hcpdiff.utils.utils import load_config_with_cli
+from hcpdiff.utils.net_utils import import_text_encoder_class, TEUnetWrapper
 
 class TrainerColo(Trainer):
     def init_context(self, cfgs_raw):
@@ -65,8 +55,8 @@ class TrainerColo(Trainer):
 
     def build_unet_and_TE(self):
         # import correct text encoder class
-        text_encoder_cls = import_model_class_from_model_name_or_path(self.cfgs.model.pretrained_model_name_or_path,
-                                                                      self.cfgs.model.revision)
+        text_encoder_cls = import_text_encoder_class(self.cfgs.model.pretrained_model_name_or_path,
+                                                     self.cfgs.model.revision)
         with ColoInitContext(device=self.device):
             self.unet = UNet2DConditionModel.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision,
@@ -76,6 +66,7 @@ class TrainerColo(Trainer):
                 self.text_encoder = text_encoder_cls.from_pretrained(
                     self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
                 )
+                self.TE_unet = TEUnetWrapper(self.unet, self.text_encoder)
         if not self.train_TE:
             self.text_encoder = text_encoder_cls.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
@@ -98,7 +89,7 @@ class TrainerColo(Trainer):
             self.lora_TE.set_inplace(False)
             if self.DA_lora:
                 self.lora_TE_neg.set_inplace(False)
-            self.TE_unet = gemini_zero_dpp(TEUnetWapper(self.unet, self.text_encoder))
+            self.TE_unet = gemini_zero_dpp(self.TE_unet)
         else:
             self.unet = gemini_zero_dpp(self.unet)
         return params
@@ -122,13 +113,6 @@ class TrainerColo(Trainer):
 
             self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt.weight_decay_pt)
             self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
-
-    def encode_decode(self, prompt_ids, noisy_latents, timesteps):
-        if self.train_TE:
-            model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps)
-        else:
-            model_pred = super(TrainerColo, self).encode_decode(prompt_ids, noisy_latents, timesteps)
-        return model_pred
 
     def train_one_step(self, image, att_mask, prompt_ids):
         torch.cuda.reset_peak_memory_stats()

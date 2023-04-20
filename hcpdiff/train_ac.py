@@ -30,8 +30,8 @@ from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 
 from hcpdiff.data import TextImagePairDataset, RatioBucket
-from hcpdiff.utils.utils import get_scheduler, import_model_class_from_model_name_or_path, cycle_data,\
-    load_config_with_cli, get_cfg_range
+from hcpdiff.utils.utils import cycle_data, load_config_with_cli, get_cfg_range
+from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
 from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff
@@ -124,8 +124,12 @@ class Trainer:
 
     def prepare(self):
         # Prepare everything with accelerator.
-        prepare_obj_list = [self.unet, self.train_loader, self.embedding_hook]
-        prepare_name_list = ['unet', 'train_loader', 'embedding_hook']
+        if self.train_TE:
+            prepare_obj_list = [self.TE_unet, self.train_loader]
+            prepare_name_list = ['TE_unet', 'train_loader']
+        else:
+            prepare_obj_list = [self.unet, self.train_loader]
+            prepare_name_list = ['unet', 'train_loader']
         if hasattr(self, 'optimizer'):
             prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
             prepare_name_list.extend(['optimizer', 'lr_scheduler'])
@@ -136,11 +140,6 @@ class Trainer:
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
-
-        if self.train_TE:
-            ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False, find_unused_parameters=True)
-            self.accelerator.ddp_handler = ddp_kwargs
-            self.text_encoder = self.accelerator.prepare(self.text_encoder)
 
     def scale_lr(self, parameters):
         bs = self.cfgs.data.batch_size
@@ -173,11 +172,14 @@ class Trainer:
             self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision
         )
         # import correct text encoder class
-        text_encoder_cls = import_model_class_from_model_name_or_path(self.cfgs.model.pretrained_model_name_or_path,
-                                                                      self.cfgs.model.revision)
+        text_encoder_cls = import_text_encoder_class(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
         self.text_encoder = text_encoder_cls.from_pretrained(
             self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
         )
+
+        if self.train_TE:
+            # Wrap unet and text_encoder to make DDP happy. Multiple DDP has soooooo many fxxking bugs!
+            self.TE_unet = TEUnetWrapper(self.unet, self.text_encoder)
 
 
     def build_ema(self):
@@ -197,10 +199,10 @@ class Trainer:
             self.ckpt_manager.set_save_dir(os.path.join(self.exp_dir, 'ckpts'), emb_dir=self.cfgs.tokenizer_pt.emb_dir)
 
     def get_unet_raw(self):
-        return self.unet.module
+        return self.TE_unet.module.unet if self.train_TE else self.unet.module
 
     def get_text_encoder_raw(self):
-        return self.text_encoder.module if self.train_TE else self.text_encoder
+        return self.TE_unet.module.TE if self.train_TE else self.text_encoder
 
     def config_model(self):
         if self.cfgs.model.enable_xformers:
@@ -395,8 +397,11 @@ class Trainer:
 
     def encode_decode(self, prompt_ids, noisy_latents, timesteps):
         # for colossalAI support
-        encoder_hidden_states = self.text_encoder(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
-        model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
+        if self.train_TE:
+            model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps)
+        else:
+            encoder_hidden_states = self.text_encoder(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
+            model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred
 
     def forward(self, latents, prompt_ids):

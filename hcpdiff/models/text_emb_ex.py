@@ -7,6 +7,7 @@ text_emb_ex.py
     :Created:     10/03/2023
     :Licence:     Apache-2.0
 """
+from typing import Tuple
 
 import torch
 from torch import nn
@@ -15,13 +16,12 @@ from loguru import logger
 from einops import rearrange, repeat
 
 from hcpdiff.utils.emb_utils import load_emb
+from .plugin import SinglePluginBlock
 
-class EmbeddingPTHook(nn.Module):
-    def __init__(self, token_embedding, N_word=75, N_repeats=3):
-        super().__init__()
-        self.token_embedding=token_embedding
-        token_embedding.forward_raw = token_embedding.forward
-        token_embedding.forward = self.forward
+class EmbeddingPTHook(SinglePluginBlock):
+    def __init__(self, token_embedding:nn.Module, N_word=75, N_repeats=3):
+        super().__init__(token_embedding)
+        self.handle_pre = token_embedding.register_forward_pre_hook(self.pre_hook)
 
         self.N_word=N_word
         self.N_repeats=N_repeats
@@ -30,21 +30,21 @@ class EmbeddingPTHook(nn.Module):
     def add_emb(self, emb:nn.Parameter, token_id:int):
         self.emb[str(token_id)]=emb
 
-    def forward(self, input_ids):
+    def pre_hook(self, host, input_ids: torch.Tensor):
+        self.input_ids = rearrange(input_ids, '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
+        return self.input_ids.clip(0, self.token_embedding.num_embeddings-1)
+
+    def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor): # inputs_embeds:[B, N_word+2, N_emb]
         '''
         :param input_ids: [B, N_ids]
         :return: [B, N_repeat, N_word+2, N_emb]
         '''
-        input_ids=rearrange(input_ids, '(b r) w -> b (r w)', r=self.N_repeats) # 兼容Attention mask
-
-        rep_idxs_B = input_ids>=self.token_embedding.num_embeddings
-        inputs_embeds = self.token_embedding.forward_raw(input_ids.clip(0, self.token_embedding.num_embeddings-1)) # [B, N_word+2, N_emb]
-
+        rep_idxs_B = self.input_ids >= self.token_embedding.num_embeddings
         BOS = repeat(inputs_embeds[0,0,:], 'e -> r 1 e', r=self.N_repeats)
         EOS = repeat(inputs_embeds[0,-1,:], 'e -> r 1 e', r=self.N_repeats)
 
         replaced_embeds = []
-        for item, rep_idxs, ids_raw in zip(inputs_embeds, rep_idxs_B, input_ids):
+        for item, rep_idxs, ids_raw in zip(inputs_embeds, rep_idxs_B, self.input_ids):
             # insert pt to embeddings
             rep_idxs=torch.where(rep_idxs)[0]
             item_new=[]
@@ -63,6 +63,10 @@ class EmbeddingPTHook(nn.Module):
 
             replaced_embeds.append(replaced_item)
         return torch.cat(replaced_embeds, dim=0) # [B*N_repeat, N_word+2, N_emb]
+
+    def remove(self):
+        super(EmbeddingPTHook, self).remove()
+        self.handle_pre.remove()
 
     @classmethod
     def hook(cls, ex_words_emb, tokenizer, text_encoder, log=False, **kwargs):
