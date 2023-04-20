@@ -27,11 +27,10 @@ class EmbeddingPTHook(SinglePluginBlock):
         self.N_word=N_word
         self.N_repeats=N_repeats
         self.num_embeddings=token_embedding.num_embeddings
-        self.emb_train=nn.ParameterList()
-        self.emb={}
+        self.emb=nn.ParameterDict()
 
     def add_emb(self, emb:nn.Parameter, token_id:int):
-        self.emb[token_id]=emb
+        self.emb[str(token_id)]=emb
 
     def pre_hook(self, host, input_ids: Tuple[torch.Tensor]):
         self.input_ids = rearrange(input_ids[0], '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
@@ -55,7 +54,7 @@ class EmbeddingPTHook(SinglePluginBlock):
             for rep_idx in rep_idxs:
                 rep_idx=rep_idx.item()
                 item_new.append(item[rep_idx_last:rep_idx, :])
-                item_new.append(self.emb[ids_raw[rep_idx].item()].to(dtype=item.dtype))
+                item_new.append(self.emb[str(ids_raw[rep_idx].item())].to(dtype=item.dtype))
                 rep_idx_last=rep_idx+1
             item_new.append(item[rep_idx_last:, :])
 
