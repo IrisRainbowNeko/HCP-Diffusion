@@ -298,6 +298,7 @@ class Trainer:
             for v in self.cfgs.tokenizer_pt.train:
                 self.train_pts[v.name]=self.ex_words_emb[v.name]
                 self.ex_words_emb[v.name].requires_grad=True
+                self.embedding_hook.emb_train.append(self.ex_words_emb[v.name])
                 train_params_emb.append({'params':self.ex_words_emb[v.name], 'lr':v.lr})
 
         return train_params_unet + train_params_text_encoder, train_params_emb
