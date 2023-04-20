@@ -23,16 +23,32 @@ class CkptManagerPKL:
         self.save_dir = save_dir
         self.emb_dir = emb_dir
 
-    def save_model_with_lora(self, model: nn.Module, lora_blocks: LoraGroup, name, step, model_ema=None):
+    def exclude_state(self, state, key):
+        if key is None:
+            return state
+        else:
+            return {k:v for k,v in state.items() if key in k}
+
+    def save_model(self, model: nn.Module, name, step, model_ema=None, exclude_key=None):
         sd_model = {
-            'base': LoraBlock.extract_trainable_state_without_lora(model),
+            'base': self.exclude_state(LoraBlock.extract_trainable_state_without_lora(model), exclude_key),
+        }
+        if model_ema is not None:
+            sd_ema, sd_ema_lora = split_state(model_ema.state_dict())
+            sd_model['base_ema'] = self.exclude_state(sd_ema, exclude_key)
+        self._save_ckpt(sd_model, name, step)
+
+    def save_model_with_lora(self, model: nn.Module, lora_blocks: LoraGroup, name, step, model_ema=None,
+                             exclude_key=None):
+        sd_model = {
+            'base': self.exclude_state(LoraBlock.extract_trainable_state_without_lora(model), exclude_key),
         } if model is not None else {}
         if not lora_blocks.empty():
             sd_model['lora']=lora_blocks.state_dict(model if self.lora_from_raw else None)
 
         if model_ema is not None:
             sd_ema, sd_ema_lora = split_state(model_ema.state_dict())
-            sd_model['base_ema'] = sd_ema
+            sd_model['base_ema'] = self.exclude_state(sd_ema, exclude_key)
             if not lora_blocks.empty():
                 sd_model['lora_ema'] = {sd_ema_lora[k] for k in sd_model['lora'].keys()}
 

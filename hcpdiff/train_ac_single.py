@@ -20,6 +20,24 @@ class TrainerSingleCard(Trainer):
 
         set_seed(self.cfgs.seed + self.local_rank)
 
+    def prepare(self):
+        # Prepare everything with accelerator.
+        prepare_obj_list = [self.unet, self.train_loader]
+        prepare_name_list = ['unet', 'train_loader']
+        if hasattr(self, 'optimizer'):
+            prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
+            prepare_name_list.extend(['optimizer', 'lr_scheduler'])
+        if hasattr(self, 'optimizer_pt'):
+            prepare_obj_list.extend([self.optimizer_pt, self.lr_scheduler_pt])
+            prepare_name_list.extend(['optimizer_pt', 'lr_scheduler_pt'])
+        if self.train_TE:
+            prepare_obj_list.append(self.text_encoder)
+            prepare_name_list.append('text_encoder')
+
+        prepared_obj = self.accelerator.prepare(*prepare_obj_list)
+        for name, obj in zip(prepare_name_list, prepared_obj):
+            setattr(self, name, obj)
+
     def build_data(self, cfg_data):
         train_dataset = TextImagePairDataset(cfg_data, self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         if isinstance(train_dataset.bucket, RatioBucket):
@@ -38,6 +56,11 @@ class TrainerSingleCard(Trainer):
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg_data.batch_size,
             num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=collate_fn_ft)
         return train_loader, arb
+
+    def encode_decode(self, prompt_ids, noisy_latents, timesteps):
+        encoder_hidden_states = self.text_encoder(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
+        model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
+        return model_pred
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):

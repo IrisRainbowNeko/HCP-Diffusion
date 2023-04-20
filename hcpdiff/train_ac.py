@@ -396,7 +396,7 @@ class Trainer:
         return self.noise_scheduler.add_noise(latents, noise, timesteps), noise, timesteps
 
     def encode_decode(self, prompt_ids, noisy_latents, timesteps):
-        # for colossalAI support
+        # for DDP support
         if self.train_TE:
             model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps)
         else:
@@ -483,8 +483,9 @@ class Trainer:
                                                name='unet', step=self.global_step)
         if self.train_TE:
             TE_raw = self.get_text_encoder_raw()
+            # exclude_key: embeddings should not save with text-encoder
             self.ckpt_manager.save_model_with_lora(TE_raw, self.lora_TE, model_ema=getattr(self, 'ema_text_encoder', None),
-                                                   name='text_encoder', step=self.global_step)
+                                                   name='text_encoder', step=self.global_step, exclude_key='emb_ex.')
 
         if self.DA_lora:
             self.ckpt_manager.save_model_with_lora(None, self.lora_unet_neg, name='unet-neg', step=self.global_step)

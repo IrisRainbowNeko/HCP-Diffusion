@@ -21,25 +21,27 @@ from .plugin import SinglePluginBlock
 class EmbeddingPTHook(SinglePluginBlock):
     def __init__(self, token_embedding:nn.Module, N_word=75, N_repeats=3):
         super().__init__(token_embedding)
+        token_embedding.emb_ex = self
         self.handle_pre = token_embedding.register_forward_pre_hook(self.pre_hook)
 
         self.N_word=N_word
         self.N_repeats=N_repeats
+        self.num_embeddings=token_embedding.num_embeddings
         self.emb=nn.ParameterDict()
 
     def add_emb(self, emb:nn.Parameter, token_id:int):
         self.emb[str(token_id)]=emb
 
-    def pre_hook(self, host, input_ids: torch.Tensor):
-        self.input_ids = rearrange(input_ids, '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
-        return self.input_ids.clip(0, self.token_embedding.num_embeddings-1)
+    def pre_hook(self, host, input_ids: Tuple[torch.Tensor]):
+        self.input_ids = rearrange(input_ids[0], '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
+        return self.input_ids.clip(0, self.num_embeddings-1)
 
     def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor): # inputs_embeds:[B, N_word+2, N_emb]
         '''
         :param input_ids: [B, N_ids]
         :return: [B, N_repeat, N_word+2, N_emb]
         '''
-        rep_idxs_B = self.input_ids >= self.token_embedding.num_embeddings
+        rep_idxs_B = self.input_ids >= self.num_embeddings
         BOS = repeat(inputs_embeds[0,0,:], 'e -> r 1 e', r=self.N_repeats)
         EOS = repeat(inputs_embeds[0,-1,:], 'e -> r 1 e', r=self.N_repeats)
 
