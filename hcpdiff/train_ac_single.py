@@ -62,6 +62,9 @@ class TrainerSingleCard(Trainer):
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred
 
+    def get_loss(self, model_pred, target, att_mask):
+        return (self.criterion(model_pred.float(), target.float()) * att_mask).mean()
+
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
             self.ema_unet.step(self.unet.named_parameters())

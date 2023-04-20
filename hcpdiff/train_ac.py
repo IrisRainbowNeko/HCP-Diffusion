@@ -470,8 +470,11 @@ class Trainer:
         return loss.item()
 
     def get_loss(self, model_pred, target, att_mask):
-        return (self.criterion(model_pred.float(), target.float()) * att_mask).mean() \
+        if len(self.embedding_hook.emb_train)>0:
+            return (self.criterion(model_pred.float(), target.float()) * att_mask).mean() \
                + 0*sum(self.embedding_hook.emb_train).mean() # avoid unused parameters, make gradient checkpointing happy
+        else:
+            return (self.criterion(model_pred.float(), target.float()) * att_mask).mean()
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
