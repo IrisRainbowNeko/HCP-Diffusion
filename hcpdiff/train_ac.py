@@ -109,7 +109,7 @@ class Trainer:
         return self.accelerator.is_local_main_process
 
     def init_context(self, cfgs_raw):
-        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False, find_unused_parameters=True)
+        ddp_kwargs = DistributedDataParallelKwargs(broadcast_buffers=False)
         self.accelerator = Accelerator(
             gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
             mixed_precision=self.cfgs.mixed_precision,
@@ -298,6 +298,7 @@ class Trainer:
             for v in self.cfgs.tokenizer_pt.train:
                 self.train_pts[v.name]=self.ex_words_emb[v.name]
                 self.ex_words_emb[v.name].requires_grad=True
+                self.embedding_hook.emb_train.append(self.ex_words_emb[v.name])
                 train_params_emb.append({'params':self.ex_words_emb[v.name], 'lr':v.lr})
 
         return train_params_unet + train_params_text_encoder, train_params_emb
@@ -469,7 +470,8 @@ class Trainer:
         return loss.item()
 
     def get_loss(self, model_pred, target, att_mask):
-        return (self.criterion(model_pred.float(), target.float()) * att_mask).mean()
+        return (self.criterion(model_pred.float(), target.float()) * att_mask).mean() \
+               + 0*sum(self.embedding_hook.emb_train).mean() # avoid unused parameters, make gradient checkpointing happy
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
