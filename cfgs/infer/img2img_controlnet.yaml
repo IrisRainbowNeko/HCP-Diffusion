@@ -1,0 +1,69 @@
+# base_state*base_model_alpha + (lora_state[i]*lora_scale[i]*lora_alpha[i]) + (part_state[k]*part_alpha[k])
+
+pretrained_model: ''
+prompt: ''
+neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+out_dir: 'output/'
+emb_dir: 'embs/'
+N_repeats: 1
+bs: 4
+num: 1
+seed: null
+fp16: True
+
+condition:
+  type: controlnet
+  image: 'cond_img.png'
+
+save:
+  save_cfg: True
+  image_type: png
+  quality: 95
+#  image_type: webp
+#  quality: 75
+
+infer_args:
+  num_inference_steps: 30
+  strength: 0.75
+  guidance_scale: 7.5
+
+new_components: {}
+
+merge: # can be null
+  exp_dir: '2023-04-03-10-10-36'
+  alpha: 0.8
+  plugin_cfg: cfgs/train/plugin_control.yaml
+
+  group1:
+    type: 'unet'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+        mask: [0.5, 1]
+      - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.safetensors'
+        alpha: 0.65
+        layers: 'all'
+        mask: [0, 0.5]
+    part: null
+    plugin:
+      controlnet1:
+        path: 'exps/controlnet.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+
+  group2:
+    type: 'TE'
+    base_model_alpha: 1.0 # base model weight to infer with lora or part
+    lora:
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+        mask: [0.5, 1]
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-neg-600.safetensors'
+        alpha: 0.65
+        layers: 'all'
+        mask: [0, 0.5]
+    part: null
+    plugin: null

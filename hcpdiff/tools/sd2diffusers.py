@@ -15,8 +15,11 @@
 """ Conversion script for the LDM checkpoints. """
 
 import argparse
+import os.path
+
 import torch
 from transformers import CLIPTextModel
+from hcpdiff.utils.ckpt_manager import CkptManagerSafe, CkptManagerPKL
 
 import diffusers.pipelines.stable_diffusion.convert_from_ckpt as convert_from_ckpt
 try:
@@ -174,8 +177,28 @@ if __name__ == "__main__":
     if args.half:
         pipe.to(torch_dtype=torch.float16)
 
+    def replace(k_from, k_to, sd):
+        new_sd = {}
+        for k,v in sd.items():
+            if k.startswith(k_from):
+                new_sd[k_to+k[len(k_from):]]=v
+            else:
+                new_sd[k]=v
+        return new_sd
+
     if args.controlnet:
-        # only save the controlnet model
-        pipe.controlnet.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
+        ckpt_manager = CkptManagerSafe() if args.to_safetensors else CkptManagerPKL()
+
+        sd_control = pipe.controlnet.state_dict()
+        sd_control = replace('controlnet_cond_embedding.conv_in', 'cond_head.0', sd_control)
+        for i in range(3):
+            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2}', f'cond_head.{2+i*4}', sd_control)
+            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
+        sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
+        os.makedirs(args.dump_path, exist_ok=True)
+        ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(args.dump_path,
+                                    f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))
     else:
         pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
+
+    #python -m hcpdiff.tools.sd2diffusers --checkpoint_path test/control_sd15_canny.pth --original_config_file test/config.yaml --dump_path test/ckpt/control --controlnet

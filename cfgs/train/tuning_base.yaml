@@ -37,3 +37,19 @@ lora_unet: null
 
 text_encoder: null
 lora_text_encoder: null
+
+plugin: null
+#plugin:
+#  lokr1:
+#    _target_: plugins.Lokr
+#    _partial_: True
+#    lr: 1e-4
+#    factor: 2
+#    layers:
+#      - 're:.*\.attn.?$'
+#  controlnet1:
+#    lr: 1e-4
+#    from_layers:
+#      - ''
+#    to_layers:
+#      - ''

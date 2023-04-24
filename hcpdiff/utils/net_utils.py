@@ -11,7 +11,16 @@ class TEUnetWrapper(nn.Module):
         self.unet = unet
         self.TE = TE
 
-    def forward(self, prompt_ids, noisy_latents, timesteps):
+    def forward(self, prompt_ids, noisy_latents, timesteps, **kwargs):
+        input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, **kwargs)
+
+        if hasattr(self.TE, 'input_feeder'):
+            for feeder in self.TE.input_feeder:
+                feeder(input_all)
+        if hasattr(self.unet, 'input_feeder'):
+            for feeder in self.unet.input_feeder:
+                feeder(input_all)
+
         encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred

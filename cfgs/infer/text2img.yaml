@@ -11,6 +11,8 @@ num: 1
 seed: null
 fp16: True
 
+condition: null
+
 save:
   save_cfg: True
   image_type: png

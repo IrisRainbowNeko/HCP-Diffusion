@@ -18,6 +18,7 @@ from torch import nn
 from .utils import dict_get
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
+from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup
 from .ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):
@@ -41,7 +42,7 @@ def get_match_layers(layers, all_layers):
             for layer in match_layers:
                 res.extend([layer+x for x in get_class_match_layer(name[1], all_layers[layer])])
 
-    return set(res)
+    return sorted(set(res), key=res.index) # Remove duplicates and keep the original order
 
 def get_layers_with_block(named_modules:Dict[str, nn.Module], block_names:Iterable[str], cond:List=None):
     layers=[]
@@ -101,7 +102,53 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5):
     named_modules = {k:v for k,v in model.named_modules()}
 
     train_params=[]
-    all_lora_blocks={}
+    all_plugin_blocks={}
+
+    # builder: functools.partial
+    for plugin_name, builder in cfg_plugin:
+        lr = getattr(builder.keywords, 'lr', default_lr)
+        if 'lr' in builder.keywords:
+            del builder.keywords['lr']
+        plugin_class = getattr(builder.func, '__self__', builder.func) # support static or class method
+
+        if issubclass(plugin_class, MultiPluginBlock):
+            from_layers = [named_modules[item] for item in get_match_layers(builder.keywords['from_layers'], named_modules)]
+            to_layers = [named_modules[item] for item in get_match_layers(builder.keywords['to_layers'], named_modules)]
+            del builder.keywords['from_layers']
+            del builder.keywords['to_layers']
+
+            layer = builder(host_model=model, from_layers=from_layers, to_layers=to_layers)
+            layer.requires_grad_(True)
+            layer.train()
+            setattr(model, plugin_name, layer)
+            train_params.append({'params': layer.parameters(), 'lr': lr})
+            all_plugin_blocks[plugin_name] = layer
+        elif issubclass(plugin_class, SinglePluginBlock):
+            layers_name = builder.keywords['layers']
+            del builder.keywords['layers']
+            for layer_name in get_match_layers(layers_name, named_modules):
+                layer = builder(host_model=model, host=named_modules[layer_name])
+                layer.requires_grad_(True)
+                layer.train()
+                setattr(named_modules[layer_name], plugin_name, layer)
+                train_params.append({'params': layer.parameters(), 'lr': lr})
+                all_plugin_blocks[f'{layer_name}.{plugin_name}'] = layer
+        elif issubclass(plugin_class, PluginBlock):
+            from_layer_name = builder.keywords['from_layer']
+            from_layer = named_modules[from_layer_name]
+            to_layer = named_modules[builder.keywords['to_layer']]
+            del builder.keywords['from_layer']
+            del builder.keywords['to_layer']
+
+            layer = builder(host_model=model, from_layer=from_layer, to_layer=to_layer)
+            layer.requires_grad_(True)
+            layer.train()
+            setattr(from_layer, plugin_name, layer)
+            train_params.append({'params': layer.parameters(), 'lr': lr})
+            all_plugin_blocks[f'{from_layer_name}.{plugin_name}'] = layer
+        else:
+            raise NotImplementedError(f'Unknown plugin {plugin_class}')
+    return train_params, PluginGroup(all_plugin_blocks)
 
 @torch.no_grad()
 def load_hcpdiff(model:nn.Module, cfg_merge):
@@ -165,5 +212,18 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                 state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
                 for k, v in state_add.items():
                     named_params[k].data = cfg_merge.base_model_alpha * named_params[k].data + item.alpha * v
+
+    if "plugin" in cfg_merge and cfg_merge.plugin is not None:
+        for name, item in cfg_merge.plugin.items():
+            plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')
+            if item.layers == 'all':
+                model.load_state_dict(plugin_state)
+            else:
+                match_blocks = get_match_layers(item.layers, named_modules)
+                state_add = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
+                model.load_state_dict(state_add)
+            del item.layers
+            del item.path
+            getattr(model, name).set_hyper_params(**item)
 
     return LoraGroup(all_lora_blocks)

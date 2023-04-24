@@ -4,7 +4,7 @@ import sys
 
 import hydra
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 from diffusers.utils.import_utils import is_xformers_available
 from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
@@ -19,23 +19,35 @@ class Visualizer:
     def __init__(self, cfgs):
         self.cfgs_raw = cfgs
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
-        self.cfg_merge = cfgs.merge
+        self.cfg_merge = self.cfgs.merge
 
-        comp = StableDiffusionPipeline.from_pretrained(cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False).components
-        comp.update(cfgs.new_components)
-        self.pipe = StableDiffusionPipeline(**comp)
+        pipeline = self.get_pipeline()
+        comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False).components
+        comp.update(self.cfgs.new_components)
+        self.pipe = pipeline(**comp)
 
         if self.cfg_merge:
             self.merge_model()
 
         self.pipe = self.pipe.to("cuda")
-        emb, _ = EmbeddingPTHook.hook_from_dir(cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=cfgs.N_repeats)
-        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=cfgs.N_repeats, clip_skip=cfgs.clip_skip)
+        emb, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
+        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():
             self.pipe.unet.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
+
+    def get_pipeline(self):
+        if self.cfgs.condition is None:
+            return StableDiffusionPipeline
+        else:
+            if self.cfgs.condition.type=='i2i':
+                return StableDiffusionImg2ImgPipeline
+            elif self.cfgs.condition.type=='controlnet':
+                return StableDiffusionPipeline
+            else:
+                raise NotImplementedError(f'No condition type named {self.cfgs.condition.type}')
 
     def merge_model(self):
         for cfg_group in self.cfg_merge.values():
