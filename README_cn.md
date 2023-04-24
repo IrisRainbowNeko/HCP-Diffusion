@@ -46,7 +46,7 @@ git clone https://github.com/7eu7d7/HCP-Diffusion.git
 cd HCP-Diffusion
 pip install -e .
 # 基于此项目直接修改，或新建一个项目并进行初始化
-hcpinit
+## hcpinit
 ```
 
 ## 使用教程

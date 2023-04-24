@@ -53,7 +53,7 @@ git clone https://github.com/7eu7d7/HCP-Diffusion.git
 cd HCP-Diffusion
 pip install -e .
 # Modified based on this project or start a new project and make initialization
-hcpinit
+## hcpinit
 ```
 
 ## User guidance
