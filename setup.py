@@ -23,7 +23,7 @@ def get_data_files(data_dir, prefix=''):
 setuptools.setup(
     name="hcpdiff",
     py_modules=["hcpdiff"],
-    version="0.1.6",
+    version="0.2.0",
     author="Ziyi Dong",
     author_email="dzy7eu7d7@gmail.com",
     description="A universal Stable-Diffusion toolbox",
