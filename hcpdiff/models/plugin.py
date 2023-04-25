@@ -107,13 +107,13 @@ class MultiPluginBlock(BasePluginBlock):
         self.hook_handle_to = []
 
         for idx, layer in enumerate(from_layers):
-            handle_from = layer.register_forward_pre_hook(lambda host, fea_in, fea_out:self.from_layer_hook(host, fea_in, idx))
+            handle_from = layer.register_forward_pre_hook(lambda host, fea_in, idx=idx:self.from_layer_hook(host, fea_in, idx))
             self.hook_handle_from.append(handle_from)
         for idx, layer in enumerate(to_layers):
             if pre_hook_to:
-                handle_to = layer.register_forward_pre_hook(lambda host, fea_in:self.to_layer_pre_hook(host, fea_in, idx))
+                handle_to = layer.register_forward_pre_hook(lambda host, fea_in, idx=idx:self.to_layer_pre_hook(host, fea_in, idx))
             else:
-                handle_to = layer.register_forward_hook(lambda host, fea_in, fea_out:self.to_layer_hook(host, fea_in, fea_out, idx))
+                handle_to = layer.register_forward_hook(lambda host, fea_in, fea_out, idx=idx:self.to_layer_hook(host, fea_in, fea_out, idx))
             self.hook_handle_to.append(handle_to)
 
         self.record_count=0

@@ -4,16 +4,28 @@ import sys
 
 import hydra
 import torch
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
+from diffusers.utils import PIL_INTERPOLATION
 from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
 
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook
-from hcpdiff.utils.cfg_net_tools import load_hcpdiff
-from hcpdiff.utils.utils import to_validate_file, load_config_with_cli
+from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
+from hcpdiff.utils.utils import to_validate_file, load_config_with_cli, load_config
 from hcpdiff.utils.img_size_tool import types_support
 from torch.cuda.amp import autocast
+from PIL import Image
+import numpy as np
+
+class UnetHook(): # for controlnet
+    def __init__(self, unet):
+        self.unet = unet
+        self.call_raw = UNet2DConditionModel.__call__
+        UNet2DConditionModel.__call__ = self.unet_call
+
+    def unet_call(self, sample, timestep, encoder_hidden_states, **kwargs):
+        return self.call_raw(self.unet, sample, timestep, encoder_hidden_states, **kwargs)
 
 class Visualizer:
     def __init__(self, cfgs):
@@ -33,6 +45,7 @@ class Visualizer:
         emb, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
         self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
+        UnetHook(self.pipe.unet)
 
         if is_xformers_available():
             self.pipe.unet.enable_xformers_memory_efficient_attention()
@@ -50,6 +63,10 @@ class Visualizer:
                 raise NotImplementedError(f'No condition type named {self.cfgs.condition.type}')
 
     def merge_model(self):
+        if 'plugin_cfg' in self.cfg_merge: # Build plugins
+            plugin_cfg = hydra.utils.instantiate(load_config(self.cfg_merge.plugin_cfg))
+            make_plugin(self.pipe.unet, plugin_cfg.plugin)
+
         for cfg_group in self.cfg_merge.values():
             if hasattr(cfg_group, 'type'):
                 if cfg_group.type == 'unet':
@@ -60,10 +77,40 @@ class Visualizer:
     def set_scheduler(self, scheduler):
         self.pipe.scheduler = scheduler
 
+    def prepare_cond_image(self, image, width, height, batch_size, device):
+        if not isinstance(image, torch.Tensor):
+            if isinstance(image, Image.Image):
+                image = [image]
+
+            if isinstance(image[0], Image.Image):
+                image = [
+                    np.array(i.resize((width, height), resample=PIL_INTERPOLATION["lanczos"]))[None, :] for i in image
+                ]
+                image = np.concatenate(image, axis=0)
+                image = np.array(image).astype(np.float32) / 255.0
+                image = image.transpose(0, 3, 1, 2)
+                image = torch.from_numpy(image)
+            elif isinstance(image[0], torch.Tensor):
+                image = torch.cat(image, dim=0)
+
+        image = image.repeat_interleave(batch_size, dim=0)
+        image = image.to(device=device)
+
+        return image
+
+    def get_ex_input(self):
+        ex_input_dict = {}
+        if self.cfgs.condition is not None:
+            img = Image.open(self.cfgs.condition.image).convert('RGB')
+            ex_input_dict['cond'] = self.prepare_cond_image(img, self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
+        return ex_input_dict
+
     @torch.no_grad()
     def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
         os.makedirs(root, exist_ok=True)
         num_img_exist = len([x for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])
+
+        ex_input_dict = self.get_ex_input()
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
@@ -71,6 +118,11 @@ class Visualizer:
             emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n + clean_text_p).chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)
             emb_n = self.te_hook.mult_attn(emb_n, mult_n)
+
+            if hasattr(self.pipe.unet, 'input_feeder'):
+                for feeder in self.pipe.unet.input_feeder:
+                    feeder(ex_input_dict)
+
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
 
         for p, pn, img in zip(prompt, negative_prompt, images):

@@ -1,9 +1,10 @@
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, Dict, Callable
 
 from torch import nn
 from torch.optim import lr_scheduler
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from transformers import PretrainedConfig
+from collections import OrderedDict
 
 class TEUnetWrapper(nn.Module):
     def __init__(self, unet, TE):
@@ -106,3 +107,20 @@ def import_text_encoder_class(pretrained_model_name_or_path: str, revision: str)
         return RobertaSeriesModelWithTransformation
     else:
         raise ValueError(f"{model_class} is not supported.")
+
+def remove_all_hooks(model: nn.Module) -> None:
+    for name, child in model.named_modules():
+        if hasattr(child, "_forward_hooks"):
+            child._forward_hooks: Dict[int, Callable] = OrderedDict()
+        elif hasattr(child, "_forward_pre_hooks"):
+            child._forward_pre_hooks: Dict[int, Callable] = OrderedDict()
+        elif hasattr(child, "_backward_hooks"):
+            child._backward_hooks: Dict[int, Callable] = OrderedDict()
+
+def remove_layers(model: nn.Module, layer_class):
+    named_modules = {k: v for k, v in model.named_modules()}
+    for k,v in named_modules.items():
+        if isinstance(v, layer_class):
+            parent, name = named_modules[k.rsplit('.', 1)]
+            delattr(parent, name)
+            del v

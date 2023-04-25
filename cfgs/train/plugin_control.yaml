@@ -1,0 +1,16 @@
+_base_: [cfgs/train/tuning_base.yaml]
+
+plugin:
+  controlnet1:
+    _target_: hcpdiff.models.controlnet.ControlNetPlugin
+    _partial_: True
+    lr: 1e-4
+    from_layers:
+      - ''
+    to_layers:
+      - 'conv_in'
+      - 'down_blocks.0'
+      - 'down_blocks.1'
+      - 'down_blocks.2'
+      - 'down_blocks.3'
+      - 'mid_block'

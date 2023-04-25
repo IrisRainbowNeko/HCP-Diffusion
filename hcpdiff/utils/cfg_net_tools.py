@@ -105,7 +105,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5):
     all_plugin_blocks={}
 
     # builder: functools.partial
-    for plugin_name, builder in cfg_plugin:
+    for plugin_name, builder in cfg_plugin.items():
         lr = getattr(builder.keywords, 'lr', default_lr)
         if 'lr' in builder.keywords:
             del builder.keywords['lr']
@@ -216,12 +216,11 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
     if "plugin" in cfg_merge and cfg_merge.plugin is not None:
         for name, item in cfg_merge.plugin.items():
             plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')
-            if item.layers == 'all':
-                model.load_state_dict(plugin_state)
-            else:
+            if item.layers != 'all':
                 match_blocks = get_match_layers(item.layers, named_modules)
-                state_add = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
-                model.load_state_dict(state_add)
+                plugin_state = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
+            plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()} # replace placeholder to target plugin name
+            model.load_state_dict(plugin_state, strict=False)
             del item.layers
             del item.path
             getattr(model, name).set_hyper_params(**item)

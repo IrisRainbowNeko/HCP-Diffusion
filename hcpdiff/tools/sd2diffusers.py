@@ -195,6 +195,7 @@ if __name__ == "__main__":
             sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2}', f'cond_head.{2+i*4}', sd_control)
             sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
         sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
+        sd_control = {f'___.{k}':v for k,v in sd_control.items()} # Add placeholder for plugin
         os.makedirs(args.dump_path, exist_ok=True)
         ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(args.dump_path,
                                     f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))

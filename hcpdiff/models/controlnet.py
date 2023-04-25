@@ -5,8 +5,8 @@ import torch
 from torch import nn
 from copy import deepcopy
 
-from .plugin import MultiPluginBlock
-
+from .plugin import MultiPluginBlock, BasePluginBlock
+from hcpdiff.utils.net_utils import remove_all_hooks, remove_layers
 
 class ControlNetPlugin(MultiPluginBlock):
     def __init__(self, from_layers: List[nn.Module], to_layers: List[nn.Module], host_model: UNet2DConditionModel=None,
@@ -17,12 +17,13 @@ class ControlNetPlugin(MultiPluginBlock):
 
         self.register_input_feeder_to(host_model)
 
-        self.conv_in = deepcopy(host_model.conv_in)
-        self.time_proj = deepcopy(host_model.time_proj)
-        self.time_embedding = deepcopy(host_model.time_embedding)
-        self.class_embedding = deepcopy(host_model.class_embedding)
-        self.down_blocks = deepcopy(host_model.down_blocks)
-        self.mid_block = deepcopy(host_model.mid_block)
+        self.conv_in = self.copy_block(host_model.conv_in)
+        self.time_proj = self.copy_block(host_model.time_proj)
+        self.time_embedding = self.copy_block(host_model.time_embedding)
+        self.class_embedding = self.copy_block(host_model.class_embedding)
+        self.down_blocks = self.copy_block(host_model.down_blocks)
+        self.mid_block = self.copy_block(host_model.mid_block)
+        self.dtype = host_model.dtype
 
         self.build_head(cond_block_channels)
 
@@ -34,6 +35,14 @@ class ControlNetPlugin(MultiPluginBlock):
         del self.controlnet_down_blocks[-1]
 
         self.reset_parameters()
+
+    def copy_block(self, block):
+        if block is None:
+            return block
+        block = deepcopy(block)
+        remove_all_hooks(block)
+        remove_layers(block, BasePluginBlock)
+        return block
 
     def build_head(self, cond_block_channels):
         cond_head = [
@@ -59,12 +68,14 @@ class ControlNetPlugin(MultiPluginBlock):
         self.feat_to = self(*fea_in)
 
     def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
-        if idx == 3:
-            return (fea_out[0], tuple(fea_out[1][i]+self.feat_to[idx*3+i] for i in range(2)))
+        if idx == 0:
+            return fea_out + self.feat_to[0]
         elif idx == 4:
-            return fea_out + self.feat_to[11]
+            return (fea_out[0], tuple(fea_out[1][i] + self.feat_to[(idx-1) * 3 + i+1] for i in range(2)))
+        elif idx == 5:
+            return fea_out + self.feat_to[11+1]
         else:
-            return (fea_out[0], tuple(fea_out[1][i]+self.feat_to[idx*3+i] for i in range(3)))
+            return (fea_out[0], tuple(fea_out[1][i]+self.feat_to[(idx-1)*3+i+1] for i in range(3)))
 
     def feed_input_data(self, data): # get the control image
         if isinstance(data, dict):
@@ -125,7 +136,7 @@ class ControlNetPlugin(MultiPluginBlock):
         # 2. pre-process
         sample = self.conv_in(sample)
 
-        controlnet_cond = self.controlnet_cond_embedding(self.cond)
+        controlnet_cond = self.cond_head(self.cond)
 
         sample += controlnet_cond
 
@@ -165,7 +176,7 @@ class ControlNetPlugin(MultiPluginBlock):
 
         mid_block_res_sample = self.controlnet_mid_block(sample)
 
-        return (controlnet_down_block_res_samples + mid_block_res_sample)
+        return controlnet_down_block_res_samples + (mid_block_res_sample,)
 
 
 
