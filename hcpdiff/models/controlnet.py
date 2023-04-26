@@ -63,19 +63,22 @@ class ControlNetPlugin(MultiPluginBlock):
         self.controlnet_mid_block.apply(weight_init)
         self.cond_head[-1].apply(weight_init)
 
-    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], idx: int):
+    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
         assert idx==0
         self.feat_to = self(*fea_in)
+        return (*fea_in, None, None, None, None, (*self.feat_to[:-13], *([0]*12)), 0)
 
     def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
-        if idx == 0:
-            return fea_out + self.feat_to[0]
+        if idx == 5:
+            new_feat = fea_in[0]
+            new_feat[:, new_feat.shape[1]//2:, ...] += self.feat_to[0]
+            return (new_feat, fea_in[1])
+        elif idx == 3:
+            return (fea_out[0], tuple(fea_out[1][i] + self.feat_to[(idx) * 3 + i+1] for i in range(2)))
         elif idx == 4:
-            return (fea_out[0], tuple(fea_out[1][i] + self.feat_to[(idx-1) * 3 + i+1] for i in range(2)))
-        elif idx == 5:
             return fea_out + self.feat_to[11+1]
         else:
-            return (fea_out[0], tuple(fea_out[1][i]+self.feat_to[(idx-1)*3+i+1] for i in range(3)))
+            return (fea_out[0], tuple(fea_out[1][i]+self.feat_to[(idx)*3+i+1] for i in range(3)))
 
     def feed_input_data(self, data): # get the control image
         if isinstance(data, dict):

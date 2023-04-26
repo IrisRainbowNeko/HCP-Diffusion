@@ -8,7 +8,7 @@ plugin.py
     :Licence:     Apache-2.0
 """
 
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Any
 
 import torch
 from torch import nn
@@ -70,36 +70,35 @@ class SinglePluginBlock(BasePluginBlock):
             self.handle_post.remove()
 
 class PluginBlock(BasePluginBlock):
-    def __init__(self, from_layer:nn.Module, to_layer:nn.Module, pre_hook_to=False, host_model=None):
+    def __init__(self, from_layer:Dict[str, Any], to_layer:Dict[str, Any], host_model=None):
         super().__init__()
-        self.host_from = weakref.ref(from_layer)
-        self.host_to = weakref.ref(to_layer)
-        #self.pre_hook_to = pre_hook_to
+        self.host_from = weakref.ref(from_layer['layer'])
+        self.host_to = weakref.ref(to_layer['layer'])
 
-        self.hook_handle_from = from_layer.register_forward_pre_hook(self.from_layer_hook)
-        if pre_hook_to:
-            self.hook_handle_to = to_layer.register_forward_pre_hook(self.to_layer_pre_hook)
+        if from_layer['pre_hook']:
+            self.hook_handle_from = from_layer['layer'].register_forward_pre_hook(lambda host, fea_in: self.from_layer_hook(host, fea_in, None))
         else:
-            self.hook_handle_to = to_layer.register_forward_hook(self.to_layer_hook)
+            self.hook_handle_from = from_layer['layer'].register_forward_hook(lambda host, fea_in, fea_out: self.from_layer_hook(host, fea_in, fea_out))
+        if to_layer['pre_hook']:
+            self.hook_handle_to = to_layer['layer'].register_forward_pre_hook(lambda host, fea_in: self.to_layer_hook(host, fea_in, None))
+        else:
+            self.hook_handle_to = to_layer['layer'].register_forward_hook(lambda host, fea_in, fea_out: self.to_layer_hook(host, fea_in, fea_out))
 
-    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor]):
+    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:torch.Tensor):
         self.feat_from = fea_in
 
     def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:torch.Tensor):
-        return self(self.feat_from, fea_out)
-
-    def to_layer_pre_hook(self, host, fea_in:Tuple[torch.Tensor]):
-        return self(self.feat_from, fea_in)
+        return self(self.feat_from, fea_in, fea_out)
 
     def remove(self):
         self.hook_handle_from.remove()
         self.hook_handle_to.remove()
 
 class MultiPluginBlock(BasePluginBlock):
-    def __init__(self, from_layers:List[nn.Module], to_layers:List[nn.Module], pre_hook_to=False, host_model=None):
+    def __init__(self, from_layers:List[Dict[str, Any]], to_layers:List[Dict[str, Any]], host_model=None):
         super().__init__()
-        self.host_from = [weakref.ref(x) for x in from_layers]
-        self.host_to = [weakref.ref(x) for x in to_layers]
+        self.host_from = [weakref.ref(x['layer']) for x in from_layers]
+        self.host_to = [weakref.ref(x['layer']) for x in to_layers]
 
         self.feat_from=[None for _ in range(len(from_layers))]
 
@@ -107,18 +106,21 @@ class MultiPluginBlock(BasePluginBlock):
         self.hook_handle_to = []
 
         for idx, layer in enumerate(from_layers):
-            handle_from = layer.register_forward_pre_hook(lambda host, fea_in, idx=idx:self.from_layer_hook(host, fea_in, idx))
+            if layer['pre_hook']:
+                handle_from = layer['layer'].register_forward_pre_hook(lambda host, fea_in, idx=idx:self.from_layer_hook(host, fea_in, None, idx))
+            else:
+                handle_from = layer['layer'].register_forward_hook(lambda host, fea_in, fea_out, idx=idx: self.from_layer_hook(host, fea_in, fea_out, idx))
             self.hook_handle_from.append(handle_from)
         for idx, layer in enumerate(to_layers):
-            if pre_hook_to:
-                handle_to = layer.register_forward_pre_hook(lambda host, fea_in, idx=idx:self.to_layer_pre_hook(host, fea_in, idx))
+            if layer['pre_hook']:
+                handle_to = layer['layer'].register_forward_pre_hook(lambda host, fea_in, idx=idx:self.to_layer_hook(host, fea_in, None, idx))
             else:
-                handle_to = layer.register_forward_hook(lambda host, fea_in, fea_out, idx=idx:self.to_layer_hook(host, fea_in, fea_out, idx))
+                handle_to = layer['layer'].register_forward_hook(lambda host, fea_in, fea_out, idx=idx:self.to_layer_hook(host, fea_in, fea_out, idx))
             self.hook_handle_to.append(handle_to)
 
         self.record_count=0
 
-    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], idx: int):
+    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
         self.feat_from[idx] = fea_in
         self.record_count+=1
         if self.record_count==len(self.feat_from): # call forward when all feat is record
@@ -127,9 +129,6 @@ class MultiPluginBlock(BasePluginBlock):
 
     def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
         return self.feat_to[idx] + fea_out
-
-    def to_layer_pre_hook(self, host, fea_in:Tuple[torch.Tensor], idx: int):
-        return self.feat_to[idx] + fea_in
 
     def remove(self):
         for handle_from in self.hook_handle_from:

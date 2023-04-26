@@ -6,11 +6,11 @@ plugin:
     _partial_: True
     lr: 1e-4
     from_layers:
-      - ''
+      - 'pre_hook:'
     to_layers:
-      - 'conv_in'
       - 'down_blocks.0'
       - 'down_blocks.1'
       - 'down_blocks.2'
       - 'down_blocks.3'
       - 'mid_block'
+      - 'pre_hook:up_blocks.3.resnets.2'
