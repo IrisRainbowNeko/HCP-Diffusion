@@ -9,7 +9,7 @@ cfg_net_tools.py
 """
 
 
-from typing import Dict, List, Iterable, Tuple, Union
+from typing import Dict, List, Iterable, Tuple, Union, Any
 
 import re
 import torch
@@ -27,22 +27,52 @@ def get_class_match_layer(class_name, block:nn.Module):
     else:
         return ['.'+name for name, layer in block.named_modules() if type(layer).__name__==class_name]
 
-def get_match_layers(layers, all_layers):
+def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str], List[Dict[str, Any]]]:
     res=[]
     for name in layers:
-        if isinstance(name, str):
-            if name.startswith('re:'):
-                pattern = re.compile(name[3:])
-                res.extend(filter(lambda x: pattern.match(x) != None, all_layers.keys()))
-            else:
-                res.append(name)
-        else:
-            pattern = re.compile(name[0][3:])
-            match_layers = filter(lambda x: pattern.match(x) != None, all_layers.keys())
-            for layer in match_layers:
-                res.extend([layer+x for x in get_class_match_layer(name[1], all_layers[layer])])
+        metas = name.split(':')
 
-    return sorted(set(res), key=res.index) # Remove duplicates and keep the original order
+        use_re = False
+        pre_hook = False
+        cls_filter = None
+        for meta in metas[:-1]:
+            if meta=='re':
+                use_re=True
+            elif meta=='pre_hook':
+                pre_hook=True
+            elif meta.startswith('cls('):
+                cls_filter=meta[4:-1]
+
+        name = metas[-1]
+        if use_re:
+            pattern = re.compile(name)
+            match_layers = filter(lambda x: pattern.match(x) != None, all_layers.keys())
+        else:
+            match_layers = [name]
+
+        if cls_filter is not None:
+            match_layers_new = []
+            for layer in match_layers:
+                match_layers_new.extend([layer + x for x in get_class_match_layer(name[1], all_layers[layer])])
+            match_layers = match_layers_new
+
+        for layer in match_layers:
+            if return_metas:
+                res.append({'layer': layer, 'pre_hook': pre_hook})
+            else:
+                res.append(layer)
+
+    # Remove duplicates and keep the original order
+    if return_metas:
+        layer_set=set()
+        res_unique = []
+        for item in res:
+            if item['layer'] not in layer_set:
+                layer_set.add(item['layer'])
+                res_unique.append(item)
+        return res_unique
+    else:
+        return sorted(set(res), key=res.index)
 
 def get_layers_with_block(named_modules:Dict[str, nn.Module], block_names:Iterable[str], cond:List=None):
     layers=[]
@@ -112,8 +142,8 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5):
         plugin_class = getattr(builder.func, '__self__', builder.func) # support static or class method
 
         if issubclass(plugin_class, MultiPluginBlock):
-            from_layers = [named_modules[item] for item in get_match_layers(builder.keywords['from_layers'], named_modules)]
-            to_layers = [named_modules[item] for item in get_match_layers(builder.keywords['to_layers'], named_modules)]
+            from_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords['from_layers'], named_modules, return_metas=True)]
+            to_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords['to_layers'], named_modules, return_metas=True)]
             del builder.keywords['from_layers']
             del builder.keywords['to_layers']
 
@@ -134,18 +164,21 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5):
                 train_params.append({'params': layer.parameters(), 'lr': lr})
                 all_plugin_blocks[f'{layer_name}.{plugin_name}'] = layer
         elif issubclass(plugin_class, PluginBlock):
-            from_layer_name = builder.keywords['from_layer']
-            from_layer = named_modules[from_layer_name]
-            to_layer = named_modules[builder.keywords['to_layer']]
+            from_layer = get_match_layers(builder.keywords['from_layer'], named_modules, return_metas=True)
+            to_layer = get_match_layers(builder.keywords['to_layer'], named_modules, return_metas=True)
             del builder.keywords['from_layer']
             del builder.keywords['to_layer']
 
-            layer = builder(host_model=model, from_layer=from_layer, to_layer=to_layer)
-            layer.requires_grad_(True)
-            layer.train()
-            setattr(from_layer, plugin_name, layer)
-            train_params.append({'params': layer.parameters(), 'lr': lr})
-            all_plugin_blocks[f'{from_layer_name}.{plugin_name}'] = layer
+            for from_layer_meta, to_layer_meta in zip(from_layer, to_layer):
+                from_layer_name=from_layer_meta['layer']
+                from_layer_meta['layer']=named_modules[from_layer_name]
+                to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
+                layer = builder(host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
+                layer.requires_grad_(True)
+                layer.train()
+                setattr(from_layer, plugin_name, layer)
+                train_params.append({'params': layer.parameters(), 'lr': lr})
+                all_plugin_blocks[f'{from_layer_name}.{plugin_name}'] = layer
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
     return train_params, PluginGroup(all_plugin_blocks)

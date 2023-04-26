@@ -25,7 +25,7 @@ class UnetHook(): # for controlnet
         UNet2DConditionModel.__call__ = self.unet_call
 
     def unet_call(self, sample, timestep, encoder_hidden_states, **kwargs):
-        return self.call_raw(self.unet, sample, timestep, encoder_hidden_states, **kwargs)
+        return self.call_raw(self.unet, sample, timestep, encoder_hidden_states)
 
 class Visualizer:
     def __init__(self, cfgs):
