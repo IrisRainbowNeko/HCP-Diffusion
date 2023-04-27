@@ -5,7 +5,8 @@ import argparse
 import os.path
 
 import torch
-from hcpdiff.utils.utils import str2bool, import_model_class_from_model_name_or_path
+from hcpdiff.utils.utils import str2bool
+from hcpdiff.utils.net_utils import import_text_encoder_class
 from transformers import AutoTokenizer
 from hcpdiff.utils.emb_utils import save_emb
 
@@ -26,7 +27,7 @@ if __name__ == '__main__':
                 use_fast=False,
             )
 
-    text_encoder_cls = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path, None)
+    text_encoder_cls = import_text_encoder_class(args.pretrained_model_name_or_path, None)
     text_encoder = text_encoder_cls.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder", revision=None)
 
     embed_dim = text_encoder.text_model.embeddings.token_embedding.embedding_dim
