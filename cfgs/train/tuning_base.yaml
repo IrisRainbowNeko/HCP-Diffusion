@@ -38,7 +38,8 @@ lora_unet: null
 text_encoder: null
 lora_text_encoder: null
 
-plugin: null
+plugin_unet: null
+plugin_TE: null
 #plugin:
 #  lokr1:
 #    _target_: plugins.Lokr

@@ -13,8 +13,14 @@ from typing import Tuple, List, Dict, Any
 import torch
 from torch import nn
 import weakref
+from abc import abstractmethod, ABCMeta
+
+from hcpdiff.utils.utils import isinstance_list
 
 class BasePluginBlock(nn.Module):
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
 
     def forward(self, host:nn.Module, fea_in:Tuple[torch.Tensor], fea_out:torch.Tensor):
         return fea_out
@@ -34,10 +40,25 @@ class BasePluginBlock(nn.Module):
         for k,v in kwargs.items():
             setattr(self, k, v)
 
-class SinglePluginBlock(BasePluginBlock):
-    def __init__(self, host:nn.Module, hook_param=None, host_model=None):
-        super().__init__()
+    @staticmethod
+    def extract_state_without_plugin(model: nn.Module):
+        plugin_names = {k for k,v in model.named_modules() if isinstance(v, BasePluginBlock)}
+        model_sd = {}
+        for k, v in model.state_dict().items():
+            for name in plugin_names:
+                if k.startswith(name):
+                    break
+            else:
+                model_sd[k]=v
+        return model_sd
+
+class SinglePluginBlock(BasePluginBlock, metaclass=ABCMeta):
+    wrapable_classes=[]
+
+    def __init__(self, name:str, host:nn.Module, hook_param=None, host_model=None):
+        super().__init__(name)
         self.host = weakref.ref(host)
+        setattr(host, name, self)
 
         if hook_param is None:
             self.hook_handle = host.register_forward_hook(self.layer_hook)
@@ -63,17 +84,41 @@ class SinglePluginBlock(BasePluginBlock):
             host.weight_restored = True
 
     def remove(self):
+        host = self.host()
+        delattr(host, self.name)
         if hasattr(self, 'hook_handle'):
             self.hook_handle.remove()
         else:
             self.handle_pre.remove()
             self.handle_post.remove()
 
+    @abstractmethod
+    @classmethod
+    def wrap_layer(cls, name: str, layer: nn.Module, **kwargs):  # -> SinglePluginBlock:
+        pass
+
+    @classmethod
+    def wrap_model(cls, plugin_name: str, model: nn.Module, exclude_key=None, **kwargs):  # -> Dict[str, SinglePluginBlock]:
+        plugin_block_dict = {}
+        if isinstance_list(model, cls.wrapable_classes):
+            plugin_block_dict[''] = cls.wrap_layer(plugin_name, model, **kwargs)
+        else:
+            if exclude_key:
+                # there maybe multiple single plugin block, avoid insert plugin into plugin blocks with exclude_key
+                named_modules = {name: layer for name, layer in model.named_modules() if exclude_key not in name}
+            else:
+                named_modules = {name: layer for name, layer in model.named_modules()}
+            for name, layer in named_modules.items():
+                if isinstance_list(model, cls.wrapable_classes):
+                    plugin_block_dict[name] = cls.wrap_layer(plugin_name, layer, **kwargs)
+        return plugin_block_dict
+
 class PluginBlock(BasePluginBlock):
-    def __init__(self, from_layer:Dict[str, Any], to_layer:Dict[str, Any], host_model=None):
-        super().__init__()
+    def __init__(self, name, from_layer:Dict[str, Any], to_layer:Dict[str, Any], host_model=None):
+        super().__init__(name)
         self.host_from = weakref.ref(from_layer['layer'])
         self.host_to = weakref.ref(to_layer['layer'])
+        setattr(from_layer['layer'], name, self)
 
         if from_layer['pre_hook']:
             self.hook_handle_from = from_layer['layer'].register_forward_pre_hook(lambda host, fea_in: self.from_layer_hook(host, fea_in, None))
@@ -91,14 +136,18 @@ class PluginBlock(BasePluginBlock):
         return self(self.feat_from, fea_in, fea_out)
 
     def remove(self):
+        host_from = self.host_from()
+        delattr(host_from, self.name)
         self.hook_handle_from.remove()
         self.hook_handle_to.remove()
 
 class MultiPluginBlock(BasePluginBlock):
-    def __init__(self, from_layers:List[Dict[str, Any]], to_layers:List[Dict[str, Any]], host_model=None):
-        super().__init__()
+    def __init__(self, name:str, from_layers:List[Dict[str, Any]], to_layers:List[Dict[str, Any]], host_model=None):
+        super().__init__(name)
         self.host_from = [weakref.ref(x['layer']) for x in from_layers]
         self.host_to = [weakref.ref(x['layer']) for x in to_layers]
+        self.host_model = weakref.ref(host_model)
+        setattr(host_model, name, self)
 
         self.feat_from=[None for _ in range(len(from_layers))]
 
@@ -131,6 +180,8 @@ class MultiPluginBlock(BasePluginBlock):
         return self.feat_to[idx] + fea_out
 
     def remove(self):
+        host_model = self.host_model()
+        delattr(host_model, self.name)
         for handle_from in self.hook_handle_from:
             handle_from.remove()
         for handle_to in self.hook_handle_to:
@@ -138,7 +189,7 @@ class MultiPluginBlock(BasePluginBlock):
 
 class PluginGroup:
     def __init__(self, plugin_dict:Dict[str, BasePluginBlock]):
-        self.plugin_dict = plugin_dict
+        self.plugin_dict = plugin_dict # {host_model_path: plugin_object}
 
     def __setitem__(self, k, v):
         self.plugin_dict[k]=v
@@ -146,16 +197,22 @@ class PluginGroup:
     def __getitem__(self, k):
         return self.plugin_dict[k]
 
+    @property
+    def plugin_name(self):
+        if self.empty():
+            return None
+        return next(iter(self.plugin_dict.values())).name
+
     def remove(self):
         for plugin in self.plugin_dict.values():
             plugin.remove()
 
     def state_dict(self, model=None):
         if model is None:
-            return {f'{k}.{ks}':vs for k,v in self.plugin_dict.items() for ks,vs in v.state_dict().items()}
+            return {f'{k}.___.{ks}':vs for k,v in self.plugin_dict.items() for ks,vs in v.state_dict().items()}
         else:
             sd_model = model.state_dict()
-            return {f'{k}.{ks}':sd_model[f'{k}.{v.id}.{ks}'] for k,v in self.plugin_dict.items() for ks,vs in v.state_dict().items()}
+            return {f'{k}.___.{ks}':sd_model[f'{k}.{v.name}.{ks}'] for k,v in self.plugin_dict.items() for ks,vs in v.state_dict().items()}
 
     def empty(self):
         return len(self.plugin_dict)==0

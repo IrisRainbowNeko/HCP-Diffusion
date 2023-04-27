@@ -34,7 +34,7 @@ from hcpdiff.utils.utils import cycle_data, load_config_with_cli, get_cfg_range
 from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
 from hcpdiff.utils.ema import ModelEMA
-from hcpdiff.utils.cfg_net_tools import make_hcpdiff
+from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.emb_utils import load_emb
 from hcpdiff.data import collate_fn_ft
 from hcpdiff.visualizer import Visualizer
@@ -67,7 +67,7 @@ class Trainer:
             diffusers.utils.logging.set_verbosity_error()
 
         self.lr=1e-5 # no usage, place set lr in cfgs
-        self.train_TE = (cfgs.text_encoder is not None) or (cfgs.lora_text_encoder is not None)
+        self.train_TE = (cfgs.text_encoder is not None) or (cfgs.lora_text_encoder is not None) or (cfgs.plugin_TE is not None)
 
         self.build_ckpt_manager()
         self.build_model()
@@ -282,12 +282,16 @@ class Trainer:
         if isinstance(self.lora_unet, tuple): # creat negative lora
             self.DA_lora = True
             self.lora_unet, self.lora_unet_neg = self.lora_unet
+        train_params_unet_plugin, self.all_plugin_unet = make_plugin(self.unet, self.cfgs.plugin_unet)
+        train_params_unet += train_params_unet_plugin
 
         if self.train_TE:
             train_params_text_encoder, self.lora_TE = make_hcpdiff(self.text_encoder, self.cfgs.text_encoder, self.cfgs.lora_text_encoder)
             if isinstance(self.lora_TE, tuple):  # creat negative lora
                 self.DA_lora = True
                 self.lora_TE, self.lora_TE_neg = self.lora_TE
+            train_params_TE_plugin, self.all_plugin_TE = make_plugin(self.text_encoder, self.cfgs.plugin_TE)
+            train_params_text_encoder += train_params_TE_plugin
         else:
             train_params_text_encoder=[]
 
@@ -486,11 +490,15 @@ class Trainer:
         unet_raw=self.get_unet_raw()
         self.ckpt_manager.save_model_with_lora(unet_raw, self.lora_unet, model_ema=getattr(self, 'ema_unet', None),
                                                name='unet', step=self.global_step)
+        self.ckpt_manager.save_plugins(unet_raw, self.all_plugin_unet, name='unet', step=self.global_step,
+                                       model_ema=getattr(self, 'ema_unet', None))
         if self.train_TE:
             TE_raw = self.get_text_encoder_raw()
             # exclude_key: embeddings should not save with text-encoder
             self.ckpt_manager.save_model_with_lora(TE_raw, self.lora_TE, model_ema=getattr(self, 'ema_text_encoder', None),
                                                    name='text_encoder', step=self.global_step, exclude_key='emb_ex.')
+            self.ckpt_manager.save_plugins(TE_raw, self.all_plugin_TE, name='text_encoder', step=self.global_step,
+                                           model_ema=getattr(self, 'ema_text_encoder', None))
 
         if self.DA_lora:
             self.ckpt_manager.save_model_with_lora(None, self.lora_unet_neg, name='unet-neg', step=self.global_step)

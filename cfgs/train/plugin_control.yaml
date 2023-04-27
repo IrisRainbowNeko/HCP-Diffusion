@@ -1,6 +1,6 @@
 _base_: [cfgs/train/tuning_base.yaml]
 
-plugin:
+plugin_unet:
   controlnet1:
     _target_: hcpdiff.models.controlnet.ControlNetPlugin
     _partial_: True

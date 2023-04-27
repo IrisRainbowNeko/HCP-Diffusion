@@ -15,7 +15,7 @@ import re
 import torch
 from torch import nn
 
-from .utils import dict_get
+from .utils import net_path_join
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup
@@ -74,15 +74,18 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
     else:
         return sorted(set(res), key=res.index)
 
-def get_layers_with_block(named_modules:Dict[str, nn.Module], block_names:Iterable[str], cond:List=None):
-    layers=[]
-    for blk in block_names:
-        if type(named_modules[blk]) in cond:
-            layers.append(blk)
-        for name, layer in named_modules[blk].named_modules():
-            if type(named_modules[blk]) in cond:
-                layers.append(f'{blk}.{name}')
-    return layers
+def get_lora_rank_and_cls(lora_state):
+    rank_groups = getattr(lora_state, 'layer.rank_groups', 1)
+    if rank_groups > 1:
+        if len(lora_state['layer.lora_down.weight'].shape) == 3:
+            rank = rank_groups * lora_state['layer.lora_down.weight'].shape[2]
+        else:
+            rank = lora_state['layer.lora_down.weight'].shape[0]
+        lora_layer_cls = lora_layers.layer_map['loha_group']
+    else:
+        rank = lora_state['layer.lora_down.weight'].shape[0]
+        lora_layer_cls = lora_layers.layer_map['lora']
+    return lora_layer_cls, rank, rank_groups
 
 def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
     named_modules = {k:v for k,v in model.named_modules()}
@@ -97,45 +100,50 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
                 layer = named_modules[layer_name]
                 layer.requires_grad_(True)
                 layer.train()
-                train_params.append({'params':list(LoraBlock.extract_param_without_lora(layer).values()), 'lr':dict_get(item, 'lr', default_lr)})
+                train_params.append({'params':list(LoraBlock.extract_param_without_lora(layer).values()), 'lr':getattr(item, 'lr', default_lr)})
 
     if cfg_lora is not None:
-        for item in cfg_lora:
+        for lora_id, item in enumerate(cfg_lora):
             for layer_name in get_match_layers(item.layers, named_modules):
                 layer = named_modules[layer_name]
                 arg_dict = {k:v for k,v in item.items() if k!='layers'}
-                lora_block_dict = lora_layers.layer_map[getattr(arg_dict, 'type', 'lora')].warp_model(layer, **arg_dict)
+                lora_block_dict = lora_layers.layer_map[getattr(arg_dict, 'type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
+
+                params_group = []
                 block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
+                    block_path = net_path_join(layer_name, k)
                     if block_branch is None:
-                        all_lora_blocks[f'{layer_name}.{k}'] = v
+                        all_lora_blocks[block_path] = v
                     elif block_branch=='p':
-                        all_lora_blocks[f'{layer_name}.{k}'] = v
+                        all_lora_blocks[block_path] = v
                         v.set_mask((0.5, 1))
                     elif block_branch == 'n':
-                        all_lora_blocks_neg[f'{layer_name}.{k}']=v
+                        all_lora_blocks_neg[block_path]=v
                         v.set_mask((0, 0.5))
+                    else:
+                        raise NotImplementedError(f'Unsupported branch "{block_branch}"')
+                    v.requires_grad_(True)
+                    v.train()
+                    params_group.extend(v.parameters())
 
-                params_group=[]
-                for block in lora_block_dict.values():
-                    block.requires_grad_(True)
-                    block.train()
-                    params_group.extend(block.parameters())
-                train_params.append({'params': params_group, 'lr':dict_get(item, 'lr', default_lr)})
+                train_params.append({'params': params_group, 'lr':getattr(item, 'lr', default_lr)})
 
     if len(all_lora_blocks_neg)>0:
         return train_params, (LoraGroup(all_lora_blocks), LoraGroup(all_lora_blocks_neg))
     else:
         return train_params, LoraGroup(all_lora_blocks)
 
-def make_plugin(model, cfg_plugin, default_lr=1e-5):
+def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
     named_modules = {k:v for k,v in model.named_modules()}
 
     train_params=[]
-    all_plugin_blocks={}
+    all_plugin_group={}
 
     # builder: functools.partial
     for plugin_name, builder in cfg_plugin.items():
+        all_plugin_blocks={}
+
         lr = getattr(builder.keywords, 'lr', default_lr)
         if 'lr' in builder.keywords:
             del builder.keywords['lr']
@@ -147,22 +155,25 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5):
             del builder.keywords['from_layers']
             del builder.keywords['to_layers']
 
-            layer = builder(host_model=model, from_layers=from_layers, to_layers=to_layers)
+            layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
             layer.requires_grad_(True)
             layer.train()
-            setattr(model, plugin_name, layer)
             train_params.append({'params': layer.parameters(), 'lr': lr})
-            all_plugin_blocks[plugin_name] = layer
+            all_plugin_blocks[''] = layer
         elif issubclass(plugin_class, SinglePluginBlock):
             layers_name = builder.keywords['layers']
             del builder.keywords['layers']
             for layer_name in get_match_layers(layers_name, named_modules):
-                layer = builder(host_model=model, host=named_modules[layer_name])
-                layer.requires_grad_(True)
-                layer.train()
-                setattr(named_modules[layer_name], plugin_name, layer)
-                train_params.append({'params': layer.parameters(), 'lr': lr})
-                all_plugin_blocks[f'{layer_name}.{plugin_name}'] = layer
+                blocks = builder(name=plugin_name, host_model=model, host=named_modules[layer_name])
+                if not isinstance(blocks, dict):
+                    blocks={'':blocks}
+
+                params_group = []
+                for k,v in blocks.items():
+                    all_plugin_blocks[net_path_join(layer_name, k)] = v
+                    v.requires_grad_(True)
+                    v.train()
+                train_params.append({'params': params_group, 'lr': lr})
         elif issubclass(plugin_class, PluginBlock):
             from_layer = get_match_layers(builder.keywords['from_layer'], named_modules, return_metas=True)
             to_layer = get_match_layers(builder.keywords['to_layer'], named_modules, return_metas=True)
@@ -173,15 +184,15 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5):
                 from_layer_name=from_layer_meta['layer']
                 from_layer_meta['layer']=named_modules[from_layer_name]
                 to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
-                layer = builder(host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
+                layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
                 layer.requires_grad_(True)
                 layer.train()
-                setattr(from_layer, plugin_name, layer)
                 train_params.append({'params': layer.parameters(), 'lr': lr})
-                all_plugin_blocks[f'{from_layer_name}.{plugin_name}'] = layer
+                all_plugin_blocks[from_layer_name] = layer
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
-    return train_params, PluginGroup(all_plugin_blocks)
+        all_plugin_group[plugin_name] = PluginGroup(all_plugin_blocks)
+    return train_params, all_plugin_group
 
 @torch.no_grad()
 def load_hcpdiff(model:nn.Module, cfg_merge):
@@ -196,43 +207,38 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
         return ckpt_manager_safe if path.endswith('.safetensors') else ckpt_manager_torch
 
     if "lora" in cfg_merge and cfg_merge.lora is not None:
-        for item in cfg_merge.lora:
+        for lora_id, item in enumerate(cfg_merge.lora):
             lora_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
             lora_block_state = {}
             # get all layers in the lora_state
             for name, p in lora_state.items():
-                lbidx = name.rfind('lora_block.')
-                if lbidx != -1:
-                    prefix = name[:lbidx - 1]
-                    if prefix not in lora_block_state:
-                        lora_block_state[prefix] = {}
-                    lora_block_state[prefix][name[lbidx + len('lora_block.'):]] = p
+                # lora_block. is the old format
+                prefix, block_name = name.split('.___.' if name.rfind('lora_block.')==-1 else '.lora_block.', 1)
+                if prefix not in lora_block_state:
+                    lora_block_state[prefix] = {}
+                lora_block_state[prefix][block_name] = p
             # get selected layers
             if item.layers != 'all':
                 match_blocks = get_match_layers(item.layers, named_modules)
-                match_layers = get_layers_with_block(named_modules, match_blocks, [nn.Linear, nn.Conv2d])
-                lora_block_state = {k: v for k, v in lora_block_state.items() if k in match_layers}
+                lora_state_new = {}
+                for k, v in lora_block_state.items():
+                    for mk in match_blocks:
+                        if k.startswith(mk):
+                            lora_state_new[k]=v
+                            break
+                lora_block_state = lora_state_new
             # add lora to host and load weights
             for host_name, lora_state in lora_block_state.items():
-                rank_groups=dict_get(lora_state, 'layer.rank_groups', 1)
-                if rank_groups>1:
-                    if len(lora_state['layer.lora_down.weight'].shape)==3:
-                        rank = rank_groups*lora_state['layer.lora_down.weight'].shape[2]
-                    else:
-                        rank = lora_state['layer.lora_down.weight'].shape[0]
-                    lora_layer = lora_layers.layer_map['loha_group']
-                else:
-                    rank = lora_state['layer.lora_down.weight'].shape[0]
-                    lora_layer = lora_layers.layer_map['lora']
+                lora_layer_cls, rank, rank_groups = get_lora_rank_and_cls(lora_state)
                 del lora_state['scale']
 
-                lora_block_dict = lora_layer.warp_model(named_modules[host_name], rank=rank, dropout=dict_get(item, 'dropout', 0.0),
-                                                 scale=dict_get(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
-                                                 rank_groups=rank_groups)
-                all_lora_blocks[f'{host_name}.lora_block'] = lora_block_dict['lora_block']
-                lora_block_dict['lora_block'].load_state_dict(lora_state, strict=False)
-                lora_block_dict['lora_block'].set_mask(dict_get(item, 'mask', None))
-                lora_block_dict['lora_block'].to(model.device)
+                lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
+                                                        scale=getattr(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
+                                                        rank_groups=rank_groups)
+                all_lora_blocks[f'{host_name}.{lora_block.name}'] = lora_block
+                lora_block.load_state_dict(lora_state, strict=False)
+                lora_block.set_mask(getattr(item, 'mask', None))
+                lora_block.to(model.device)
 
     if "part" in cfg_merge and cfg_merge.part is not None:
         for item in cfg_merge.part:

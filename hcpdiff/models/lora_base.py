@@ -11,21 +11,17 @@ lora.py
 import torch
 from torch import nn
 
-from hcpdiff.utils.utils import make_mask, low_rank_approximate
+from hcpdiff.utils.utils import make_mask, low_rank_approximate, isinstance_list
 from .plugin import SinglePluginBlock, PluginGroup, BasePluginBlock
 
 from typing import Union, Tuple, Dict, Type
 
 class LoraBlock(SinglePluginBlock):
-    def __init__(self, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False, inplace=True,
-                 hook_param=None, **kwargs):
-        super().__init__(host, hook_param)
-        if hasattr(host, 'lora_block'):
-            self.id = len(host.lora_block)
-            host.lora_block.append(self)
-        else:
-            self.id = 0
-            host.lora_block=nn.ModuleList([self])
+    wrapable_classes = [nn.Linear, nn.Conv2d]
+
+    def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False,
+                 inplace=True, hook_param=None, **kwargs):
+        super().__init__(f'lora_block_{lora_id}', host, hook_param)
 
         self.mask_range = None
         self.inplace=inplace
@@ -68,16 +64,6 @@ class LoraBlock(SinglePluginBlock):
                 new_out = fea_out.clone()
                 new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.scale
                 return new_out
-
-    def remove(self):
-        super().remove()
-        host = self.host()
-        for i in range(len(host.lora_block)):
-            if host.lora_block[i] == self:
-                del host.lora_block[i]
-                break
-        if len(host.lora_block)==0:
-            del host.lora_block
 
     def collapse_to_host(self, alpha=None, base_alpha=1.0):
         if alpha is None:
@@ -133,41 +119,32 @@ class LoraBlock(SinglePluginBlock):
             pass
 
     @classmethod
-    def warp_layer(cls, layer: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.1, scale=1.0, svd_init=False, bias=False, mask=None, **kwargs):# -> LoraBlock:
-        lora_block = cls(layer, rank, dropout, scale, bias=bias, **kwargs)
+    def wrap_layer(cls, lora_id:int, layer: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, scale=1.0, svd_init=False,
+                   bias=False, mask=None, **kwargs):# -> LoraBlock:
+        lora_block = cls(lora_id, layer, rank, dropout, scale, bias=bias, **kwargs)
         lora_block.init_weights(svd_init)
         lora_block.set_mask(mask)
         return lora_block
 
     @classmethod
-    def warp_model(cls, model: nn.Module, rank=1, dropout=0.0, scale=1.0, svd_init=False, bias=False, mask=None, **kwargs):# -> Dict[str, LoraBlock]:
-        lora_block_dict = {}
-        if isinstance(model, nn.Linear) or isinstance(model, nn.Conv2d):
-            lora_block_dict['lora_block'] = cls.warp_layer(model, rank, dropout, scale, svd_init, bias=bias, mask=mask, **kwargs)
-        else:
-            # there maybe multiple lora block, avoid insert lora into lora_block
-            named_modules = {name: layer for name, layer in model.named_modules() if 'lora_block' not in name}
-            for name, layer in named_modules.items():
-                if isinstance(layer, nn.Linear) or isinstance(layer, nn.Conv2d):
-                    lora_block_dict[f'{name}.lora_block'] = cls.warp_layer(layer, rank, dropout, scale, svd_init,
-                                                                bias=bias, mask=mask, **kwargs)
-        return lora_block_dict
+    def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
+        super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
 
     @staticmethod
     def extract_lora_state(model:nn.Module):
-        return {k:v for k,v in model.state_dict().items() if 'lora_block.' in k}
+        return {k:v for k,v in model.state_dict().items() if 'lora_block_' in k}
 
     @staticmethod
     def extract_state_without_lora(model:nn.Module):
-        return {k:v for k,v in model.state_dict().items() if 'lora_block.' not in k}
+        return {k:v for k,v in model.state_dict().items() if 'lora_block_' not in k}
 
     @staticmethod
     def extract_param_without_lora(model:nn.Module):
-        return {k:v for k,v in model.named_parameters() if 'lora_block.' not in k}
+        return {k:v for k,v in model.named_parameters() if 'lora_block_' not in k}
 
     @staticmethod
     def extract_trainable_state_without_lora(model:nn.Module):
-        trainable_keys = {k for k,v in model.named_parameters() if ('lora_block.' not in k) and v.requires_grad}
+        trainable_keys = {k for k,v in model.named_parameters() if ('lora_block_' not in k) and v.requires_grad}
         return {k: v for k, v in model.state_dict().items() if k in trainable_keys}
 
 class LoraGroup(PluginGroup):
@@ -186,7 +163,7 @@ class LoraGroup(PluginGroup):
 def split_state(state_dict):
     sd_base, sd_lora={}, {}
     for k, v in state_dict.items():
-        if 'lora_block.' in k:
+        if 'lora_block_' in k:
             sd_lora[k]=v
         else:
             sd_base[k]=v

@@ -70,8 +70,9 @@ class ControlNetPlugin(MultiPluginBlock):
 
     def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
         if idx == 5:
-            new_feat = fea_in[0]
-            new_feat[:, new_feat.shape[1]//2:, ...] += self.feat_to[0]
+            sp = fea_in[0].shape[1]//2
+            new_feat = fea_in[0].clone()
+            new_feat[:, sp:, ...] = fea_in[0][:, sp:, ...] + self.feat_to[0]
             return (new_feat, fea_in[1])
         elif idx == 3:
             return (fea_out[0], tuple(fea_out[1][i] + self.feat_to[(idx) * 3 + i+1] for i in range(2)))

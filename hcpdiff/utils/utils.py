@@ -50,9 +50,6 @@ def load_config_with_cli(path, args_list=None):
 def _default(v, default):
     return default if v is None else v
 
-def dict_get(data, key, default):
-    return data[key] if key in data else default
-
 def cycle_data(data_loader, arb=False):
     epoch=0
     while True:
@@ -96,3 +93,12 @@ def factorization(dimension: int, factor:int=-1) -> Tuple[int, int]:
     f_max = (len(dim_bin)-3)>>1 if factor<0 else find_one(bin(factor))
     num = min(num, f_max)
     return dimension>>num, 1<<num
+
+def isinstance_list(obj, cls_list):
+    for cls in cls_list:
+        if isinstance(obj, cls):
+            return True
+    return False
+
+def net_path_join(*args):
+    return '.'.join(args).strip('.').replace('..', '.')
