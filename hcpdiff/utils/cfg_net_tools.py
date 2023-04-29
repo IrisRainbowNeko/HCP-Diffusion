@@ -135,25 +135,24 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
         return train_params, LoraGroup(all_lora_blocks)
 
 def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
-    named_modules = {k:v for k,v in model.named_modules()}
-
     train_params=[]
     all_plugin_group={}
+
+    if cfg_plugin is None:
+        return train_params, all_plugin_group
+
+    named_modules = {k: v for k, v in model.named_modules()}
 
     # builder: functools.partial
     for plugin_name, builder in cfg_plugin.items():
         all_plugin_blocks={}
 
-        lr = getattr(builder.keywords, 'lr', default_lr)
-        if 'lr' in builder.keywords:
-            del builder.keywords['lr']
+        lr = builder.keywords.pop('lr') if 'lr' in builder.keywords else default_lr
         plugin_class = getattr(builder.func, '__self__', builder.func) # support static or class method
 
         if issubclass(plugin_class, MultiPluginBlock):
-            from_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords['from_layers'], named_modules, return_metas=True)]
-            to_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords['to_layers'], named_modules, return_metas=True)]
-            del builder.keywords['from_layers']
-            del builder.keywords['to_layers']
+            from_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords.pop('from_layers'), named_modules, return_metas=True)]
+            to_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords.pop('to_layers'), named_modules, return_metas=True)]
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
             layer.requires_grad_(True)
@@ -161,8 +160,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             train_params.append({'params': layer.parameters(), 'lr': lr})
             all_plugin_blocks[''] = layer
         elif issubclass(plugin_class, SinglePluginBlock):
-            layers_name = builder.keywords['layers']
-            del builder.keywords['layers']
+            layers_name = builder.keywords.pop('layers')
             for layer_name in get_match_layers(layers_name, named_modules):
                 blocks = builder(name=plugin_name, host_model=model, host=named_modules[layer_name])
                 if not isinstance(blocks, dict):
@@ -175,10 +173,8 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                     v.train()
                 train_params.append({'params': params_group, 'lr': lr})
         elif issubclass(plugin_class, PluginBlock):
-            from_layer = get_match_layers(builder.keywords['from_layer'], named_modules, return_metas=True)
-            to_layer = get_match_layers(builder.keywords['to_layer'], named_modules, return_metas=True)
-            del builder.keywords['from_layer']
-            del builder.keywords['to_layer']
+            from_layer = get_match_layers(builder.keywords.pop('from_layer'), named_modules, return_metas=True)
+            to_layer = get_match_layers(builder.keywords.pop('to_layer'), named_modules, return_metas=True)
 
             for from_layer_meta, to_layer_meta in zip(from_layer, to_layer):
                 from_layer_name=from_layer_meta['layer']

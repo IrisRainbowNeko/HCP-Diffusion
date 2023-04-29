@@ -59,7 +59,7 @@ class TEEXHook:
         if self.clip_skip>0:
             encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
-            encoder_hidden_states += 0*feat_out['last_hidden_state'] # avoid unused parameters, make gradient checkpointing happy
+            encoder_hidden_states = encoder_hidden_states + 0*feat_out['last_hidden_state'] # avoid unused parameters, make gradient checkpointing happy
         else:
             encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
 

@@ -40,17 +40,3 @@ lora_text_encoder: null
 
 plugin_unet: null
 plugin_TE: null
-#plugin:
-#  lokr1:
-#    _target_: plugins.Lokr
-#    _partial_: True
-#    lr: 1e-4
-#    factor: 2
-#    layers:
-#      - 're:.*\.attn.?$'
-#  controlnet1:
-#    lr: 1e-4
-#    from_layers:
-#      - ''
-#    to_layers:
-#      - ''

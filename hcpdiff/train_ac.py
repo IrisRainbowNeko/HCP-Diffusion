@@ -16,6 +16,7 @@ import sys
 
 import torch
 import torch.utils.checkpoint
+import torch.utils.data
 import transformers
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from accelerate.utils import set_seed
@@ -24,18 +25,19 @@ from omegaconf import OmegaConf
 import hydra
 from loguru import logger
 import time
+from functools import partial
 
 import diffusers
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 
-from hcpdiff.data import TextImagePairDataset, RatioBucket
-from hcpdiff.utils.utils import cycle_data, load_config_with_cli, get_cfg_range
-from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper
+from hcpdiff.data import RatioBucket
+from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range
+from hcpdiff.data.utils import cycle_data
+from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper, load_emb
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
 from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
-from hcpdiff.utils.emb_utils import load_emb
 from hcpdiff.data import collate_fn_ft
 from hcpdiff.visualizer import Visualizer
 from hcpdiff.utils.ckpt_manager import CkptManagerPKL, CkptManagerSafe
@@ -74,11 +76,12 @@ class Trainer:
         self.make_hooks()
         self.config_model()
         self.cache_latents=False
-        self.train_loader, self.arb_ist=self.build_data(cfgs.data)
+        self.batch_size_list = []
+        self.train_loader=self.build_data(cfgs.data)
         if cfgs.data_class is None:
             self.train_loader_class=None # without DreamBooth
         else:
-            self.train_loader_class, self.arb_class=self.build_data(cfgs.data_class)
+            self.train_loader_class=self.build_data(cfgs.data_class)
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
         self.build_optimizer_scheduler()
@@ -142,9 +145,7 @@ class Trainer:
             setattr(self, name, obj)
 
     def scale_lr(self, parameters):
-        bs = self.cfgs.data.batch_size
-        if self.cfgs.data_class is not None:
-            bs += self.cfgs.data_class.batch_size
+        bs = sum(self.batch_size_list)
         scale_factor = bs * self.world_size * self.cfgs.train.gradient_accumulation_steps
         for param in parameters:
             if 'lr' in param:
@@ -198,10 +199,12 @@ class Trainer:
         if self.is_local_main_process:
             self.ckpt_manager.set_save_dir(os.path.join(self.exp_dir, 'ckpts'), emb_dir=self.cfgs.tokenizer_pt.emb_dir)
 
-    def get_unet_raw(self):
+    @property
+    def unet_raw(self):
         return self.TE_unet.module.unet if self.train_TE else self.unet.module
 
-    def get_text_encoder_raw(self):
+    @property
+    def text_encoder_raw(self):
         return self.TE_unet.module.TE if self.train_TE else self.text_encoder
 
     def config_model(self):
@@ -255,25 +258,27 @@ class Trainer:
         self.text_enc_hook = TEEXHook(self.text_encoder, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device,
                                       clip_skip=self.cfgs.model.clip_skip)
 
-    def build_data(self, cfg_data):
-        train_dataset = TextImagePairDataset(cfg_data, self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
-        if isinstance(train_dataset.bucket, RatioBucket):
-            arb=True
-            train_dataset.bucket.make_arb(cfg_data.batch_size*self.world_size)
-        else:
-            arb=False
+
+    def build_data(self, data_builder:partial) -> torch.utils.data.DataLoader:
+        batch_size = data_builder.keywords.pop('batch_size')
+        cache_latents = data_builder.keywords.pop('cache_latents')
+        self.batch_size_list.append(batch_size)
+
+        train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
+        train_dataset.bucket.build(batch_size * self.world_size)
+        arb = isinstance(train_dataset.bucket, RatioBucket)
         logger.info(f"len(train_dataset): {len(train_dataset)}")
 
-        if cfg_data.cache_latents:
+        if cache_latents:
             self.cache_latents = True
             train_dataset.cache_latents(self.vae, self.weight_dtype, self.device, show_prog=self.is_local_main_process)
 
         # Pytorch Data loader
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,
                                                                         rank=self.local_rank, shuffle=not arb)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg_data.batch_size,
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
             num_workers=self.cfgs.train.workers, sampler=train_sampler, collate_fn=collate_fn_ft)
-        return train_loader, arb
+        return train_loader
 
     def get_param_group_train(self):
         # make miniFT and warp with lora
@@ -337,12 +342,12 @@ class Trainer:
             self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
 
     def train(self):
-        total_batch_size = self.cfgs.data.batch_size * self.world_size * self.cfgs.train.gradient_accumulation_steps
+        total_batch_size = sum(self.batch_size_list) * self.world_size * self.cfgs.train.gradient_accumulation_steps
 
         logger.info("***** Running training *****")
         logger.info(f"  Num batches each epoch = {len(self.train_loader)}")
         logger.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
-        logger.info(f"  Instantaneous batch size per device = {self.cfgs.data.batch_size}")
+        logger.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
         logger.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
         self.global_step = 0
@@ -350,11 +355,11 @@ class Trainer:
             self.global_step = self.cfgs.train.resume.start_step
 
         if self.train_loader_class is not None:
-            self.data_iter_class = iter(cycle_data(self.train_loader_class, arb=self.arb_class))
+            self.data_iter_class = iter(cycle_data(self.train_loader_class))
 
         loss_sum=0
-        for image, att_mask, prompt_ids in cycle_data(self.train_loader, arb=self.arb_ist):
-            loss=self.train_one_step(image, att_mask, prompt_ids)
+        for data, prompt_ids in cycle_data(self.train_loader):
+            loss=self.train_one_step(data, prompt_ids)
             loss_sum+=loss
 
             self.global_step += 1
@@ -400,21 +405,29 @@ class Trainer:
         # (this is the forward diffusion process)
         return self.noise_scheduler.add_noise(latents, noise, timesteps), noise, timesteps
 
-    def encode_decode(self, prompt_ids, noisy_latents, timesteps):
+    def encode_decode(self, prompt_ids, noisy_latents, timesteps, **kwargs):
         # for DDP support
         if self.train_TE:
-            model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps)
+            model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, **kwargs)
         else:
+            input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, **kwargs)
+            if hasattr(self.text_encoder, 'input_feeder'):
+                for feeder in self.text_encoder.input_feeder:
+                    feeder(input_all)
+            if hasattr(self.unet_raw, 'input_feeder'):
+                for feeder in self.unet_raw.input_feeder:
+                    feeder(input_all)
+
             encoder_hidden_states = self.text_encoder(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
             model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred
 
-    def forward(self, latents, prompt_ids):
+    def forward(self, latents, prompt_ids, **kwargs):
         noisy_latents, noise, timesteps = self.make_noise(latents)
 
         # CFG context for DreamArtist
         noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)
-        model_pred = self.encode_decode(prompt_ids, noisy_latents, timesteps)
+        model_pred = self.encode_decode(prompt_ids, noisy_latents, timesteps, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
         # Get the target for loss depending on the prediction type
@@ -427,25 +440,28 @@ class Trainer:
             raise ValueError(f"Unknown loss type {self.cfgs.train.loss.type}")
         return model_pred, target
 
-    def train_one_step(self, image, att_mask, prompt_ids):
-        image=image.to(self.device, dtype=self.weight_dtype)
-        att_mask = att_mask.to(self.device)
+    def train_one_step(self, data, prompt_ids):
+        image = data['img'].to(self.device, dtype=self.weight_dtype)
+        att_mask = data['mask'].to(self.device)
         prompt_ids=prompt_ids.to(self.device)
+        other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k,v in data.items() if k!='img' and k!='mask'}
+
         with self.accelerator.accumulate(self.unet):
             latents = self.get_latents(image, self.train_loader.dataset)
-            model_pred, target = self.forward(latents, prompt_ids)
+            model_pred, target = self.forward(latents, prompt_ids, **other_datas)
 
             if self.train_loader_class is not None:
                 loss = self.get_loss(model_pred, target, att_mask) # Compute instance loss
                 self.accelerator.backward(loss)
 
                 #DreamBooth prior forward
-                image_cls, att_mask_cls, prompt_ids_cls = next(self.data_iter_class)
-                image_cls = image_cls.to(self.device, dtype=self.weight_dtype)
-                att_mask_cls = att_mask_cls.to(self.device)
+                data_cls, prompt_ids_cls = next(self.data_iter_class)
+                image_cls = data_cls['img'].to(self.device, dtype=self.weight_dtype)
+                att_mask_cls = data_cls['mask'].to(self.device)
                 prompt_ids_cls = prompt_ids_cls.to(self.device)
+                other_datas_cls = {k: v.to(self.device, dtype=self.weight_dtype) for k, v in data_cls.items() if k != 'img' and k != 'mask'}
                 latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
-                model_pred_prior, target_prior = self.forward(latents_cls, prompt_ids_cls)
+                model_pred_prior, target_prior = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
 
                 prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls) # Compute prior loss
                 loss = self.cfgs.train.loss.prior_loss_weight * prior_loss
@@ -482,18 +498,18 @@ class Trainer:
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
-            self.ema_unet.step(self.get_unet_raw().named_parameters())
+            self.ema_unet.step(self.unet_raw.named_parameters())
         if hasattr(self, 'ema_text_encoder'):
-            self.ema_text_encoder.step(self.get_text_encoder_raw().named_parameters())
+            self.ema_text_encoder.step(self.text_encoder_raw.named_parameters())
 
     def save_model(self, from_raw=False):
-        unet_raw=self.get_unet_raw()
+        unet_raw=self.unet_raw
         self.ckpt_manager.save_model_with_lora(unet_raw, self.lora_unet, model_ema=getattr(self, 'ema_unet', None),
                                                name='unet', step=self.global_step)
         self.ckpt_manager.save_plugins(unet_raw, self.all_plugin_unet, name='unet', step=self.global_step,
                                        model_ema=getattr(self, 'ema_unet', None))
         if self.train_TE:
-            TE_raw = self.get_text_encoder_raw()
+            TE_raw = self.text_encoder_raw
             # exclude_key: embeddings should not save with text-encoder
             self.ckpt_manager.save_model_with_lora(TE_raw, self.lora_TE, model_ema=getattr(self, 'ema_text_encoder', None),
                                                    name='text_encoder', step=self.global_step, exclude_key='emb_ex.')
@@ -512,8 +528,8 @@ class Trainer:
     def make_vis(self):
         vis_dir = os.path.join(self.exp_dir ,f'vis-{self.global_step}')
         new_components={
-            'unet': self.get_unet_raw(),
-            'text_encoder': self.get_text_encoder_raw(),
+            'unet': self.unet_raw,
+            'text_encoder': self.text_encoder_raw,
             'tokenizer': self.tokenizer,
             'vae': self.vae,
         }

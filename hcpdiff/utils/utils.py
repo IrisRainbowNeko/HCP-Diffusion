@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple
+from typing import Tuple
 
 import re
 import torch
@@ -49,15 +49,6 @@ def load_config_with_cli(path, args_list=None):
 
 def _default(v, default):
     return default if v is None else v
-
-def cycle_data(data_loader, arb=False):
-    epoch=0
-    while True:
-        if arb:
-            data_loader.dataset.bucket.rest(epoch)
-        for data in data_loader:
-            yield data
-        epoch+=1
 
 def get_cfg_range(cfg_text:str):
     dy_cfg_f='ln'

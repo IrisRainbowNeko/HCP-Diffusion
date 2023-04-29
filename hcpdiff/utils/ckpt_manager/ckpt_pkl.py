@@ -16,7 +16,7 @@ from torch import nn
 
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup, split_state
 from hcpdiff.models.plugin import PluginGroup, BasePluginBlock
-from hcpdiff.utils.emb_utils import save_emb
+from hcpdiff.utils.net_utils import save_emb
 
 
 class CkptManagerPKL:
@@ -55,7 +55,7 @@ class CkptManagerPKL:
     def save_model_with_lora(self, model: nn.Module, lora_blocks: LoraGroup, name:str, step:int, model_ema=None,
                              exclude_key=None):
         sd_model = {
-            'base': self.exclude_state(BasePluginBlock.extract_state_without_plugin(model), exclude_key),
+            'base': self.exclude_state(BasePluginBlock.extract_state_without_plugin(model, trainable=True), exclude_key),
         } if model is not None else {}
         if (lora_blocks is not None) and (not lora_blocks.empty()):
             sd_model['lora'] = lora_blocks.state_dict(model if self.plugin_from_raw else None)

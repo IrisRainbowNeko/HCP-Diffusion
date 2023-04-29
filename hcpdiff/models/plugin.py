@@ -13,7 +13,6 @@ from typing import Tuple, List, Dict, Any
 import torch
 from torch import nn
 import weakref
-from abc import abstractmethod, ABCMeta
 
 from hcpdiff.utils.utils import isinstance_list
 
@@ -41,18 +40,19 @@ class BasePluginBlock(nn.Module):
             setattr(self, k, v)
 
     @staticmethod
-    def extract_state_without_plugin(model: nn.Module):
+    def extract_state_without_plugin(model: nn.Module, trainable=False):
         plugin_names = {k for k,v in model.named_modules() if isinstance(v, BasePluginBlock)}
         model_sd = {}
         for k, v in model.state_dict().items():
-            for name in plugin_names:
-                if k.startswith(name):
-                    break
-            else:
-                model_sd[k]=v
+            if (not trainable) or v.requires_grad:
+                for name in plugin_names:
+                    if k.startswith(name):
+                        break
+                else:
+                    model_sd[k]=v
         return model_sd
 
-class SinglePluginBlock(BasePluginBlock, metaclass=ABCMeta):
+class SinglePluginBlock(BasePluginBlock):
     wrapable_classes=[]
 
     def __init__(self, name:str, host:nn.Module, hook_param=None, host_model=None):
@@ -92,10 +92,9 @@ class SinglePluginBlock(BasePluginBlock, metaclass=ABCMeta):
             self.handle_pre.remove()
             self.handle_post.remove()
 
-    @abstractmethod
     @classmethod
     def wrap_layer(cls, name: str, layer: nn.Module, **kwargs):  # -> SinglePluginBlock:
-        pass
+        raise NotImplementedError(f'wrap_layer of {cls} is not implemented.')
 
     @classmethod
     def wrap_model(cls, plugin_name: str, model: nn.Module, exclude_key=None, **kwargs):  # -> Dict[str, SinglePluginBlock]:
@@ -109,7 +108,7 @@ class SinglePluginBlock(BasePluginBlock, metaclass=ABCMeta):
             else:
                 named_modules = {name: layer for name, layer in model.named_modules()}
             for name, layer in named_modules.items():
-                if isinstance_list(model, cls.wrapable_classes):
+                if isinstance_list(layer, cls.wrapable_classes):
                     plugin_block_dict[name] = cls.wrap_layer(plugin_name, layer, **kwargs)
         return plugin_block_dict
 
@@ -144,6 +143,7 @@ class PluginBlock(BasePluginBlock):
 class MultiPluginBlock(BasePluginBlock):
     def __init__(self, name:str, from_layers:List[Dict[str, Any]], to_layers:List[Dict[str, Any]], host_model=None):
         super().__init__(name)
+        assert host_model is not None
         self.host_from = [weakref.ref(x['layer']) for x in from_layers]
         self.host_to = [weakref.ref(x['layer']) for x in to_layers]
         self.host_model = weakref.ref(host_model)

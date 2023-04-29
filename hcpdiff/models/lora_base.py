@@ -56,7 +56,7 @@ class LoraBlock(SinglePluginBlock):
             return fea_out + self.layer(fea_in[0]) * self.scale
         else:
             # for DreamArtist-lora
-            batch_mask = make_mask(self.mask_range[0], self.mask_range[1], fea_out.shape[0])
+            batch_mask = slice(int(self.mask_range[0]*fea_out.shape[0]), int(self.mask_range[1]*fea_out.shape[0]))
             if self.inplace:
                 fea_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.scale
                 return fea_out
@@ -128,7 +128,7 @@ class LoraBlock(SinglePluginBlock):
 
     @classmethod
     def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
-        super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
+        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
 
     @staticmethod
     def extract_lora_state(model:nn.Module):

@@ -20,6 +20,8 @@ from colossalai.core import global_context as gpc
 from colossalai.nn.parallel.utils import get_static_torch_model
 from colossalai.utils import get_current_device
 from colossalai.utils.model.colo_init_context import ColoInitContext
+from colossalai.utils.model.colo_init_context import _convert_to_coloparam
+from colossalai.tensor import ColoParameter
 
 from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
@@ -78,9 +80,40 @@ class TrainerColo(Trainer):
         if self.train_TE and self.cfgs.model.ema_text_encoder>0:
             self.ema_text_encoder = ModelEMA(self.text_encoder.named_parameters(), self.cfgs.model.ema_text_encoder)
 
+    def convert_emb_param(self, cinit):
+        name_list = []
+        for name, param in self.embedding_hook.named_parameters():
+            if type(param) is ColoParameter:
+                continue
+
+            split = name.rfind('.')
+            if split >= 0:  # param in submodule
+                module_name = name[:split]
+                param_name = name[split + 1:]
+            else:
+                module_name = ''  # param in current module
+                param_name = name
+            name_list.append((module_name, param_name))
+
+        replaced_tensors = dict(
+        )  # record mapping between (torch.Tensor, ColoTensor) to distinguish the same reference
+        for module_name, param_name in name_list:
+            submodule = self.embedding_hook.get_submodule(module_name)
+            param = submodule.get_parameter(param_name)
+            if param in replaced_tensors:
+                colo_param = replaced_tensors[param]
+            else:
+                colo_param = _convert_to_coloparam(param, cinit._device, cinit._dtype, cinit._default_pg,
+                                                   cinit._default_dist_spec)
+                replaced_tensors[param] = colo_param
+            delattr(submodule, param_name)
+            setattr(submodule, param_name, colo_param)
+            colo_param.shared_param_modules.append(submodule)
+
     def get_param_group_train(self):
-        with ColoInitContext(device=self.device):
+        with ColoInitContext(device=self.device) as cinit:
             params = super().get_param_group_train()
+            self.convert_emb_param(cinit)
 
         self.lora_unet.set_inplace(False)
         if self.DA_lora:
@@ -114,23 +147,25 @@ class TrainerColo(Trainer):
             self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt.weight_decay_pt)
             self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
 
-    def train_one_step(self, image, att_mask, prompt_ids):
+    def train_one_step(self, data, prompt_ids):
         torch.cuda.reset_peak_memory_stats()
-        image = image.to(self.device, dtype=self.weight_dtype, non_blocking=True)
-        att_mask = att_mask.to(self.device, non_blocking=True)
+        image = data['img'].to(self.device, dtype=self.weight_dtype, non_blocking=True)
+        att_mask = data['mask'].to(self.device, non_blocking=True)
         prompt_ids = prompt_ids.to(self.device, non_blocking=True)
+        other_datas = {k: v.to(self.device, dtype=self.weight_dtype, non_blocking=True) for k, v in data.items() if k != 'img' and k != 'mask'}
 
         latents = self.get_latents(image, self.train_loader.dataset)
-        model_pred, target = self.forward(latents, prompt_ids)
+        model_pred, target = self.forward(latents, prompt_ids, **other_datas)
 
         if self.train_loader_class is not None:
             # DreamBooth prior forward
-            image_cls, att_mask_cls, prompt_ids_cls = next(self.data_iter_class)
-            image_cls = image_cls.to(self.device, dtype=self.weight_dtype)
-            att_mask_cls = att_mask_cls.to(self.device)
-            prompt_ids_cls = prompt_ids_cls.to(self.device)
+            data_cls, prompt_ids_cls = next(self.data_iter_class)
+            image_cls = data_cls['img'].to(self.device, dtype=self.weight_dtype, non_blocking=True)
+            att_mask_cls = data_cls['mask'].to(self.device, non_blocking=True)
+            prompt_ids_cls = prompt_ids_cls.to(self.device, non_blocking=True)
+            other_datas_cls = {k: v.to(self.device, dtype=self.weight_dtype, non_blocking=True) for k, v in data_cls.items() if k != 'img' and k != 'mask'}
             latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
-            model_pred_prior, target_prior = self.forward(latents_cls, prompt_ids_cls)
+            model_pred_prior, target_prior = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
 
             loss = self.get_loss(model_pred, target, att_mask)  # Compute instance loss
             prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls)  # Compute prior loss
@@ -162,7 +197,8 @@ class TrainerColo(Trainer):
         if hasattr(self, 'ema_text_encoder'):
             self.ema_text_encoder.step(self.text_encoder.named_parameters())
 
-    def get_unet_raw(self):
+    @property
+    def unet_raw(self):
         if self.train_TE:
             unet = get_static_torch_model(self.TE_unet).unet
         else:
@@ -172,7 +208,8 @@ class TrainerColo(Trainer):
             v.requires_grad = req_grad_dict[k]
         return unet
 
-    def get_text_encoder_raw(self):
+    @property
+    def text_encoder_raw(self):
         if self.train_TE:
             TE = get_static_torch_model(self.TE_unet).TE
             req_grad_dict = {k: v.requires_grad for k, v in self.text_encoder.named_parameters()}

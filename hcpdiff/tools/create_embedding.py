@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append('/')
 
 import argparse
@@ -6,9 +7,8 @@ import os.path
 
 import torch
 from hcpdiff.utils.utils import str2bool
-from hcpdiff.utils.net_utils import import_text_encoder_class
+from hcpdiff.utils.net_utils import import_text_encoder_class, save_emb
 from transformers import AutoTokenizer
-from hcpdiff.utils.emb_utils import save_emb
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
@@ -21,11 +21,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     tokenizer = AutoTokenizer.from_pretrained(
-                args.pretrained_model_name_or_path,
-                subfolder="tokenizer",
-                revision=None,
-                use_fast=False,
-            )
+        args.pretrained_model_name_or_path,
+        subfolder="tokenizer",
+        revision=None,
+        use_fast=False,
+    )
 
     text_encoder_cls = import_text_encoder_class(args.pretrained_model_name_or_path, None)
     text_encoder = text_encoder_cls.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder", revision=None)
@@ -33,13 +33,13 @@ if __name__ == '__main__':
     embed_dim = text_encoder.text_model.embeddings.token_embedding.embedding_dim
     if args.init_text.startswith('*'):
         init_embs = torch.randn((args.n_word, embed_dim))
-        if len(args.init_text)>1:
+        if len(args.init_text) > 1:
             init_embs *= float(args.init_text[1:])
     else:
         emb_pt = text_encoder.text_model.embeddings.token_embedding
         prompt_ids = tokenizer(
             args.init_text, truncation=True, padding="max_length", return_tensors="pt",
-            max_length=tokenizer.model_max_length).input_ids[0,1:args.n_word+1]
+            max_length=tokenizer.model_max_length).input_ids[0, 1:args.n_word + 1]
         init_embs = emb_pt(prompt_ids)
     print(init_embs.shape)
     save_emb(os.path.join(args.root, args.name + '.pt'), init_embs, args.replace)

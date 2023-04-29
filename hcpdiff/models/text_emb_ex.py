@@ -15,13 +15,12 @@ import os
 from loguru import logger
 from einops import rearrange, repeat
 
-from hcpdiff.utils.emb_utils import load_emb
+from ..utils.net_utils import load_emb
 from .plugin import SinglePluginBlock
 
 class EmbeddingPTHook(SinglePluginBlock):
     def __init__(self, token_embedding:nn.Module, N_word=75, N_repeats=3):
-        super().__init__(token_embedding)
-        token_embedding.emb_ex = self
+        super().__init__('emb_ex', token_embedding)
         self.handle_pre = token_embedding.register_forward_pre_hook(self.pre_hook)
 
         self.N_word=N_word

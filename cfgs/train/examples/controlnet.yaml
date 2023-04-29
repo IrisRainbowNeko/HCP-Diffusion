@@ -1,0 +1,41 @@
+_base_:
+  - cfgs/train/train_base.yaml
+  - cfgs/plugins/plugin_controlnet.yaml # include controlnet plugin
+
+tokenizer_pt:
+  train: null
+
+train:
+  gradient_accumulation_steps: 1
+  save_step: 100
+
+  scheduler:
+    name: 'constant_with_warmup'
+    num_warmup_steps: 50
+    num_training_steps: 600
+
+model:
+  pretrained_model_name_or_path: 'runwayml/stable-diffusion-v1-5'
+  tokenizer_repeats: 1
+  ema_unet: 0
+  ema_text_encoder: 0
+
+data:
+  batch_size: 4
+  prompt_template: 'prompt_tuning_template/object.txt'
+  caption_file: null
+  cache_latents: True
+  tag_transforms:
+    transforms:
+      - _target_: hcpdiff.utils.caption_tools.TagShuffle
+      - _target_: hcpdiff.utils.caption_tools.TagDropout
+        p: 0.1
+      - _target_: hcpdiff.utils.caption_tools.TemplateFill
+        word_names: {}
+  bucket:
+    _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+    img_root: 'imgs/'
+    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+    num_bucket: 10
+
+data_class: null

@@ -2,9 +2,10 @@ import argparse
 import sys
 import torch
 from loguru import logger
+from functools import partial
 
 from accelerate import Accelerator
-from hcpdiff.train_ac import Trainer, TextImagePairDataset, RatioBucket, load_config_with_cli, set_seed
+from hcpdiff.train_ac import Trainer, RatioBucket, load_config_with_cli, set_seed
 from hcpdiff.data import collate_fn_ft
 
 class TrainerSingleCard(Trainer):
@@ -38,26 +39,34 @@ class TrainerSingleCard(Trainer):
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
 
-    def build_data(self, cfg_data):
-        train_dataset = TextImagePairDataset(cfg_data, self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
-        if isinstance(train_dataset.bucket, RatioBucket):
-            arb=True
-            train_dataset.bucket.make_arb(cfg_data.batch_size*self.world_size)
-        else:
-            arb=False
+    def build_data(self, data_builder:partial) -> torch.utils.data.DataLoader:
+        batch_size = data_builder.keywords.pop('batch_size')
+        cache_latents = data_builder.keywords.pop('cache_latents')
+        self.batch_size_list.append(batch_size)
 
+        train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
+        train_dataset.bucket.build(batch_size * self.world_size)
+        arb = isinstance(train_dataset.bucket, RatioBucket)
         logger.info(f"len(train_dataset): {len(train_dataset)}")
 
-        if cfg_data.cache_latents:
+        if cache_latents:
             self.cache_latents = True
-            train_dataset.cache_latents(self.vae, self.weight_dtype, self.device)
+            train_dataset.cache_latents(self.vae, self.weight_dtype, self.device, show_prog=self.is_local_main_process)
 
         # Pytorch Data loader
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg_data.batch_size,
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
             num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=collate_fn_ft)
-        return train_loader, arb
+        return train_loader
 
-    def encode_decode(self, prompt_ids, noisy_latents, timesteps):
+    def encode_decode(self, prompt_ids, noisy_latents, timesteps, **kwargs):
+        input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, **kwargs)
+        if hasattr(self.text_encoder, 'input_feeder'):
+            for feeder in self.text_encoder.input_feeder:
+                feeder(input_all)
+        if hasattr(self.unet_raw, 'input_feeder'):
+            for feeder in self.unet_raw.input_feeder:
+                feeder(input_all)
+
         encoder_hidden_states = self.text_encoder(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred
@@ -71,10 +80,12 @@ class TrainerSingleCard(Trainer):
         if hasattr(self, 'ema_text_encoder'):
             self.ema_text_encoder.step(self.text_encoder.named_parameters())
 
-    def get_unet_raw(self):
+    @property
+    def unet_raw(self):
         return self.unet
 
-    def get_text_encoder_raw(self):
+    @property
+    def text_encoder_raw(self):
         return self.text_encoder
 
 if __name__ == '__main__':

@@ -31,6 +31,9 @@ class BaseBucket:
     def __len__(self):
         raise NotImplementedError()
 
+    def build(self, bs):
+        raise NotImplementedError()
+
     def rest(self, epoch):
         pass
 
@@ -41,7 +44,9 @@ class FixedBucket(BaseBucket):
     def __init__(self, img_root:str, target_size:Union[Tuple[int,int], int]=512):
         self.img_root=img_root
         self.target_size=(target_size, target_size) if isinstance(target_size, int) else target_size
-        self.file_names=[x for x in os.listdir(img_root) if get_file_ext(x) in types_support]
+
+    def build(self, bs):
+        self.file_names=[x for x in os.listdir(self.img_root) if get_file_ext(x) in types_support]
 
     def crop_resize(self, image, size):
         return resize_crop_fix(image, size)
@@ -161,7 +166,7 @@ class RatioBucket(BaseBucket):
             self.idx_bucket_map[bnow]=bidx
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
-    def make_arb(self, bs:int):
+    def build(self, bs:int):
         '''
         :param bs: batch_size * n_gpus * accumulation_step
         :param pre_build_arb:

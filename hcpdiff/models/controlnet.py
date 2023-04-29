@@ -1,6 +1,6 @@
 from typing import List, Tuple, Union, Optional, Dict, Any
 
-from diffusers import UNet2DConditionModel, ControlNetModel
+from diffusers import UNet2DConditionModel
 import torch
 from torch import nn
 from copy import deepcopy
@@ -9,11 +9,10 @@ from .plugin import MultiPluginBlock, BasePluginBlock
 from hcpdiff.utils.net_utils import remove_all_hooks, remove_layers
 
 class ControlNetPlugin(MultiPluginBlock):
-    def __init__(self, from_layers: List[nn.Module], to_layers: List[nn.Module], host_model: UNet2DConditionModel=None,
-                 pre_hook_to=False, cond_block_channels=(3, 16, 32, 96, 256, 320),
+    def __init__(self, name:str, from_layers: List[Dict[str, Any]], to_layers: List[Dict[str, Any]], host_model: UNet2DConditionModel=None,
+                 cond_block_channels=(3, 16, 32, 96, 256, 320),
                  layers_per_block=2, block_out_channels: Tuple[int] = (320, 640, 1280, 1280)):
-        super().__init__(from_layers, to_layers, pre_hook_to)
-        assert host_model is not None
+        super().__init__(name, from_layers, to_layers, host_model=host_model)
 
         self.register_input_feeder_to(host_model)
 
@@ -64,9 +63,10 @@ class ControlNetPlugin(MultiPluginBlock):
         self.cond_head[-1].apply(weight_init)
 
     def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
-        assert idx==0
-        self.feat_to = self(*fea_in)
-        return (*fea_in, None, None, None, None, (*self.feat_to[:-13], *([0]*12)), 0)
+        if idx==0:
+            self.data_input = fea_in
+        elif idx==1:
+            self.feat_to = self(*self.data_input)
 
     def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
         if idx == 5:

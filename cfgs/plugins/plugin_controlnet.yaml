@@ -7,6 +7,7 @@ plugin_unet:
     lr: 1e-4
     from_layers:
       - 'pre_hook:'
+      - 'pre_hook:conv_in' # to make forward inside autocast
     to_layers:
       - 'down_blocks.0'
       - 'down_blocks.1'

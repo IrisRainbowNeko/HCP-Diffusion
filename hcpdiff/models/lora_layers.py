@@ -18,8 +18,8 @@ from .lora_base import LoraBlock
 from .layers import GroupLinear
 
 class LoraLayer(LoraBlock):
-    def __init__(self, host, rank=1, dropout=0.1, scale=1.0, bias=False, inplace=True, **kwargs):
-        super().__init__(host, rank, dropout, scale, bias, inplace)
+    def __init__(self, lora_id:int, host, rank=1, dropout=0.1, scale=1.0, bias=False, inplace=True, **kwargs):
+        super().__init__(lora_id, host, rank, dropout, scale, bias, inplace)
 
     class LinearLayer(LoraBlock.LinearLayer):
         def __init__(self, host, rank, bias, dropout, block):
@@ -46,9 +46,9 @@ class LoraLayer(LoraBlock):
             return w, b
 
 class LoraLayerGroup(LoraBlock):
-    def __init__(self, host, rank=1, dropout=0.1, scale=1.0, bias=False, inplace=True, rank_groups=1, **kwargs):
+    def __init__(self, lora_id:int, host, rank=1, dropout=0.1, scale=1.0, bias=False, inplace=True, rank_groups=1, **kwargs):
         self.rank_groups_raw = rank_groups
-        super().__init__(host, rank, dropout, scale, bias, inplace)
+        super().__init__(lora_id, host, rank, dropout, scale, bias, inplace)
 
     def collapse_to_host(self, alpha=None, base_alpha=1.0):
         raise NotImplementedError('LoraLayerGroup not support reparameterization.')
@@ -90,9 +90,9 @@ class LoraLayerGroup(LoraBlock):
             return x
 
 class LohaLayer(LoraBlock):
-    def __init__(self, host, rank=1, dropout=0.1, scale=1.0, bias=False, inplace=True, rank_groups=2, **kwargs):
+    def __init__(self, lora_id:int, host, rank=1, dropout=0.1, scale=1.0, bias=False, inplace=True, rank_groups=2, **kwargs):
         self.rank_groups_raw = rank_groups
-        super().__init__(host, rank, dropout, scale, bias, inplace, hook_param='weight')
+        super().__init__(lora_id, host, rank, dropout, scale, bias, inplace, hook_param='weight')
 
     def forward(self, host_param: nn.Parameter):
         return host_param + self.layer(host_param) * self.scale

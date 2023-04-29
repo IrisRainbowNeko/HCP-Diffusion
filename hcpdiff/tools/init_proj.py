@@ -2,6 +2,7 @@ import sys
 import shutil
 import os
 
+
 def main():
     try:
         if os.path.exists(r'./cfgs'):

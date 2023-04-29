@@ -1,5 +1,7 @@
+import os
 from typing import Optional, Union, Tuple, Dict, Callable
 
+import torch
 from torch import nn
 from torch.optim import lr_scheduler
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
@@ -110,12 +112,9 @@ def import_text_encoder_class(pretrained_model_name_or_path: str, revision: str)
 
 def remove_all_hooks(model: nn.Module) -> None:
     for name, child in model.named_modules():
-        if hasattr(child, "_forward_hooks"):
-            child._forward_hooks: Dict[int, Callable] = OrderedDict()
-        elif hasattr(child, "_forward_pre_hooks"):
-            child._forward_pre_hooks: Dict[int, Callable] = OrderedDict()
-        elif hasattr(child, "_backward_hooks"):
-            child._backward_hooks: Dict[int, Callable] = OrderedDict()
+        child._forward_hooks.clear()
+        child._forward_pre_hooks.clear()
+        child._backward_hooks.clear()
 
 def remove_layers(model: nn.Module, layer_class):
     named_modules = {k: v for k, v in model.named_modules()}
@@ -124,3 +123,15 @@ def remove_layers(model: nn.Module, layer_class):
             parent, name = named_modules[k.rsplit('.', 1)]
             delattr(parent, name)
             del v
+
+def load_emb(path):
+    emb=torch.load(path, map_location='cpu')['string_to_param']['*']
+    emb.requires_grad_(False)
+    return emb
+
+def save_emb(path, emb:torch.Tensor, replace=False):
+    name = os.path.basename(path)
+    if os.path.exists(path) and not replace:
+        raise FileExistsError(f'embedding "{name}" already exist.')
+    name=name[:name.rfind('.')]
+    torch.save({'string_to_param':{'*':emb}, 'name':name}, path)

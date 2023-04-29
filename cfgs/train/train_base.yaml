@@ -62,6 +62,8 @@ model:
   noise_scheduler: DDPMScheduler
 
 data:
+  _target_: hcpdiff.data.TextImagePairDataset
+  _partial_: True # Not directly instantiate the object here. There are other parameters to be added in the runtime.
   batch_size: 4
   prompt_template: 'prompt_tuning_template/name.txt'
   caption_file: null # path to image captions (file_words)
@@ -90,9 +92,12 @@ data:
     num_bucket: 5
 
 data_class: # for DreamBooth
+  _target_: hcpdiff.data.TextImagePairDataset
+  _partial_: True
   batch_size: 1
   prompt_template: 'prompt_tuning_template/name.txt'
   caption_file: null
+  cache_latents: True
   att_mask: null
   att_mask_encode: False
   bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
