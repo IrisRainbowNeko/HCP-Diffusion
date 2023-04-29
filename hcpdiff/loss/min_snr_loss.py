@@ -4,7 +4,7 @@ from diffusers import SchedulerMixin
 
 class MinSNRLoss(nn.MSELoss):
     def __init__(self, size_average=None, reduce=None, reduction: str = 'none', gamma=1.,
-                 noise_scheduler: SchedulerMixin=None, device='cuda:0'):
+                 noise_scheduler: SchedulerMixin=None, device='cuda:0', **kwargs):
         super().__init__(size_average, reduce, reduction)
         self.gamma=gamma
 
