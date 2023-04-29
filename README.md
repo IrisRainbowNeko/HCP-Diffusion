@@ -37,6 +37,7 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 * CLIP skip
 * Tag shuffle and dropout
 * safetensors support
+* Controlnet (support train)
 
 ## Install
 

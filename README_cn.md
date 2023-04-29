@@ -31,6 +31,7 @@ Prompt-tuning (textual inversion), DreamArtist, Fine-tuning, DreamBooth, lora, c
 * CLIP skip
 * Tag shuffle and dropout
 * safetensors支持
+* Controlnet (支持训练)
 
 ## 安装
 通过pip安装:
