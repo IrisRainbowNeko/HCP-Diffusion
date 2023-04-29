@@ -83,6 +83,52 @@ model:
   clip_skip: 0 # 跳过text-encoder最后N层，值为0与webui的clip_skip=1一致
 ```
 
+### 自定义插件
+配置文件中的```plugin_unet```和```plugin_TE```模块中可以添加自定义插件，格式如下:
+```yaml
+# 此处以controlnet和loha的定义为例
+plugin_unet:
+  controlnet1: # 插件的名称，每个插件的名称都不能相同
+    _target_: hcpdiff.models.controlnet.ControlNetPlugin # 插件类的路径，也可以通过classmethod创建。
+    _partial_: True # 必须添加的属性
+    train: True # 是否训练这个插件，默认为True
+    lr: 1e-4 # 学习率
+    # controlnet为MultiPluginBlock类型，可以定义多个输出层(from_layers)和输出层(to_layers)
+    from_layers:
+      - 'pre_hook:' # pre_hook前缀表示hook到该层forward前，如果没有就hook到forward之后
+      - 'pre_hook:conv_in' # 在这里运行自己的forward，让forward可以在autocast内部
+    to_layers:
+      - 'down_blocks.0'
+      - 'down_blocks.1'
+      - 'down_blocks.2'
+      - 'down_blocks.3'
+      - 'mid_block'
+      - 'pre_hook:up_blocks.3.resnets.2'
+  loha1: # 插件的名称
+    _target_: hcpdiff.models.lora_layers.LohaLayer.wrap_model
+    _partial_: True
+    train: False
+    #定义插件需要的参数
+    rank: 8
+    dropout: 0.15
+    rank_groups: 2
+    
+    # LohaLayer为SinglePluginBlock类型，可以通过正则表达式定义多个层
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff\.net\.0$'
+```
+
+插件总共有三种类型:
++ SinglePluginBlock: 单层插件，根据该层输入改变输出，比如lora系列。支持正则表达式(```re:```前缀)定义插入层，
+  不支持```pre_hook:```前缀。
++ PluginBlock: 输入层和输出层都只有一个，比如定义残差连接。支持正则表达式(```re:```前缀)定义插入层，
+  输入输出层都支持```pre_hook:```前缀。
++ MultiPluginBlock: 输入层和输出层都可以有多个，比如controlnet。不支持正则表达式(```re:```前缀)，
+  输入输出层都支持```pre_hook:```前缀。
+
+所有自定义插件都需要继承上面某一种插件基类。
+
 ## 数据集设置
 
 ```yaml

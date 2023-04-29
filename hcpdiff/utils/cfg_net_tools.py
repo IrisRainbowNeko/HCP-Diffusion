@@ -148,6 +148,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
         all_plugin_blocks={}
 
         lr = builder.keywords.pop('lr') if 'lr' in builder.keywords else default_lr
+        train_plugin = builder.keywords.pop('train') if 'train' in builder.keywords else True
         plugin_class = getattr(builder.func, '__self__', builder.func) # support static or class method
 
         if issubclass(plugin_class, MultiPluginBlock):
@@ -155,9 +156,13 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             to_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords.pop('to_layers'), named_modules, return_metas=True)]
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
-            layer.requires_grad_(True)
-            layer.train()
-            train_params.append({'params': layer.parameters(), 'lr': lr})
+            if train_plugin:
+                layer.requires_grad_(True)
+                layer.train()
+                train_params.append({'params': layer.parameters(), 'lr': lr})
+            else:
+                layer.requires_grad_(False)
+                layer.eval()
             all_plugin_blocks[''] = layer
         elif issubclass(plugin_class, SinglePluginBlock):
             layers_name = builder.keywords.pop('layers')
@@ -169,9 +174,15 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 params_group = []
                 for k,v in blocks.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
-                    v.requires_grad_(True)
-                    v.train()
-                train_params.append({'params': params_group, 'lr': lr})
+                    if train_plugin:
+                        v.requires_grad_(True)
+                        v.train()
+                        params_group.extend(v.parameters())
+                    else:
+                        v.requires_grad_(False)
+                        v.eval()
+                if train_plugin:
+                    train_params.append({'params': params_group, 'lr': lr})
         elif issubclass(plugin_class, PluginBlock):
             from_layer = get_match_layers(builder.keywords.pop('from_layer'), named_modules, return_metas=True)
             to_layer = get_match_layers(builder.keywords.pop('to_layer'), named_modules, return_metas=True)
@@ -181,9 +192,13 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 from_layer_meta['layer']=named_modules[from_layer_name]
                 to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
-                layer.requires_grad_(True)
-                layer.train()
-                train_params.append({'params': layer.parameters(), 'lr': lr})
+                if train_plugin:
+                    layer.requires_grad_(True)
+                    layer.train()
+                    train_params.append({'params': layer.parameters(), 'lr': lr})
+                else:
+                    layer.requires_grad_(False)
+                    layer.eval()
                 all_plugin_blocks[from_layer_name] = layer
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
