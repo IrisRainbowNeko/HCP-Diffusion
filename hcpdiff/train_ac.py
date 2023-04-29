@@ -23,7 +23,6 @@ from accelerate.utils import set_seed
 from transformers import AutoTokenizer
 from omegaconf import OmegaConf
 import hydra
-from loguru import logger
 import time
 from functools import partial
 
@@ -40,7 +39,8 @@ from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.data import collate_fn_ft
 from hcpdiff.visualizer import Visualizer
-from hcpdiff.utils.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.logger import BaseLogger
 
 class Trainer:
     def __init__(self, cfgs_raw):
@@ -52,14 +52,14 @@ class Trainer:
         if self.is_local_main_process:
             self.exp_dir = os.path.join(self.cfgs.exp_dir, f'{time.strftime("%Y-%m-%d-%H-%M-%S")}')
             os.makedirs(os.path.join(self.exp_dir, 'ckpts/'), exist_ok=True)
-            logger.add(os.path.join(self.exp_dir, 'train.log'))
+            self.logger:BaseLogger = self.cfgs.logger(exp_dir=self.exp_dir)
             with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
                 f.write(OmegaConf.to_yaml(cfgs_raw))
         else:
-            logger.disable("__main__")
+            self.logger:BaseLogger = self.cfgs.logger(exp_dir=None)
 
-        logger.info(f'world_size: {self.world_size}')
-        logger.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
+        self.logger.info(f'world_size: {self.world_size}')
+        self.logger.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
 
         if self.is_local_main_process:
             transformers.utils.logging.set_verbosity_warning()
@@ -267,7 +267,7 @@ class Trainer:
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         train_dataset.bucket.build(batch_size * self.world_size)
         arb = isinstance(train_dataset.bucket, RatioBucket)
-        logger.info(f"len(train_dataset): {len(train_dataset)}")
+        self.logger.info(f"len(train_dataset): {len(train_dataset)}")
 
         if cache_latents:
             self.cache_latents = True
@@ -344,12 +344,12 @@ class Trainer:
     def train(self):
         total_batch_size = sum(self.batch_size_list) * self.world_size * self.cfgs.train.gradient_accumulation_steps
 
-        logger.info("***** Running training *****")
-        logger.info(f"  Num batches each epoch = {len(self.train_loader)}")
-        logger.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
-        logger.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
-        logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-        logger.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
+        self.logger.info("***** Running training *****")
+        self.logger.info(f"  Num batches each epoch = {len(self.train_loader)}")
+        self.logger.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
+        self.logger.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
+        self.logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+        self.logger.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
         self.global_step = 0
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step
@@ -369,9 +369,12 @@ class Trainer:
                 if self.global_step % self.cfgs.train.log_step == 0:
                     lr_model = self.lr_scheduler.get_last_lr()[0] if hasattr(self, 'lr_scheduler') else 0.
                     lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
-                    logger.info('Step [{}/{}], LR_model: {:.2e}, LR_word: {:.2e}, Loss: {:.5f}'
-                                .format(self.global_step, self.cfgs.train.scheduler.num_training_steps,
-                                        lr_model, lr_word, loss_sum / self.cfgs.train.log_step))
+                    self.logger.log(datas={
+                            'Step': {'format': '[{}/{}]', 'data': [self.global_step, self.cfgs.train.scheduler.num_training_steps]},
+                            'LR_model': {'format': '{:.2e}', 'data': [lr_model]},
+                            'LR_word': {'format': '{:.2e}', 'data': [lr_word]},
+                            'Loss': {'format': '{:.5f}', 'data': [loss_sum / self.cfgs.train.log_step]},
+                        }, step=self.global_step)
                     loss_sum = 0
 
             if self.global_step >= self.cfgs.train.scheduler.num_training_steps:
@@ -523,7 +526,7 @@ class Trainer:
 
         self.ckpt_manager.save_embedding(self.train_pts, self.global_step, self.cfgs.tokenizer_pt.replace)
 
-        logger.info(f"Saved state, step: {self.global_step}")
+        self.logger.info(f"Saved state, step: {self.global_step}")
 
     def make_vis(self):
         vis_dir = os.path.join(self.exp_dir ,f'vis-{self.global_step}')

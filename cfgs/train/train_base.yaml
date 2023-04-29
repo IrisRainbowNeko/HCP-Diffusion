@@ -48,6 +48,11 @@ train:
   scale_lr_pt: True
   scheduler_pt: ${.scheduler}
 
+logger:
+  _target_: hcpdiff.logger.CLILogger
+  _partial_: True
+  out_path: 'train.log'
+
 model:
   revision: null
   pretrained_model_name_or_path: null
