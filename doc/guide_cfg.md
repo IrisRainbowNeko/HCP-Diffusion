@@ -87,6 +87,7 @@ model:
 
 ```yaml
 data:
+  _target_: hcpdiff.data.TextImagePairDataset # package path to dataset class
   batch_size: 4 # batch_size of this part of the data
   # prompt template, the fill word is configured in the following utils.caption_tools.TemplateFill
   prompt_template: 'prompt_tuning_template/name.txt'

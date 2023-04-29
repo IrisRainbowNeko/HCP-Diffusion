@@ -133,6 +133,7 @@ plugin_unet:
 
 ```yaml
 data:
+  _target_: hcpdiff.data.TextImagePairDataset # 数据集类路径
   batch_size: 4 # 这一部分数据的batch_size
   # prompt填充模板，填充词在下面的 utils.caption_tools.TemplateFill 中配置
   prompt_template: 'prompt_tuning_template/name.txt'
