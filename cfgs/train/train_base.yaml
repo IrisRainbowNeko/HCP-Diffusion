@@ -28,7 +28,8 @@ train:
 
   loss:
     criterion:
-      _target_: torch.nn.MSELoss
+      _target_: hcpdiff.loss.MSELoss
+      _partial_: True
       reduction: 'none' # support for attention mask
     prior_loss_weight: 1.0
     type: 'eps' # 'eps' or 'sample'

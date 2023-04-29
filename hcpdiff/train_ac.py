@@ -85,7 +85,7 @@ class Trainer:
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
         self.build_optimizer_scheduler()
-        self.criterion = cfgs.train.loss.criterion
+        self.criterion = cfgs.train.loss.criterion(noise_scheduler=self.noise_scheduler, device=self.device)
 
         self.cfg_scale = get_cfg_range(cfgs.train.cfg_scale)
         if self.cfg_scale[1]==1.0:
@@ -441,7 +441,7 @@ class Trainer:
             model_pred = self.noise_scheduler.step(model_pred, timesteps, noisy_latents)
         else:
             raise ValueError(f"Unknown loss type {self.cfgs.train.loss.type}")
-        return model_pred, target
+        return model_pred, target, timesteps
 
     def train_one_step(self, data, prompt_ids):
         image = data['img'].to(self.device, dtype=self.weight_dtype)
@@ -451,10 +451,10 @@ class Trainer:
 
         with self.accelerator.accumulate(self.unet):
             latents = self.get_latents(image, self.train_loader.dataset)
-            model_pred, target = self.forward(latents, prompt_ids, **other_datas)
+            model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
 
             if self.train_loader_class is not None:
-                loss = self.get_loss(model_pred, target, att_mask) # Compute instance loss
+                loss = self.get_loss(model_pred, target, att_mask, timesteps) # Compute instance loss
                 self.accelerator.backward(loss)
 
                 #DreamBooth prior forward
@@ -464,13 +464,13 @@ class Trainer:
                 prompt_ids_cls = prompt_ids_cls.to(self.device)
                 other_datas_cls = {k: v.to(self.device, dtype=self.weight_dtype) for k, v in data_cls.items() if k != 'img' and k != 'mask'}
                 latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
-                model_pred_prior, target_prior = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
+                model_pred_prior, target_prior, timesteps_cls = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
 
-                prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls) # Compute prior loss
+                prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls, timesteps_cls) # Compute prior loss
                 loss = self.cfgs.train.loss.prior_loss_weight * prior_loss
                 self.accelerator.backward(loss)
             else:
-                loss = self.get_loss(model_pred, target, att_mask)
+                loss = self.get_loss(model_pred, target, att_mask, timesteps)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):
@@ -492,12 +492,12 @@ class Trainer:
             self.update_ema()
         return loss.item()
 
-    def get_loss(self, model_pred, target, att_mask):
+    def get_loss(self, model_pred, target, timesteps, att_mask):
         if len(self.embedding_hook.emb_train)>0:
-            return (self.criterion(model_pred.float(), target.float()) * att_mask).mean() \
+            return (self.criterion(model_pred.float(), target.float(), timesteps) * att_mask).mean() \
                + 0*sum(self.embedding_hook.emb_train).mean() # avoid unused parameters, make gradient checkpointing happy
         else:
-            return (self.criterion(model_pred.float(), target.float()) * att_mask).mean()
+            return (self.criterion(model_pred.float(), target.float(), timesteps) * att_mask).mean()
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
