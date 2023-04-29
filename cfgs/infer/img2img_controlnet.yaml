@@ -6,6 +6,7 @@ neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra
 out_dir: 'output/'
 emb_dir: 'embs/'
 N_repeats: 1
+clip_skip: 0
 bs: 4
 num: 1
 seed: null
@@ -23,47 +24,21 @@ save:
 #  quality: 75
 
 infer_args:
+  width: 512
+  height: 512
   num_inference_steps: 30
-  strength: 0.75
-  guidance_scale: 7.5
 
 new_components: {}
 
-merge: # can be null
-  exp_dir: '2023-04-03-10-10-36'
-  alpha: 0.8
-  plugin_cfg: cfgs/train/plugin_control.yaml
+merge:
+  plugin_cfg: cfgs/plugins/plugin_controlnet.yaml
 
   group1:
     type: 'unet'
     base_model_alpha: 1.0 # base model weight to merge with lora or part
-    lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-        mask: [0.5, 1]
-      - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.safetensors'
-        alpha: 0.65
-        layers: 'all'
-        mask: [0, 0.5]
+    lora: null
     part: null
     plugin:
       controlnet1:
-        path: 'exps/controlnet.safetensors'
-        alpha: ${....alpha}
+        path: 'ckpts/controlnet.ckpt'
         layers: 'all'
-
-  group2:
-    type: 'TE'
-    base_model_alpha: 1.0 # base model weight to infer with lora or part
-    lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-        mask: [0.5, 1]
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-neg-600.safetensors'
-        alpha: 0.65
-        layers: 'all'
-        mask: [0, 0.5]
-    part: null
-    plugin: null

@@ -24,6 +24,7 @@ infer_args:
   width: 512
   height: 512
   guidance_scale: 7.5
+  num_inference_steps: 50
 
 new_components: {}
 
