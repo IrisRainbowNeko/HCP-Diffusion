@@ -2,6 +2,7 @@ from typing import Tuple
 
 import re
 import torch
+import math
 from omegaconf import OmegaConf
 
 def str2bool(v):
@@ -93,3 +94,9 @@ def isinstance_list(obj, cls_list):
 
 def net_path_join(*args):
     return '.'.join(args).strip('.').replace('..', '.')
+
+def mgcd(*args):
+    g = args[0]
+    for s in args[1:]:
+        g = math.gcd(g, s)
+    return g

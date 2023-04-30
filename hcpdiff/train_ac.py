@@ -14,6 +14,7 @@ import itertools
 import os
 import sys
 
+import numpy as np
 import torch
 import torch.utils.checkpoint
 import torch.utils.data
@@ -31,7 +32,7 @@ from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 
 from hcpdiff.data import RatioBucket
-from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range
+from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.data.utils import cycle_data
 from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper, load_emb
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
@@ -40,7 +41,7 @@ from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.data import collate_fn_ft
 from hcpdiff.visualizer import Visualizer
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
-from hcpdiff.logger import BaseLogger
+from hcpdiff.logger import LoggerGroup
 
 class Trainer:
     def __init__(self, cfgs_raw):
@@ -52,14 +53,16 @@ class Trainer:
         if self.is_local_main_process:
             self.exp_dir = os.path.join(self.cfgs.exp_dir, f'{time.strftime("%Y-%m-%d-%H-%M-%S")}')
             os.makedirs(os.path.join(self.exp_dir, 'ckpts/'), exist_ok=True)
-            self.logger:BaseLogger = self.cfgs.logger(exp_dir=self.exp_dir)
+            self.loggers:LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.loggers])
             with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
                 f.write(OmegaConf.to_yaml(cfgs_raw))
         else:
-            self.logger:BaseLogger = self.cfgs.logger(exp_dir=None)
+            self.loggers:LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.loggers])
 
-        self.logger.info(f'world_size: {self.world_size}')
-        self.logger.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
+        self.min_log_step = mgcd(*[item.log_step for item in self.loggers.logger_list])
+
+        self.loggers.info(f'world_size: {self.world_size}')
+        self.loggers.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
 
         if self.is_local_main_process:
             transformers.utils.logging.set_verbosity_warning()
@@ -267,7 +270,7 @@ class Trainer:
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         train_dataset.bucket.build(batch_size * self.world_size)
         arb = isinstance(train_dataset.bucket, RatioBucket)
-        self.logger.info(f"len(train_dataset): {len(train_dataset)}")
+        self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
 
         if cache_latents:
             self.cache_latents = True
@@ -344,12 +347,12 @@ class Trainer:
     def train(self):
         total_batch_size = sum(self.batch_size_list) * self.world_size * self.cfgs.train.gradient_accumulation_steps
 
-        self.logger.info("***** Running training *****")
-        self.logger.info(f"  Num batches each epoch = {len(self.train_loader)}")
-        self.logger.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
-        self.logger.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
-        self.logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-        self.logger.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
+        self.loggers.info("***** Running training *****")
+        self.loggers.info(f"  Num batches each epoch = {len(self.train_loader)}")
+        self.loggers.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
+        self.loggers.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
+        self.loggers.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+        self.loggers.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
         self.global_step = 0
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step
@@ -357,25 +360,24 @@ class Trainer:
         if self.train_loader_class is not None:
             self.data_iter_class = iter(cycle_data(self.train_loader_class))
 
-        loss_sum=0
+        loss_sum=np.ones(30)
         for data, prompt_ids in cycle_data(self.train_loader):
             loss=self.train_one_step(data, prompt_ids)
-            loss_sum+=loss
+            loss_sum[self.global_step%len(loss_sum)]=loss
 
             self.global_step += 1
             if self.is_local_main_process:
                 if self.global_step % self.cfgs.train.save_step == 0:
                     self.save_model()
-                if self.global_step % self.cfgs.train.log_step == 0:
+                if self.global_step % self.min_log_step == 0:
                     lr_model = self.lr_scheduler.get_last_lr()[0] if hasattr(self, 'lr_scheduler') else 0.
                     lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
-                    self.logger.log(datas={
+                    self.loggers.log(datas={
                             'Step': {'format': '[{}/{}]', 'data': [self.global_step, self.cfgs.train.scheduler.num_training_steps]},
                             'LR_model': {'format': '{:.2e}', 'data': [lr_model]},
                             'LR_word': {'format': '{:.2e}', 'data': [lr_word]},
-                            'Loss': {'format': '{:.5f}', 'data': [loss_sum / self.cfgs.train.log_step]},
+                            'Loss': {'format': '{:.5f}', 'data': [loss_sum.mean()]},
                         }, step=self.global_step)
-                    loss_sum = 0
 
             if self.global_step >= self.cfgs.train.scheduler.num_training_steps:
                 break
@@ -526,7 +528,7 @@ class Trainer:
 
         self.ckpt_manager.save_embedding(self.train_pts, self.global_step, self.cfgs.tokenizer_pt.replace)
 
-        self.logger.info(f"Saved state, step: {self.global_step}")
+        self.loggers.info(f"Saved state, step: {self.global_step}")
 
     def make_vis(self):
         vis_dir = os.path.join(self.exp_dir ,f'vis-{self.global_step}')

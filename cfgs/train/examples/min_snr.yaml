@@ -20,7 +20,7 @@ train:
   save_step: 100
 
   loss:
-    criterion:
+    criterion: # min SNR loss
       _target_: hcpdiff.loss.MinSNRLoss
       gamma: 2.0
 

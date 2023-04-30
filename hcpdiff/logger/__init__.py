@@ -1,4 +1,4 @@
-from .base_logger import BaseLogger
+from .base_logger import BaseLogger, LoggerGroup
 from .cli_logger import CLILogger
 
 try:
