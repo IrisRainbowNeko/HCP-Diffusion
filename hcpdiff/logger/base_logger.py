@@ -32,7 +32,7 @@ class BaseLogger:
         raise NotImplementedError()
 
     def log_image(self, imgs: Dict[str, Image], step: int = 0):
-        if self.enable_log_image:
+        if self.enable_log and self.enable_log_image:
             self._log_image(imgs, step)
 
     def _log_image(self, imgs: Dict[str, Image], step: int = 0):
