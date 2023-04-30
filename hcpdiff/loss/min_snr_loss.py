@@ -17,5 +17,5 @@ class MinSNRLoss(nn.MSELoss):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, timesteps: torch.Tensor) -> torch.Tensor:
         loss = super(MinSNRLoss, self).forward(input, target)
-        snr_weight = (self.gamma/self.all_snr[timesteps.squeeze()]).clip(max=1.).float()
+        snr_weight = (self.gamma/self.all_snr[timesteps[:loss.shape[0], ...].squeeze()]).clip(max=1.).float()
         return loss * snr_weight.view(-1,1,1,1)

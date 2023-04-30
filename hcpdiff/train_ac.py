@@ -41,7 +41,7 @@ from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.data import collate_fn_ft
 from hcpdiff.visualizer import Visualizer
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
-from hcpdiff.logger import LoggerGroup
+from hcpdiff.loggers import LoggerGroup
 
 class Trainer:
     def __init__(self, cfgs_raw):
@@ -53,11 +53,11 @@ class Trainer:
         if self.is_local_main_process:
             self.exp_dir = os.path.join(self.cfgs.exp_dir, f'{time.strftime("%Y-%m-%d-%H-%M-%S")}')
             os.makedirs(os.path.join(self.exp_dir, 'ckpts/'), exist_ok=True)
-            self.loggers:LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.loggers])
+            self.loggers:LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
             with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
                 f.write(OmegaConf.to_yaml(cfgs_raw))
         else:
-            self.loggers:LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.loggers])
+            self.loggers:LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
 
         self.min_log_step = mgcd(*[item.log_step for item in self.loggers.logger_list])
 
@@ -456,7 +456,7 @@ class Trainer:
             model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
 
             if self.train_loader_class is not None:
-                loss = self.get_loss(model_pred, target, att_mask, timesteps) # Compute instance loss
+                loss = self.get_loss(model_pred, target, timesteps, att_mask) # Compute instance loss
                 self.accelerator.backward(loss)
 
                 #DreamBooth prior forward
@@ -468,11 +468,11 @@ class Trainer:
                 latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
                 model_pred_prior, target_prior, timesteps_cls = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
 
-                prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls, timesteps_cls) # Compute prior loss
+                prior_loss = self.get_loss(model_pred_prior, target_prior, timesteps_cls, att_mask_cls) # Compute prior loss
                 loss = self.cfgs.train.loss.prior_loss_weight * prior_loss
                 self.accelerator.backward(loss)
             else:
-                loss = self.get_loss(model_pred, target, att_mask, timesteps)
+                loss = self.get_loss(model_pred, target, timesteps, att_mask)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):

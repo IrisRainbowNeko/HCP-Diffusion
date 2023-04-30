@@ -31,11 +31,11 @@ class BaseLogger:
     def _log(self, datas: Dict[str, Any], step: int = 0):
         raise NotImplementedError()
 
-    def log_image(self, imgs: Dict[str, Image], step: int = 0):
+    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         if self.enable_log and self.enable_log_image:
             self._log_image(imgs, step)
 
-    def _log_image(self, imgs: Dict[str, Image], step: int = 0):
+    def _log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         raise NotImplementedError()
 
 class LoggerGroup:
@@ -58,7 +58,7 @@ class LoggerGroup:
         for logger in self.logger_list:
             logger.log(datas, step)
 
-    def log_image(self, imgs: Dict[str, Image], step: int = 0):
+    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         for logger in self.logger_list:
             logger.log(imgs, step)
 

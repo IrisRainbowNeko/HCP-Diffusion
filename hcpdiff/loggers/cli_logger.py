@@ -32,6 +32,6 @@ class CLILogger(BaseLogger):
     def _log(self, datas: Dict[str, Any], step:int=0):
         logger.info(', '.join([f"{k} = {v['format'].format(*v['data'])}" for k, v in datas.items()]))
 
-    def _log_image(self, imgs: Dict[str, Image], step:int=0):
+    def _log_image(self, imgs: Dict[str, Image.Image], step:int=0):
         for name, img in imgs.items():
             img.save(f'{name}.{self.img_ext}', quality=self.img_quality)

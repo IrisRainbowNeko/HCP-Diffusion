@@ -167,11 +167,11 @@ class TrainerColo(Trainer):
             latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
             model_pred_prior, target_prior, timesteps_cls = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
 
-            loss = self.get_loss(model_pred, target, att_mask, timesteps)  # Compute instance loss
-            prior_loss = self.get_loss(model_pred_prior, target_prior, att_mask_cls, timesteps_cls)  # Compute prior loss
+            loss = self.get_loss(model_pred, target, timesteps, att_mask)  # Compute instance loss
+            prior_loss = self.get_loss(model_pred_prior, target_prior, timesteps_cls, att_mask_cls)  # Compute prior loss
             loss = loss + self.cfgs.train.loss.prior_loss_weight * prior_loss
         else:
-            loss = self.get_loss(model_pred, target, att_mask, timesteps)
+            loss = self.get_loss(model_pred, target, timesteps, att_mask)
 
         if hasattr(self, 'optimizer'):
             self.optimizer.backward(loss)

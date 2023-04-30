@@ -15,7 +15,6 @@ train:
   max_grad_norm: 1.0
   set_grads_to_none: False
   save_step: 100
-  log_step: 20
   cfg_scale: '1.0' # for DreamArtist
 
   resume: null
