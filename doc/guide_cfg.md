@@ -15,7 +15,6 @@ train:
   max_grad_norm: 1.0 # Gradient clipping is used to prevent gradient explosion.
   set_grads_to_none: False # Whether to set the gradient to None when resetting it.
   save_step: 100 # Saving model interval 
-  log_step: 20 # Logging interval
   
   # The CFG scale for DreamArtist, that 1.0 indicates disable DreamArtist.
   # DreamArtist supports dynamic CFG, which varies dynamically with the diffusion time steps. 
