@@ -34,7 +34,8 @@ train:
     criterion:
       # 这里使用 hydra.utils.instantiate 的语法定义
       # 所有具有 _target_ 属性的模块都会被实例化为对应的python对象
-      _target_: torch.nn.MSELoss # 损失函数对应的类别
+      _target_: hcpdiff.loss.MSELoss # 损失函数对应的类别
+      _partial_: True
       reduction: 'none' # 不在内部做平均，以支持attention mask
     # data_class部分数据对应的loss的权重
     # 保持 data.batch_size/(data_class.batch_size*prior_loss_weight) = 4/1可以得到较好的效果
@@ -172,6 +173,17 @@ data:
 ```
 
 ```data_class```中的设置与上面一致。
+
+## Loss配置
+
+Min-SNR loss:
+```yaml
+loss:
+    criterion:
+      # 其余属性会继承 train_base
+      _target_: hcpdiff.loss.MinSNRLoss # 损失函数对应的类别
+      gamma: 2.0
+```
 
 ## 其他参数
 ```yaml

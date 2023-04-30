@@ -34,7 +34,8 @@ train:
     criterion:
       # Here using the syntax of hydra.utils.installate
       # All modules with the _target_ attribute will be instantiated as the corresponding python object
-      _target_: torch.nn.MSELoss # Loss function class
+      _target_: hcpdiff.loss.MSELoss # Loss function class
+      _partial_: True
       reduction: 'none' # support for attention mask
     # The weight of the loss of the data from data_class
     # Make data.batch_size/(data_class.batch_size*prior_loss_weight) = 4/1 can get better results
@@ -126,6 +127,17 @@ data:
 ```
 
 The settings in ``data_class`` are the same as above.
+
+## Loss configurations
+
+Min-SNR loss:
+```yaml
+loss:
+    criterion:
+      # The other properties are inherited from train_base
+      _target_: hcpdiff.loss.MinSNRLoss # Loss function class
+      gamma: 2.0
+```
 
 ## Other configurations
 ```yaml
