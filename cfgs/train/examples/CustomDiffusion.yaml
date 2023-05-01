@@ -35,39 +35,55 @@ model:
   ema_text_encoder: 0
 
 data:
-  batch_size: 4
-  prompt_template: 'prompt_tuning_template/object.txt'
-  caption_file: null
-  cache_latents: True
-  tag_transforms:
-    transforms:
-      - _target_: hcpdiff.utils.caption_tools.TagShuffle
-      - _target_: hcpdiff.utils.caption_tools.TagDropout
-        p: 0.1
-      - _target_: hcpdiff.utils.caption_tools.TemplateFill
-        word_names:
-          pt1: pt-dog1
-          class: dog
-  bucket:
-    _target_: hcpdiff.data.bucket.RatioBucket.from_files
-    img_root: 'imgs/'
-    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
-    num_bucket: 1
+  dataset1:
+    batch_size: 4
+    cache_latents: True
+    loss_weight: 1.0
 
-data_class:
-  batch_size: 1
-  prompt_template: 'prompt_tuning_template/object.txt'
-  caption_file: null
-  cache_latents: True
-  tag_transforms:
-    transforms:
-      - _target_: hcpdiff.utils.caption_tools.TagShuffle
-      - _target_: hcpdiff.utils.caption_tools.TagDropout
-        p: 0.1
-      - _target_: hcpdiff.utils.caption_tools.TemplateFill
-        word_names: # class word only
-          class: dog
-  bucket:
-    _target_: hcpdiff.data.bucket.FixedBucket
-    img_root: 'db/dog'
-    target_size: 512
+    source:
+      data_source1:
+        img_root: 'imgs/'
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null # path to image captions (file_words)
+        tag_transforms:
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: 0.1
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                pt1: sks
+                class: dog
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+      num_bucket: 1
+
+  dataset_class:
+    _target_: hcpdiff.data.TextImagePairDataset
+    _partial_: True
+    batch_size: 1
+    cache_latents: True
+    att_mask_encode: False
+    loss_weight: 1.0
+
+    source:
+      data_source1:
+        img_root: 'imgs/db_class'
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null
+        att_mask: null
+        bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
+        image_transforms: ${....dataset1.source.data_source1.image_transforms}
+        tag_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: 0.1
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                class: dog
+    bucket:
+      _target_: hcpdiff.data.bucket.FixedBucket
+      target_size: [512, 512]

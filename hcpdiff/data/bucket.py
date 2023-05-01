@@ -8,6 +8,7 @@ bucket.py
     :Licence:     Apache-2.0
 """
 
+from typing import List, Tuple, Union
 import os.path
 import pickle
 
@@ -18,7 +19,6 @@ from hcpdiff.utils.img_size_tool import types_support, get_image_size
 from .utils import resize_crop_fix
 from hcpdiff.utils.utils import get_file_ext
 
-from typing import Tuple, Union
 from loguru import logger
 
 class BaseBucket:
@@ -31,7 +31,7 @@ class BaseBucket:
     def __len__(self):
         raise NotImplementedError()
 
-    def build(self, bs):
+    def build(self, bs:int, img_root_list:List[str]):
         raise NotImplementedError()
 
     def rest(self, epoch):
@@ -41,34 +41,28 @@ class BaseBucket:
         return image
 
 class FixedBucket(BaseBucket):
-    def __init__(self, img_root:str, target_size:Union[Tuple[int,int], int]=512):
-        self.img_root=img_root
+    def __init__(self, target_size:Union[Tuple[int,int], int]=512):
         self.target_size=(target_size, target_size) if isinstance(target_size, int) else target_size
 
-    def build(self, bs):
-        self.file_names=[x for x in os.listdir(self.img_root) if get_file_ext(x) in types_support]
+    def build(self, bs:int, img_root_list:List[str]):
+        self.img_root_list = img_root_list
+        self.file_names=[os.path.join(img_root, x) for img_root in img_root_list for x in os.listdir(img_root) if get_file_ext(x) in types_support]
 
     def crop_resize(self, image, size):
         return resize_crop_fix(image, size)
 
     def __getitem__(self, idx) -> Tuple[str, Tuple[int, int]]:
-        return os.path.join(self.img_root, self.file_names[idx]), self.target_size
+        return self.file_names[idx], self.target_size
 
     def __len__(self):
         return len(self.file_names)
 
 class RatioBucket(BaseBucket):
-    def __init__(self, img_root:str, taget_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
-        self.img_root=img_root
+    def __init__(self, taget_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
         self.taget_area=taget_area
         self.step_size=step_size
         self.num_bucket=num_bucket
         self.pre_build_arb=pre_build_arb
-
-        if pre_build_arb and os.path.exists(self.pre_build_arb):
-            self.load_arb(pre_build_arb)
-        else:
-            self.file_names = [x for x in os.listdir(img_root) if get_file_ext(x) in types_support]
 
     def load_arb(self, path):
         with open(path, 'rb') as f:
@@ -89,10 +83,10 @@ class RatioBucket(BaseBucket):
                 'data_len': self.data_len,
             }, f)
 
-    def build_buckets_from_ratios(self, ratio_max:float=4):
+    def build_buckets_from_ratios(self):
         logger.info('build buckets from ratios')
-        size_low = int(math.sqrt(self.taget_area / ratio_max))
-        size_high = int(ratio_max*size_low)
+        size_low = int(math.sqrt(self.taget_area / self.ratio_max))
+        size_high = int(self.ratio_max*size_low)
 
         # SD需要边长是8的倍数
         size_low = (size_low//self.step_size)*self.step_size
@@ -126,7 +120,6 @@ class RatioBucket(BaseBucket):
         # fill buckets with images w,h
         self.idx_bucket_map=np.empty(len(self.file_names), dtype=int)
         for i, file in enumerate(self.file_names):
-            file = os.path.join(self.img_root, file)
             w, h = get_image_size(file)
             bucket_id = np.abs(self.ratios_log-np.log2(w / h)).argmin()
             self.buckets[bucket_id].append(i)
@@ -137,7 +130,6 @@ class RatioBucket(BaseBucket):
         logger.info('build buckets from images')
         ratio_list = []
         for i, file in enumerate(self.file_names):
-            file = os.path.join(self.img_root, file)
             w, h = get_image_size(file)
             ratio = np.log2(w / h)
             ratio_list.append(ratio)
@@ -166,15 +158,21 @@ class RatioBucket(BaseBucket):
             self.idx_bucket_map[bnow]=bidx
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
-    def build(self, bs:int):
+    def build(self, bs:int, img_root_list:List[str]):
         '''
         :param bs: batch_size * n_gpus * accumulation_step
         :param pre_build_arb:
         '''
-        self.bs = bs
+        self.img_root_list = img_root_list
         if self.pre_build_arb and os.path.exists(self.pre_build_arb):
+            self.load_arb(self.pre_build_arb)
             return
+        else:
+            self.file_names = [os.path.join(img_root, x) for img_root in img_root_list for x in os.listdir(img_root)
+                               if get_file_ext(x) in types_support]
+        self._build()
 
+        self.bs = bs
         rs = np.random.RandomState(42)
         # make len(bucket)%bs==0
         self.data_len = 0
@@ -207,7 +205,7 @@ class RatioBucket(BaseBucket):
     def __getitem__(self, idx):
         fidx = self.idx_arb[idx]
         bidx=self.idx_bucket_map[fidx]
-        return os.path.join(self.img_root, self.file_names[fidx]), self.size_buckets[bidx]
+        return self.file_names[fidx], self.size_buckets[bidx]
 
     def __len__(self):
         return self.data_len
@@ -216,11 +214,12 @@ class RatioBucket(BaseBucket):
     def from_ratios(cls, img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, ratio_max:float=4,
                     pre_build_arb:str=None):
         arb = cls(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
-        arb.build_buckets_from_ratios(ratio_max)
+        arb.ratio_max = ratio_max
+        arb._build = arb.build_buckets_from_ratios
         return arb
 
     @classmethod
     def from_files(cls, img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
         arb = RatioBucket(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
-        arb.build_buckets_from_images()
+        arb._build = arb.build_buckets_from_images
         return arb

@@ -147,31 +147,19 @@ class TrainerColo(Trainer):
             self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt.weight_decay_pt)
             self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
 
-    def train_one_step(self, data, prompt_ids):
+    def train_one_step(self, data_list):
         torch.cuda.reset_peak_memory_stats()
-        image = data['img'].to(self.device, dtype=self.weight_dtype, non_blocking=True)
-        att_mask = data['mask'].to(self.device, non_blocking=True)
-        prompt_ids = prompt_ids.to(self.device, non_blocking=True)
-        other_datas = {k: v.to(self.device, dtype=self.weight_dtype, non_blocking=True) for k, v in data.items() if k != 'img' and k != 'mask'}
+        loss = []
+        for idx, data in enumerate(data_list):
+            image = data.pop('img').to(self.device, dtype=self.weight_dtype, non_blocking=True)
+            att_mask = data.pop('mask').to(self.device, non_blocking=True)
+            prompt_ids = data.pop('prompt').to(self.device, non_blocking=True)
+            other_datas = {k:v.to(self.device, dtype=self.weight_dtype, non_blocking=True) for k, v in data.items()}
 
-        latents = self.get_latents(image, self.train_loader.dataset)
-        model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
-
-        if self.train_loader_class is not None:
-            # DreamBooth prior forward
-            data_cls, prompt_ids_cls = next(self.data_iter_class)
-            image_cls = data_cls['img'].to(self.device, dtype=self.weight_dtype, non_blocking=True)
-            att_mask_cls = data_cls['mask'].to(self.device, non_blocking=True)
-            prompt_ids_cls = prompt_ids_cls.to(self.device, non_blocking=True)
-            other_datas_cls = {k: v.to(self.device, dtype=self.weight_dtype, non_blocking=True) for k, v in data_cls.items() if k != 'img' and k != 'mask'}
-            latents_cls = self.get_latents(image_cls, self.train_loader_class.dataset)
-            model_pred_prior, target_prior, timesteps_cls = self.forward(latents_cls, prompt_ids_cls, **other_datas_cls)
-
-            loss = self.get_loss(model_pred, target, timesteps, att_mask)  # Compute instance loss
-            prior_loss = self.get_loss(model_pred_prior, target_prior, timesteps_cls, att_mask_cls)  # Compute prior loss
-            loss = loss + self.cfgs.train.loss.prior_loss_weight * prior_loss
-        else:
-            loss = self.get_loss(model_pred, target, timesteps, att_mask)
+            latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
+            model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
+            loss.append(self.get_loss(model_pred, target, timesteps, att_mask)*self.train_loader_group.get_loss_weights(idx))
+        loss = sum(loss)
 
         if hasattr(self, 'optimizer'):
             self.optimizer.backward(loss)

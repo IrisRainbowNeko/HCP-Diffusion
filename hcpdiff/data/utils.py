@@ -48,11 +48,13 @@ def collate_fn_ft(batch):
     if 'cond' in data0:
         datas['cond']=[]
 
-    for data, target in batch:
+    for data in batch:
         datas['img'].append(data['img'])
         datas['mask'].append(data['mask'])
         if 'cond' in data:
             datas['cond'].append(data['cond'])
+
+        target = data['prompt']
         if len(target.shape)==2:
             sn_list.append(target[0])
             sp_list.append(target[1])
@@ -64,13 +66,20 @@ def collate_fn_ft(batch):
     datas['mask'] = torch.stack(datas['mask']).unsqueeze(1)
     if 'cond' in data0:
         datas['cond'] = torch.stack(datas['cond'])
+    datas['prompt'] = torch.stack(sn_list)
 
-    return datas, torch.stack(sn_list)
+    return datas
 
-def cycle_data(data_loader):
-    epoch=0
-    while True:
-        data_loader.dataset.bucket.rest(epoch)
-        for data in data_loader:
-            yield data
-        epoch+=1
+class CycleData():
+    def __init__(self, data_loader):
+        self.data_loader = data_loader
+
+    def __iter__(self):
+        self.epoch = 0
+        def cycle():
+            while True:
+                self.data_loader.dataset.bucket.rest(self.epoch)
+                for data in self.data_loader:
+                    yield data
+                self.epoch+=1
+        return cycle()
