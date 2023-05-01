@@ -135,3 +135,33 @@ def save_emb(path, emb:torch.Tensor, replace=False):
         raise FileExistsError(f'embedding "{name}" already exist.')
     name=name[:name.rfind('.')]
     torch.save({'string_to_param':{'*':emb}, 'name':name}, path)
+
+
+def hook_compile(model):
+    named_modules = {k:v for k, v in model.named_modules()}
+
+    for name, block in named_modules.items():
+        if len(block._forward_hooks)>0:
+            for hook in block._forward_hooks.values(): # 从前往后执行
+                old_forward = block.forward
+                def new_forward(*args, **kwargs):
+                    result = old_forward(*args, **kwargs)
+                    hook_result = hook(block, args, result)
+                    if hook_result is not None:
+                        result = hook_result
+                    return result
+                block.forward = new_forward
+
+        if len(block._forward_pre_hooks)>0:
+            for hook in list(block._forward_pre_hooks.values())[::-1]: # 从前往后执行
+                old_forward = block.forward
+                def new_forward(*args, **kwargs):
+                    result = hook(block, args)
+                    if result is not None:
+                        if not isinstance(result, tuple):
+                            result = (result,)
+                    else:
+                        result = args
+                    return old_forward(*result, **kwargs)
+                block.forward = new_forward
+    remove_all_hooks(model)
