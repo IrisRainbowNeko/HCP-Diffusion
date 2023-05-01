@@ -16,6 +16,9 @@ class DataGroup:
     def __next__(self):
         return [next(data_iter) for data_iter in self.data_iter_list]
 
+    def __len__(self):
+        return len(self.loader_list)
+
     def get_dataset(self, idx):
         return self.loader_list[idx].dataset
 

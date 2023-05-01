@@ -22,9 +22,15 @@ class TrainerSingleCard(Trainer):
         set_seed(self.cfgs.seed + self.local_rank)
 
     def prepare(self):
+        # try:
+        #     self.unet = torch.compile(self.unet)
+        #     self.text_encoder = torch.compile(self.text_encoder)
+        # except:
+        #     print('cannot compile model')
+
         # Prepare everything with accelerator.
-        prepare_obj_list = [self.unet, self.train_loader]
-        prepare_name_list = ['unet', 'train_loader']
+        prepare_obj_list = [self.unet]
+        prepare_name_list = ['unet']
         if hasattr(self, 'optimizer'):
             prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
             prepare_name_list.extend(['optimizer', 'lr_scheduler'])
@@ -39,13 +45,19 @@ class TrainerSingleCard(Trainer):
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
 
+        if len(self.train_loader_group)>1:
+            self.train_loader_group.loader_list = list(self.accelerator.prepare(*self.train_loader_group.loader_list))
+        else:
+            self.train_loader_group.loader_list = [self.accelerator.prepare(*self.train_loader_group.loader_list)]
+
     def build_data(self, data_builder:partial) -> torch.utils.data.DataLoader:
         batch_size = data_builder.keywords.pop('batch_size')
         cache_latents = data_builder.keywords.pop('cache_latents')
         self.batch_size_list.append(batch_size)
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
-        train_dataset.bucket.build(batch_size * self.world_size)
+        train_dataset.bucket.build(batch_size * self.world_size,
+                                   img_root_list=[source.img_root for source in data_builder.keywords['source'].values()])
         arb = isinstance(train_dataset.bucket, RatioBucket)
         logger.info(f"len(train_dataset): {len(train_dataset)}")
 

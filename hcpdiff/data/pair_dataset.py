@@ -31,7 +31,7 @@ class TextImagePairDataset(Dataset):
     It pre-processes the images and the tokenizes prompts.
     """
 
-    def __init__(self, prompt_template: str, tokenizer, tokenizer_repeats: int = 1, att_mask_encode: bool = False,
+    def __init__(self, tokenizer, tokenizer_repeats: int = 1, att_mask_encode: bool = False,
                  bucket: BaseBucket = None, source: Dict = None, return_path: bool = False, **kwargs):
         self.return_path = return_path
 
@@ -48,12 +48,12 @@ class TextImagePairDataset(Dataset):
             source_metas.att_mask_path = {} if data_source.att_mask is None else \
                 {get_file_name(file): os.path.join(data_source.att_mask, file)
                  for file in os.listdir(data_source.att_mask) if get_file_ext(file) in types_support}
-            source_metas.prompt_template = self.load_template(prompt_template)
+            source_metas.prompt_template = self.load_template(data_source.prompt_template)
             source_metas.image_transforms = data_source.image_transforms
             source_metas.tag_transforms = data_source.tag_transforms
             source_metas.bg_color = tuple(data_source.bg_color)
 
-            self.source_dict[data_source.img_root] = source_metas
+            self.source_dict[os.path.dirname(data_source.img_root+'/')] = source_metas
 
         self.latents = None  # Cache latents for faster training. Works only without image argumentations.
 

@@ -42,7 +42,7 @@ def resize_crop_fix(img, target_size):
 def collate_fn_ft(batch):
     datas, sn_list, sp_list = {'img':[]}, [], []
 
-    data0 = batch[0][0]
+    data0 = batch[0]
     if 'mask' in data0:
         datas['mask']=[]
     if 'cond' in data0:
@@ -72,6 +72,7 @@ def collate_fn_ft(batch):
 
 class CycleData():
     def __init__(self, data_loader):
+        print(data_loader)
         self.data_loader = data_loader
 
     def __iter__(self):

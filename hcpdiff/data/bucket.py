@@ -211,15 +211,15 @@ class RatioBucket(BaseBucket):
         return self.data_len
 
     @classmethod
-    def from_ratios(cls, img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, ratio_max:float=4,
+    def from_ratios(cls, target_area:int=640*640, step_size:int=8, num_bucket:int=10, ratio_max:float=4,
                     pre_build_arb:str=None):
-        arb = cls(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+        arb = cls(target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
         arb.ratio_max = ratio_max
         arb._build = arb.build_buckets_from_ratios
         return arb
 
     @classmethod
-    def from_files(cls, img_root:str, target_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
-        arb = RatioBucket(img_root, target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+    def from_files(cls, target_area:int=640*640, step_size:int=8, num_bucket:int=10, pre_build_arb:str=None):
+        arb = RatioBucket(target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
         arb._build = arb.build_buckets_from_images
         return arb

@@ -24,9 +24,9 @@ class TextImageCondPairDataset(TextImagePairDataset):
     It pre-processes the images and the tokenizes prompts.
     """
 
-    def __init__(self, prompt_template: str, tokenizer, tokenizer_repeats: int = 1, att_mask_encode: bool = False,
+    def __init__(self, tokenizer, tokenizer_repeats: int = 1, att_mask_encode: bool = False,
                  bucket: BaseBucket = None, source: Dict = None, return_path: bool = False, **kwargs):
-        super().__init__(prompt_template, tokenizer, tokenizer_repeats, att_mask_encode, bucket, source, return_path)
+        super().__init__(tokenizer, tokenizer_repeats, att_mask_encode, bucket, source, return_path)
         for data_source in source.values():
             self.source_dict[data_source.img_root].cond_dir = data_source.cond_dir
         self.cond_transform = transforms.ToTensor()

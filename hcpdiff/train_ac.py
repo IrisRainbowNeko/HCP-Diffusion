@@ -78,8 +78,8 @@ class Trainer:
 
         self.batch_size_list = []
         assert len(cfgs.data)>0
-        loss_weights = [dataset.loss_weight for name, dataset in cfgs.data]
-        self.train_loader_group = DataGroup([self.build_data(dataset) for name, dataset in cfgs.data], loss_weights)
+        loss_weights = [dataset.keywords['loss_weight'] for name, dataset in cfgs.data.items()]
+        self.train_loader_group = DataGroup([self.build_data(dataset) for name, dataset in cfgs.data.items()], loss_weights)
 
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
@@ -127,11 +127,20 @@ class Trainer:
     def prepare(self):
         # Prepare everything with accelerator.
         if self.train_TE:
-            prepare_obj_list = [self.TE_unet, self.train_loader]
-            prepare_name_list = ['TE_unet', 'train_loader']
+            # try:
+            #     self.TE_unet = torch.compile(self.TE_unet)
+            # except:
+            #     print('cannot compile model')
+            prepare_obj_list = [self.TE_unet]
+            prepare_name_list = ['TE_unet']
         else:
-            prepare_obj_list = [self.unet, self.train_loader]
-            prepare_name_list = ['unet', 'train_loader']
+            # try:
+            #     self.unet = torch.compile(self.unet)
+            #     self.text_encoder = torch.compile(self.text_encoder)
+            # except:
+            #     print('cannot compile model')
+            prepare_obj_list = [self.unet]
+            prepare_name_list = ['unet']
         if hasattr(self, 'optimizer'):
             prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
             prepare_name_list.extend(['optimizer', 'lr_scheduler'])
@@ -142,6 +151,11 @@ class Trainer:
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
+
+        if len(self.train_loader_group) > 1:
+            self.train_loader_group.loader_list = list(self.accelerator.prepare(*self.train_loader_group.loader_list))
+        else:
+            self.train_loader_group.loader_list = [self.accelerator.prepare(*self.train_loader_group.loader_list)]
 
     def scale_lr(self, parameters):
         bs = sum(self.batch_size_list)
@@ -344,7 +358,7 @@ class Trainer:
         total_batch_size = sum(self.batch_size_list)*self.world_size*self.cfgs.train.gradient_accumulation_steps
 
         self.loggers.info("***** Running training *****")
-        self.loggers.info(f"  Num batches each epoch = {len(self.train_loader)}")
+        self.loggers.info(f"  Num batches each epoch = {len(self.train_loader_group.loader_list[0])}")
         self.loggers.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
         self.loggers.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
         self.loggers.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")

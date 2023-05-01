@@ -64,7 +64,7 @@ model:
   ema_unet: 0 # 0 to disable
   ema_text_encoder: 0 # 0 to disable
   clip_skip: 0
-
+  noise_scheduler: DDPMScheduler
 
 data:
   dataset1:

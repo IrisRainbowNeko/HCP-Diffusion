@@ -47,6 +47,13 @@ class Visualizer:
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
         UnetHook(self.pipe.unet)
 
+        # try:
+        #     print('compile unet and text_encoder')
+        #     self.pipe.unet = torch.compile(self.pipe.unet)
+        #     self.pipe.text_encoder = torch.compile(self.pipe.text_encoder)
+        # except:
+        #     pass
+
         if is_xformers_available():
             self.pipe.unet.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
