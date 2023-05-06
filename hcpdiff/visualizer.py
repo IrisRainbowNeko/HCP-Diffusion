@@ -106,17 +106,13 @@ class Visualizer:
             ex_input_dict['cond'] = self.prepare_cond_image(img, self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
         return ex_input_dict
 
-    @torch.no_grad()
-    def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
-        os.makedirs(root, exist_ok=True)
-        num_img_exist = max([int(x.split('-',1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
-
+    def vis_images(self, prompt, negative_prompt='', **kwargs):
         ex_input_dict = self.get_ex_input()
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.fp16):
-            emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n + clean_text_p).chunk(2)
+            emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p).chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)
             emb_n = self.te_hook.mult_attn(emb_n, mult_n)
 
@@ -125,6 +121,14 @@ class Visualizer:
                     feeder(ex_input_dict)
 
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
+        return images
+
+    @torch.no_grad()
+    def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
+        os.makedirs(root, exist_ok=True)
+        num_img_exist = max([int(x.split('-',1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
+
+        images = self.vis_images(prompt, negative_prompt, **kwargs)
 
         for p, pn, img in zip(prompt, negative_prompt, images):
             img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.cfgs.save.image_type}"), quality=self.cfgs.save.quality)
