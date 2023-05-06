@@ -132,47 +132,87 @@ plugin_unet:
 
 ## 数据集设置
 
+可以定义多个并行数据集，每个数据集都可以有多个数据源。每步训练会从所有数据集中各抽取一个batch一起训练。
+每个数据集中所有数据源会有该数据集的bucket统一处理，并按顺序迭代。
+
 ```yaml
 data:
-  _target_: hcpdiff.data.TextImagePairDataset # 数据集类路径
-  batch_size: 4 # 这一部分数据的batch_size
-  # prompt填充模板，填充词在下面的 utils.caption_tools.TemplateFill 中配置
-  prompt_template: 'prompt_tuning_template/name.txt'
-  caption_file: null # 图片描述文件路径
-  cache_latents: True # 是否预先将图像用VAE编码，可以加快训练速度
-  att_mask: null # attention_mask的文件夹路径
-  att_mask_encode: False # 是否对attention_mask应用VAE中的self-attention
-  bg_color: [255, 255, 255] # 读取透明图像时的填充背景色
-  image_transforms: # 图像增强与预处理，具体细节参考 torchvision.transforms
-    _target_: torchvision.transforms.Compose # 组合多个变换
-    transforms:
-      - _target_: torchvision.transforms.ToTensor
-      - _target_: torchvision.transforms.Normalize
-        _args_: [[0.5], [0.5]]
-  tag_transforms: # 文本增强与预处理
-    _target_: torchvision.transforms.Compose
-    transforms:
-      - _target_: hcpdiff.utils.caption_tools.TagShuffle # 按 "," 打乱描述的顺序
-      - _target_: hcpdiff.utils.caption_tools.TagDropout # 按 "," 分割描述，随机删除
-        p: 0.1 # 删除的概率
-      - _target_: hcpdiff.utils.caption_tools.TemplateFill # 填充prompt模板，每次随机从模板文件中抽取一行
-        word_names:
-          pt1: pt-cat1 # 将模板中的{pt1}替换为 pt-cat1
-          class: cat # 将模板中的{class}替换为 cat
-  bucket: # 使用什么样的bucket对图像进行处理和分组
-    _target_: hcpdiff.data.bucket.RatioBucket.from_files # 按所有图像的比例自动聚类分组，尽可能避免切图
-    img_root: 'imgs/train' # 图片路径
-    # 训练使用的图像尺寸，值为面积
-    # 此处使用hydra语法，调用python的eval函数计算面积
-    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
-    num_bucket: 5 # 分多少个组
-#  bucket:
-#    _target_: data.bucket.FixedBucket # 将图像剪裁为固定大小训练
-#    img_root: 'imgs/train'
-#    target_size: [512, 512] # 使用的尺寸
-```
+  # 可以定义多个并行数据集，每步训练会从所有数据集中各抽取一个batch一起训练
+  dataset1:
+    _target_: hcpdiff.data.TextImagePairDataset # 数据集类路径
+    _partial_: True # 必须加，为了在后续添加额外参数
+    batch_size: 4 # 这一部分数据集的batch_size
+    cache_latents: True # 是否预先将图像用VAE编码，可以加快训练速度
+    att_mask_encode: False # 是否对attention_mask应用VAE中的self-attention
+    loss_weight: 1.0 # 这部分数据集在计算loss时的权重
+    
+    # 定义一个所有数据源通用的图像变换，具体细节参考 torchvision.transforms
+    image_transforms:
+      _target_: torchvision.transforms.Compose # "_target_" for hydra.utils.instantiate
+      transforms:
+        - _target_: torchvision.transforms.ToTensor
+        - _target_: torchvision.transforms.Normalize
+          _args_: [[0.5], [0.5]]
+    
+    # 数据来源，所有源的图像都会被这部分数据集的bucket统一处理，作为一个整体。
+    # 每个数据集可以有多个数据源。
+    source:
+      data_source1: #数据源1
+        img_root: 'imgs/train' # 图像文件夹
+        # prompt填充模板，填充词在下面的 utils.caption_tools.TemplateFill 中配置
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null # path to image captions (file_words)
+        att_mask: null # attention_mask的文件夹路径
+        bg_color: [255, 255, 255] # 读取透明图像时的填充背景色
+        image_transforms: ${...image_transforms} # 图像增强与预处理
+        tag_transforms: # 文本增强与预处理
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle # 按 "," 打乱描述的顺序
+            - _target_: hcpdiff.utils.caption_tools.TagDropout # 按 "," 分割描述，随机删除
+              p: 0.1 # 删除的概率
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill # 填充prompt模板，每次随机从模板文件中抽取一行
+              word_names:
+                pt1: pt-cat1 # 将模板中的{pt1}替换为 pt-cat1
+                class: cat # 将模板中的{class}替换为 cat
+      data_source2: ... #数据源2
+      data_source3: ... #数据源3
+    bucket: # 使用什么样的bucket对图像进行处理和分组
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # 按所有图像的比例自动聚类分组，尽可能避免切图
+      # 训练使用的图像尺寸，值为面积
+      # 此处使用hydra语法，调用python的eval函数计算面积
+      target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+      num_bucket: 5 # 分多少个组
+  
+  dataset_class: # 正则化数据集，与上面的并行
+    _target_: hcpdiff.data.TextImagePairDataset
+    _partial_: True
+    batch_size: 1
+    cache_latents: True
+    att_mask_encode: False
+    loss_weight: 0.8
 
-```data_class```中的设置与上面一致。
+    source:
+      data_source1:
+        img_root: 'imgs/db_class'
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null
+        att_mask: null
+        bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
+        image_transforms: ${....dataset1.source.data_source1.image_transforms}
+        tag_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: 0.1
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                class: cat
+    bucket:
+      _target_: hcpdiff.data.bucket.FixedBucket # 将图像剪裁为固定大小训练
+      target_size: [512, 512] # 使用的尺寸
+```
 
 ## Loss配置
 
