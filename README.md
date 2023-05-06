@@ -98,6 +98,7 @@ python -m hcpdiff.tools.sd2diffusers \
     --vae_pt_path "path_to_VAE_model" \
     --original_config_file "path_to_config_file" \
     --dump_path "save_directory"
+    [--from_safetensors]
 ```
 
 + [Model Training Tutorial](doc/guide_train.md)
