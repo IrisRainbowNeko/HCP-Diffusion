@@ -104,7 +104,8 @@ python -m hcpdiff.tools.sd2diffusers \
 + [Model Training Tutorial](doc/guide_train.md)
 + [DreamArtist++ Tutorial](doc/guide_DA.md)
 + [Model Inference Tutorial](doc/guide_infer.md)
-+ [Configuration file explanation](doc/guide_cfg.md)
++ [Configuration File Explanation](doc/guide_cfg.md)
++ [webui Model Conversion Tutorial](doc/guide_webui_lora.md)
 
 Use xformer to reduce VRAM usage and accelerate training:
 ```bash

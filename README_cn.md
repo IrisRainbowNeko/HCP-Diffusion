@@ -99,6 +99,7 @@ python -m hcpdiff.tools.sd2diffusers \
 + [DreamArtist++使用教程](doc/guide_DA_cn.md)
 + [图像生成教程](doc/guide_infer_cn.md)
 + [配置文件说明](doc/guide_cfg_cn.md)
++ [webui模型转换教程](doc/guide_webui_lora_cn.md)
 
 使用xformers减少显存使用并加速训练:
 ```bash
