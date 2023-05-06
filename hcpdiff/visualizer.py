@@ -47,13 +47,6 @@ class Visualizer:
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
         UnetHook(self.pipe.unet)
 
-        # try:
-        #     print('compile unet and text_encoder')
-        #     self.pipe.unet = torch.compile(self.pipe.unet)
-        #     self.pipe.text_encoder = torch.compile(self.pipe.text_encoder)
-        # except:
-        #     pass
-
         if is_xformers_available():
             self.pipe.unet.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
@@ -116,7 +109,7 @@ class Visualizer:
     @torch.no_grad()
     def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
         os.makedirs(root, exist_ok=True)
-        num_img_exist = len([x for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])
+        num_img_exist = max([int(x.split('-',1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         ex_input_dict = self.get_ex_input()
 
