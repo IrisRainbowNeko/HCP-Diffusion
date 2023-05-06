@@ -17,11 +17,21 @@
 import argparse
 import os.path
 
-import torch
-from transformers import CLIPTextModel
-from hcpdiff.ckpt_manager import CkptManagerSafe, CkptManagerPKL
-
 import diffusers.pipelines.stable_diffusion.convert_from_ckpt as convert_from_ckpt
+import torch
+from diffusers import AutoencoderKL
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+    assign_to_checkpoint,
+    conv_attn_to_linear,
+    create_vae_diffusers_config,
+    renew_vae_attention_paths,
+    renew_vae_resnet_paths,
+)
+from omegaconf import OmegaConf
+from transformers import CLIPTextModel
+
+from hcpdiff.ckpt_manager import CkptManagerSafe, CkptManagerPKL, get_manager
+
 try:
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from_original_stable_diffusion_ckpt as load_sd_ckpt
 except:
@@ -38,7 +48,7 @@ def convert_ldm_clip_checkpoint(checkpoint):
 
     for key in keys:
         if key.startswith("cond_stage_model.transformer"):
-            t_key = key[len("cond_stage_model.transformer.") :]
+            t_key = key[len("cond_stage_model.transformer."):]
             if add_prefix:
                 t_key = 'text_model.'+t_key
             text_model_dict[t_key] = checkpoint[key]
@@ -47,13 +57,174 @@ def convert_ldm_clip_checkpoint(checkpoint):
 
     return text_model
 
+def custom_convert_ldm_vae_checkpoint(checkpoint, config):
+    vae_state_dict = checkpoint
+
+    new_checkpoint = {}
+
+    new_checkpoint["encoder.conv_in.weight"] = vae_state_dict["encoder.conv_in.weight"]
+    new_checkpoint["encoder.conv_in.bias"] = vae_state_dict["encoder.conv_in.bias"]
+    new_checkpoint["encoder.conv_out.weight"] = vae_state_dict["encoder.conv_out.weight"]
+    new_checkpoint["encoder.conv_out.bias"] = vae_state_dict["encoder.conv_out.bias"]
+    new_checkpoint["encoder.conv_norm_out.weight"] = vae_state_dict["encoder.norm_out.weight"]
+    new_checkpoint["encoder.conv_norm_out.bias"] = vae_state_dict["encoder.norm_out.bias"]
+
+    new_checkpoint["decoder.conv_in.weight"] = vae_state_dict["decoder.conv_in.weight"]
+    new_checkpoint["decoder.conv_in.bias"] = vae_state_dict["decoder.conv_in.bias"]
+    new_checkpoint["decoder.conv_out.weight"] = vae_state_dict["decoder.conv_out.weight"]
+    new_checkpoint["decoder.conv_out.bias"] = vae_state_dict["decoder.conv_out.bias"]
+    new_checkpoint["decoder.conv_norm_out.weight"] = vae_state_dict["decoder.norm_out.weight"]
+    new_checkpoint["decoder.conv_norm_out.bias"] = vae_state_dict["decoder.norm_out.bias"]
+
+    new_checkpoint["quant_conv.weight"] = vae_state_dict["quant_conv.weight"]
+    new_checkpoint["quant_conv.bias"] = vae_state_dict["quant_conv.bias"]
+    new_checkpoint["post_quant_conv.weight"] = vae_state_dict["post_quant_conv.weight"]
+    new_checkpoint["post_quant_conv.bias"] = vae_state_dict["post_quant_conv.bias"]
+
+    # Retrieves the keys for the encoder down blocks only
+    num_down_blocks = len({".".join(layer.split(".")[:3]) for layer in vae_state_dict if "encoder.down" in layer})
+    down_blocks = {
+        layer_id:[key for key in vae_state_dict if f"down.{layer_id}" in key] for layer_id in range(num_down_blocks)
+    }
+
+    # Retrieves the keys for the decoder up blocks only
+    num_up_blocks = len({".".join(layer.split(".")[:3]) for layer in vae_state_dict if "decoder.up" in layer})
+    up_blocks = {
+        layer_id:[key for key in vae_state_dict if f"up.{layer_id}" in key] for layer_id in range(num_up_blocks)
+    }
+
+    for i in range(num_down_blocks):
+        resnets = [key for key in down_blocks[i] if f"down.{i}" in key and f"down.{i}.downsample" not in key]
+
+        if f"encoder.down.{i}.downsample.conv.weight" in vae_state_dict:
+            new_checkpoint[f"encoder.down_blocks.{i}.downsamplers.0.conv.weight"] = vae_state_dict.pop(
+                f"encoder.down.{i}.downsample.conv.weight"
+            )
+            new_checkpoint[f"encoder.down_blocks.{i}.downsamplers.0.conv.bias"] = vae_state_dict.pop(
+                f"encoder.down.{i}.downsample.conv.bias"
+            )
+
+        paths = renew_vae_resnet_paths(resnets)
+        meta_path = {"old":f"down.{i}.block", "new":f"down_blocks.{i}.resnets"}
+        assign_to_checkpoint(paths, new_checkpoint, vae_state_dict, additional_replacements=[meta_path], config=config)
+
+    mid_resnets = [key for key in vae_state_dict if "encoder.mid.block" in key]
+    num_mid_res_blocks = 2
+    for i in range(1, num_mid_res_blocks+1):
+        resnets = [key for key in mid_resnets if f"encoder.mid.block_{i}" in key]
+
+        paths = renew_vae_resnet_paths(resnets)
+        meta_path = {"old":f"mid.block_{i}", "new":f"mid_block.resnets.{i-1}"}
+        assign_to_checkpoint(paths, new_checkpoint, vae_state_dict, additional_replacements=[meta_path], config=config)
+
+    mid_attentions = [key for key in vae_state_dict if "encoder.mid.attn" in key]
+    paths = renew_vae_attention_paths(mid_attentions)
+    meta_path = {"old":"mid.attn_1", "new":"mid_block.attentions.0"}
+    assign_to_checkpoint(paths, new_checkpoint, vae_state_dict, additional_replacements=[meta_path], config=config)
+    conv_attn_to_linear(new_checkpoint)
+
+    for i in range(num_up_blocks):
+        block_id = num_up_blocks-1-i
+        resnets = [
+            key for key in up_blocks[block_id] if f"up.{block_id}" in key and f"up.{block_id}.upsample" not in key
+        ]
+
+        if f"decoder.up.{block_id}.upsample.conv.weight" in vae_state_dict:
+            new_checkpoint[f"decoder.up_blocks.{i}.upsamplers.0.conv.weight"] = vae_state_dict[
+                f"decoder.up.{block_id}.upsample.conv.weight"
+            ]
+            new_checkpoint[f"decoder.up_blocks.{i}.upsamplers.0.conv.bias"] = vae_state_dict[
+                f"decoder.up.{block_id}.upsample.conv.bias"
+            ]
+
+        paths = renew_vae_resnet_paths(resnets)
+        meta_path = {"old":f"up.{block_id}.block", "new":f"up_blocks.{i}.resnets"}
+        assign_to_checkpoint(paths, new_checkpoint, vae_state_dict, additional_replacements=[meta_path], config=config)
+
+    mid_resnets = [key for key in vae_state_dict if "decoder.mid.block" in key]
+    num_mid_res_blocks = 2
+    for i in range(1, num_mid_res_blocks+1):
+        resnets = [key for key in mid_resnets if f"decoder.mid.block_{i}" in key]
+
+        paths = renew_vae_resnet_paths(resnets)
+        meta_path = {"old":f"mid.block_{i}", "new":f"mid_block.resnets.{i-1}"}
+        assign_to_checkpoint(paths, new_checkpoint, vae_state_dict, additional_replacements=[meta_path], config=config)
+
+    mid_attentions = [key for key in vae_state_dict if "decoder.mid.attn" in key]
+    paths = renew_vae_attention_paths(mid_attentions)
+    meta_path = {"old":"mid.attn_1", "new":"mid_block.attentions.0"}
+    assign_to_checkpoint(paths, new_checkpoint, vae_state_dict, additional_replacements=[meta_path], config=config)
+    conv_attn_to_linear(new_checkpoint)
+    return new_checkpoint
+
+def sd_vae_to_diffuser(args):
+    original_config = OmegaConf.load(args.original_config_file)
+    image_size = 512
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    checkpoint = get_manager(args.vae_pt_path).load_ckpt(args.vae_pt_path, map_location=device)
+
+    # Convert the VAE model.
+    vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
+    converted_vae_checkpoint = custom_convert_ldm_vae_checkpoint(checkpoint["state_dict"], vae_config)
+
+    vae = AutoencoderKL(**vae_config)
+    vae.load_state_dict(converted_vae_checkpoint)
+    vae.save_pretrained(args.dump_path)
+
+def convert_ckpt(args):
+    pipe = load_sd_ckpt(
+        checkpoint_path=args.checkpoint_path,
+        original_config_file=args.original_config_file,
+        image_size=args.image_size,
+        prediction_type=args.prediction_type,
+        model_type=args.pipeline_type,
+        extract_ema=args.extract_ema,
+        scheduler_type=args.scheduler_type,
+        num_in_channels=args.num_in_channels,
+        upcast_attention=args.upcast_attention,
+        from_safetensors=args.from_safetensors,
+        device=args.device,
+        stable_unclip=args.stable_unclip,
+        stable_unclip_prior=args.stable_unclip_prior,
+        clip_stats_path=args.clip_stats_path,
+        controlnet=args.controlnet,
+    )
+
+    if args.half:
+        pipe.to(torch_dtype=torch.float16)
+
+    def replace(k_from, k_to, sd):
+        new_sd = {}
+        for k, v in sd.items():
+            if k.startswith(k_from):
+                new_sd[k_to+k[len(k_from):]] = v
+            else:
+                new_sd[k] = v
+        return new_sd
+
+    if args.controlnet:
+        ckpt_manager = CkptManagerSafe() if args.to_safetensors else CkptManagerPKL()
+
+        sd_control = pipe.controlnet.state_dict()
+        sd_control = replace('controlnet_cond_embedding.conv_in', 'cond_head.0', sd_control)
+        for i in range(3):
+            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2}', f'cond_head.{2+i*4}', sd_control)
+            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
+        sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
+        sd_control = {f'___.{k}':v for k, v in sd_control.items()}  # Add placeholder for plugin
+        os.makedirs(args.dump_path, exist_ok=True)
+        ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(args.dump_path,
+                                                                               f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))
+    else:
+        pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
+
 if __name__ == "__main__":
     convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--checkpoint_path", default=None, type=str, required=True, help="Path to the checkpoint to convert."
+        "--checkpoint_path", default=None, type=str, help="Path to the checkpoint to convert."
     )
     # !wget https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml
     parser.add_argument(
@@ -154,52 +325,12 @@ if __name__ == "__main__":
         "--controlnet", action="store_true", default=None, help="Set flag if this is a controlnet checkpoint."
     )
     parser.add_argument("--half", action="store_true", help="Save weights in half precision.")
+
+    parser.add_argument("--vae_pt_path", default=None, type=str, help="Path to the VAE.pt to convert.")
     args = parser.parse_args()
 
-    pipe = load_sd_ckpt(
-        checkpoint_path=args.checkpoint_path,
-        original_config_file=args.original_config_file,
-        image_size=args.image_size,
-        prediction_type=args.prediction_type,
-        model_type=args.pipeline_type,
-        extract_ema=args.extract_ema,
-        scheduler_type=args.scheduler_type,
-        num_in_channels=args.num_in_channels,
-        upcast_attention=args.upcast_attention,
-        from_safetensors=args.from_safetensors,
-        device=args.device,
-        stable_unclip=args.stable_unclip,
-        stable_unclip_prior=args.stable_unclip_prior,
-        clip_stats_path=args.clip_stats_path,
-        controlnet=args.controlnet,
-    )
-
-    if args.half:
-        pipe.to(torch_dtype=torch.float16)
-
-    def replace(k_from, k_to, sd):
-        new_sd = {}
-        for k,v in sd.items():
-            if k.startswith(k_from):
-                new_sd[k_to+k[len(k_from):]]=v
-            else:
-                new_sd[k]=v
-        return new_sd
-
-    if args.controlnet:
-        ckpt_manager = CkptManagerSafe() if args.to_safetensors else CkptManagerPKL()
-
-        sd_control = pipe.controlnet.state_dict()
-        sd_control = replace('controlnet_cond_embedding.conv_in', 'cond_head.0', sd_control)
-        for i in range(3):
-            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2}', f'cond_head.{2+i*4}', sd_control)
-            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
-        sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
-        sd_control = {f'___.{k}':v for k,v in sd_control.items()} # Add placeholder for plugin
-        os.makedirs(args.dump_path, exist_ok=True)
-        ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(args.dump_path,
-                                    f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))
+    if args.vae_pt_path is None:
+        convert_ckpt(args)
     else:
-        pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
-
-    #python -m hcpdiff.tools.sd2diffusers --checkpoint_path test/control_sd15_canny.pth --original_config_file test/config.yaml --dump_path test/ckpt/control --controlnet
+        sd_vae_to_diffuser(args)
+    # python -m hcpdiff.tools.sd2diffusers --checkpoint_path test/control_sd15_canny.pth --original_config_file test/config.yaml --dump_path test/ckpt/control --controlnet
