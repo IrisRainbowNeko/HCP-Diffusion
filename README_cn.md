@@ -86,6 +86,14 @@ python -m hcpdiff.tools.sd2diffusers \
     [--to_safetensors] # 是否存成safetensors格式
 ```
 
+转换VAE:
+```bash
+python -m hcpdiff.tools.sd2diffusers \
+    --vae_pt_path "VAE模型路径" \
+    --original_config_file "下载的配置文件路径" \
+    --dump_path "储存路径(文件夹)"
+```
+
 + [模型训练教程](doc/guide_train_cn.md)
 + [DreamArtist++使用教程](doc/guide_DA_cn.md)
 + [图像生成教程](doc/guide_infer_cn.md)

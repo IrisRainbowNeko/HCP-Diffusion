@@ -92,6 +92,14 @@ python -m hcpdiff.tools.sd2diffusers \
     [--to_safetensors] # Whether to save to safetensors format
 ```
 
+Convert VAE:
+```bash
+python -m hcpdiff.tools.sd2diffusers \
+    --vae_pt_path "path_to_VAE_model" \
+    --original_config_file "path_to_config_file" \
+    --dump_path "save_directory"
+```
+
 + [Model Training Tutorial](doc/guide_train.md)
 + [DreamArtist++ Tutorial](doc/guide_DA.md)
 + [Model Inference Tutorial](doc/guide_infer.md)
