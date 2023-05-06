@@ -123,14 +123,14 @@ lora_unet:
     lr: 1e-4
     rank: 2 # Lora模块的rank值
     dropout: 0.0
-    scale: 1.0 #输出=base_model + scale*lora，如果为1.0则实际scale为1/rank
+    alpha: 1.0 #输出=base_model + alpha*lora，如果为1.0则实际scale为1/rank
     svd_init: False #用宿主层的svd分解结果初始化lora模型
     layers:
       - 're:.*\.attn.?$'
   -
     lr: 5e-5
     rank: 0.1 #如果rank为浮点数，则实际rank=对应层输出通道数*rank
-    # dropout, scale, svd_init可以省略，用默认值
+    # dropout, alpha, svd_init可以省略，用默认值
     layers:
       - 're:.*\.ff\.net\.0$'
 

@@ -129,14 +129,14 @@ lora_unet:
     lr: 1e-4
     rank: 2 # rank of Lora blocks
     dropout: 0.0
-    scale: 1.0 # output=base_model + scale*lora. If it is 1.0 then the final scale is 1/rank
+    alpha: 1.0 # output=base_model + alpha*lora. If it is 1.0 then the final alpha is 1/rank
     svd_init: False # Initialize the Lora parameters using the SVD decomposition results of the host layer.
     layers:
       - 're:.*\.attn.?$'
   -
     lr: 5e-5
     rank: 0.1 # If the rank is a float, the final rank = round(host.out_channel * rank)
-    # dropout, scale, svd_init can be omitted, use default value
+    # dropout, alpha, svd_init can be omitted, use default value
     layers:
       - 're:.*\.ff\.net\.0$'
 

@@ -1,36 +1,37 @@
-pretrained_model: '/home/amax/hzj/sd_models/CounterfeitV30_v30'
-prompt: 'masterpiece, best quality, highres, 1girl, ray1, solo, hood_jacket, blue necktie, wrist scrunchie, black jacket, school uniform, long sleeves, plaid skirt, polka_dot jacket, smile, cowboy shot, standing,'
+pretrained_model: ''
+prompt: 'masterpiece, best quality, girl'
 neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
 out_dir: 'output/'
 emb_dir: 'embs/'
 N_repeats: 1
+clip_skip: 1
 bs: 4
 num: 1
 seed: null
 fp16: True
-clip_skip: 1
+
 condition: null
 
 save:
   save_cfg: True
-  image_type: png
-  quality: 95
+  image_type: webp
+  quality: 85
 
 infer_args:
-  width: 768
-  height: 768
+  width: 576
+  height: 576
   guidance_scale: 7.5
 
 new_components:
   scheduler:
-    _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
+    _target_: diffusers.EulerAncestralDiscreteScheduler # Euler a
     beta_start: 0.00085
     beta_end: 0.012
     beta_schedule: 'scaled_linear'
 
   # vae:
   #   _target_: diffusers.AutoencoderKL.from_pretrained
-  #   pretrained_model_name_or_path: '/home/amax/hzj/sd_models/chilloutmix_vae' # path to vae model
+  #   pretrained_model_name_or_path: path_to_converted_vae_model
 
 merge: 
   alpha: 0.6

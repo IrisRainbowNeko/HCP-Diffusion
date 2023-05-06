@@ -16,7 +16,7 @@ from .ckpt_pkl import CkptManagerPKL
 
 class CkptManagerSafe(CkptManagerPKL):
 
-    def _save_ckpt(self, sd_model, name, step, save_path=None):
+    def _save_ckpt(self, sd_model, name=None, step=None, save_path=None):
         if save_path is None:
             save_path = os.path.join(self.save_dir, f"{name}-{step}.safetensors")
         sd_unfold = self.unfold_dict(sd_model)

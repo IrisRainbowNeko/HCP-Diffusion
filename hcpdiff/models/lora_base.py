@@ -19,7 +19,7 @@ from typing import Union, Tuple, Dict, Type
 class LoraBlock(SinglePluginBlock):
     wrapable_classes = [nn.Linear, nn.Conv2d]
 
-    def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False,
+    def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
                  inplace=True, hook_param=None, alpha_auto_scale=True, **kwargs):
         super().__init__(f'lora_block_{lora_id}', host, hook_param)
 
@@ -37,7 +37,7 @@ class LoraBlock(SinglePluginBlock):
             raise NotImplementedError(f'No lora for {type(host)}')
         self.rank = self.layer.rank
 
-        self.register_buffer('scale', torch.tensor(scale / self.rank if alpha_auto_scale else scale))
+        self.register_buffer('alpha', torch.tensor(alpha/self.rank if alpha_auto_scale else alpha))
 
     def set_mask(self, mask_range):
         self.mask_range = mask_range
@@ -53,21 +53,21 @@ class LoraBlock(SinglePluginBlock):
 
     def forward(self, fea_in:Tuple[torch.Tensor], fea_out:torch.Tensor):
         if self.mask_range is None:
-            return fea_out + self.layer(fea_in[0]) * self.scale
+            return fea_out + self.layer(fea_in[0]) * self.alpha
         else:
             # for DreamArtist-lora
             batch_mask = slice(int(self.mask_range[0]*fea_out.shape[0]), int(self.mask_range[1]*fea_out.shape[0]))
             if self.inplace:
-                fea_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.scale
+                fea_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.alpha
                 return fea_out
             else: # colossal-AI dose not support inplace+view
                 new_out = fea_out.clone()
-                new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.scale
+                new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.alpha
                 return new_out
 
     def collapse_to_host(self, alpha=None, base_alpha=1.0):
         if alpha is None:
-            alpha = self.scale
+            alpha = self.alpha
 
         host = self.host()
         re_w, re_b = self.get_collapsed_param()
@@ -119,9 +119,9 @@ class LoraBlock(SinglePluginBlock):
             pass
 
     @classmethod
-    def wrap_layer(cls, lora_id:int, layer: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, scale=1.0, svd_init=False,
+    def wrap_layer(cls, lora_id:int, layer: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, alpha=1.0, svd_init=False,
                    bias=False, mask=None, **kwargs):# -> LoraBlock:
-        lora_block = cls(lora_id, layer, rank, dropout, scale, bias=bias, **kwargs)
+        lora_block = cls(lora_id, layer, rank, dropout, alpha, bias=bias, **kwargs)
         lora_block.init_weights(svd_init)
         lora_block.set_mask(mask)
         return lora_block

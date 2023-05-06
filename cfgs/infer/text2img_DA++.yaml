@@ -40,6 +40,11 @@ merge: # can be null
       - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
+        mask: [ 0.5, 1 ]
+      - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.safetensors'
+        alpha: 0.65
+        layers: 'all'
+        mask: [ 0, 0.5 ]
     part: null
 
   group2:
@@ -49,4 +54,9 @@ merge: # can be null
       - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
+        mask: [ 0.5, 1 ]
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-neg-600.safetensors'
+        alpha: 0.65
+        layers: 'all'
+        mask: [ 0, 0.5 ]
     part: null

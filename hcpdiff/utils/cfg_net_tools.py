@@ -241,7 +241,10 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
             # add lora to host and load weights
             for host_name, lora_state in lora_block_state.items():
                 lora_layer_cls, rank, rank_groups = get_lora_rank_and_cls(lora_state)
-                del lora_state['scale']
+                if 'alpha' in lora_state:
+                    del lora_state['alpha']
+                if 'scale' in lora_state: # old format
+                    del lora_state['scale']
 
                 lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
                                                         scale=getattr(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
