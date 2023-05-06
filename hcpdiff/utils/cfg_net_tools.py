@@ -245,7 +245,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
 
                 lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
                                                         scale=getattr(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
-                                                        rank_groups=rank_groups)
+                                                        rank_groups=rank_groups, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True))
                 all_lora_blocks[f'{host_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
                 lora_block.set_mask(getattr(item, 'mask', None))

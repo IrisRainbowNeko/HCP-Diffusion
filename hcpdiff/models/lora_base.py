@@ -20,7 +20,7 @@ class LoraBlock(SinglePluginBlock):
     wrapable_classes = [nn.Linear, nn.Conv2d]
 
     def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, scale=1.0, bias=False,
-                 inplace=True, hook_param=None, **kwargs):
+                 inplace=True, hook_param=None, alpha_auto_scale=True, **kwargs):
         super().__init__(f'lora_block_{lora_id}', host, hook_param)
 
         self.mask_range = None
@@ -37,7 +37,7 @@ class LoraBlock(SinglePluginBlock):
             raise NotImplementedError(f'No lora for {type(host)}')
         self.rank = self.layer.rank
 
-        self.register_buffer('scale', torch.tensor(1.0 if scale == 0 else scale / self.rank))
+        self.register_buffer('scale', torch.tensor(scale / self.rank if alpha_auto_scale else scale))
 
     def set_mask(self, mask_range):
         self.mask_range = mask_range
