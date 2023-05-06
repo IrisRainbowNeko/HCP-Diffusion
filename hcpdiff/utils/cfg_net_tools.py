@@ -9,7 +9,7 @@ cfg_net_tools.py
 """
 
 
-from typing import Dict, List, Iterable, Tuple, Union, Any
+from typing import Dict, List, Tuple, Union, Any
 
 import re
 import torch
@@ -19,7 +19,7 @@ from .utils import net_path_join
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup
-from .ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):
     if type(block).__name__==class_name:

@@ -6,6 +6,7 @@ neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra
 out_dir: 'output/'
 emb_dir: 'embs/'
 N_repeats: 1
+clip_skip: 1
 bs: 4
 num: 1
 seed: null

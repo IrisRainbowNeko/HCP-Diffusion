@@ -12,10 +12,18 @@ neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra
 out_dir: 'output/' # Images output directory
 emb_dir: 'embs/' # Custom word (embedding) directory
 N_repeat: 1 # Sentence length extension multiplier
+clip_skip: 1
 bs: 4 # batch_size
 num: 1 # Total number of images = bs*num
 seed: null # random seed
-save_cfg: True # save configuration
+fp16: True # Half-precision inference is faster with less VRAM
+
+condition: null # img2img和contorlnet
+
+save:
+  save_cfg: True # save configuration
+  image_type: png # image format for save
+  quality: 95 # Image compression quality for save
 
 infer_args:
   width: 512
@@ -23,6 +31,8 @@ infer_args:
   guidance_scale: 7.5 # CFG scale
 
 new_components: {} # Components for replacing models Sampler, VAE, etc.
+
+merge: null # Loading models and plugins such as lora
 ```
 
 Replace Sampler:
@@ -89,6 +99,26 @@ merge:
 
 If you use the DreamArtist, you need to include the corresponding trigger words ```{name}``` and ```{name}-neg``` in the prompt and negative_prompt respectively.
 If you use the DreamArtist++, adding only positive trigger words in the prompt will give better results.
+
+### Load Plugins
+
+Besides lora, custom plugins also supported. lora can also be added as a custom plugin.
+
+```yaml
+merge:
+  # Model plugin definition file
+  plugin_cfg: cfgs/plugins/plugin_controlnet.yaml
+    
+  group3:
+    type: 'unet'
+    base_model_alpha: 1.0
+    part: null
+    lora: null
+    plugin:
+      controlnet1: # Plugin name, cannot be duplicated
+        path: 'ckpts/controlnet.ckpt' # Plugin weights file
+        layers: 'all'
+```
 
 ## Word attention multiply
 It is possible to change the attention of some words individually:

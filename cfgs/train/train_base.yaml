@@ -27,9 +27,9 @@ train:
 
   loss:
     criterion:
-      _target_: torch.nn.MSELoss
+      _target_: hcpdiff.loss.MSELoss
+      _partial_: True
       reduction: 'none' # support for attention mask
-    prior_loss_weight: 1.0
     type: 'eps' # 'eps' or 'sample'
 
   optimizer:
@@ -47,6 +47,13 @@ train:
   scale_lr_pt: True
   scheduler_pt: ${.scheduler}
 
+logger:
+  -
+    _target_: hcpdiff.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+
 model:
   revision: null
   pretrained_model_name_or_path: null
@@ -57,52 +64,41 @@ model:
   ema_unet: 0 # 0 to disable
   ema_text_encoder: 0 # 0 to disable
   clip_skip: 0
-
   noise_scheduler: DDPMScheduler
 
 data:
-  _target_: hcpdiff.data.TextImagePairDataset
-  _partial_: True # Not directly instantiate the object here. There are other parameters to be added in the runtime.
-  batch_size: 4
-  prompt_template: 'prompt_tuning_template/name.txt'
-  caption_file: null # path to image captions (file_words)
-  cache_latents: True
-  att_mask: null
-  att_mask_encode: False
-  bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
-  image_transforms:
-    _target_: torchvision.transforms.Compose # "_target_" for hydra.utils.instantiate
-    transforms:
-      - _target_: torchvision.transforms.ToTensor
-      - _target_: torchvision.transforms.Normalize
-        _args_: [[0.5], [0.5]]
-  tag_transforms:
-    _target_: torchvision.transforms.Compose
-    transforms:
-      - _target_: hcpdiff.utils.caption_tools.TagShuffle
-      - _target_: hcpdiff.utils.caption_tools.TagDropout
-        p: 0.1
-      - _target_: hcpdiff.utils.caption_tools.TemplateFill
-        word_names: {} # Replace placeholders with specific words or embeddings
-  bucket:
-    _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-    img_root: 'imgs/train' # images directory of train images
-    target_area: {_target_: "builtins.eval", _args_: ['512*512']} # Expected area of training images: width * height
-    num_bucket: 5
+  dataset1:
+    _target_: hcpdiff.data.TextImagePairDataset
+    _partial_: True # Not directly instantiate the object here. There are other parameters to be added in the runtime.
+    batch_size: 4
+    cache_latents: True
+    att_mask_encode: False
+    loss_weight: 1.0
 
-data_class: # for DreamBooth
-  _target_: hcpdiff.data.TextImagePairDataset
-  _partial_: True
-  batch_size: 1
-  prompt_template: 'prompt_tuning_template/name.txt'
-  caption_file: null
-  cache_latents: True
-  att_mask: null
-  att_mask_encode: False
-  bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
-  image_transforms: ${..data.image_transforms}
-  tag_transforms: ${..data.tag_transforms}
-  bucket:
-    _target_: hcpdiff.data.bucket.FixedBucket # aspect ratio bucket
-    img_root: 'imgs/train_class'
-    target_size: [512, 512]
+    image_transforms:
+      _target_: torchvision.transforms.Compose # "_target_" for hydra.utils.instantiate
+      transforms:
+        - _target_: torchvision.transforms.ToTensor
+        - _target_: torchvision.transforms.Normalize
+          _args_: [ [ 0.5 ], [ 0.5 ] ]
+
+    source:
+      data_source1:
+        img_root: 'imgs/train' # images directory of train images
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null # path to image captions (file_words)
+        att_mask: null
+        bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
+        image_transforms: ${...image_transforms}
+        tag_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: 0.1
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names: {} # Replace placeholders with specific words or embeddings
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: {_target_: "builtins.eval", _args_: ['512*512']} # Expected area of training images: width * height
+      num_bucket: 5

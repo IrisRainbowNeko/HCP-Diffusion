@@ -20,13 +20,13 @@ Therefore, it is necessary to define the hyperparameters of positive and negativ
 lora_unet:
   - lr: 1e-4
     rank: 3
-    type: p # positive branch
+    branch: p # positive branch
     layers:
       - 're:.*\.attn.?$'
       #- 're:.*\.ff\.net\.0$' # Increases the fitness, but potentially reduces generalizability and controllability
   - lr: 2e-5 # Low negative unet lr prevents image collapse
     rank: 3
-    type: n # negative branch
+    branch: n # negative branch
     layers:
       - 're:.*\.attn.?$'
       #- 're:.*\.ff\.net\.0$'
@@ -34,13 +34,13 @@ lora_unet:
 lora_text_encoder:
   - lr: 1e-5
     rank: 1
-    type: p
+    branch: p
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'
   - lr: 1e-5
     rank: 1
-    type: n
+    branch: n
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'

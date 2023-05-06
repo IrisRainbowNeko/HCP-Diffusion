@@ -33,7 +33,8 @@ train:
     criterion:
       # Here using the syntax of hydra.utils.installate
       # All modules with the _target_ attribute will be instantiated as the corresponding python object
-      _target_: torch.nn.MSELoss # Loss function class
+      _target_: hcpdiff.loss.MSELoss # Loss function class
+      _partial_: True
       reduction: 'none' # support for attention mask
     # The weight of the loss of the data from data_class
     # Make data.batch_size/(data_class.batch_size*prior_loss_weight) = 4/1 can get better results
@@ -84,47 +85,100 @@ model:
 
 ## Dataset configurations
 
+You can define multiple parallel datasets, each of which can have multiple data sources. During each training step, a batch is taken from each dataset and trained together.
+All data sources from each dataset will be processed by the dataset's bucket, and will be iterated in order.
+
 ```yaml
 data:
-  _target_: hcpdiff.data.TextImagePairDataset # package path to dataset class
-  batch_size: 4 # batch_size of this part of the data
-  # prompt template, the fill word is configured in the following utils.caption_tools.TemplateFill
-  prompt_template: 'prompt_tuning_template/name.txt'
-  caption_file: null # Image caption file path
-  cache_latents: True # Whether pre-encoding the image with VAE, which can speed up the training
-  att_mask: null # path to attention_mask
-  att_mask_encode: False # Whether to apply self-attention in VAE to attention_mask
-  bg_color: [255, 255, 255] # Fill background color when reading transparent images
-  image_transforms: # Image augmentation and preprocessing, see torchvision.transforms for details
-    _target_: torchvision.transforms.Compose # Compose multi transforms
-    transforms:
-      - _target_: torchvision.transforms.ToTensor
-      - _target_: torchvision.transforms.Normalize
-        _args_: [[0.5], [0.5]]
-  tag_transforms: # Text augmentation and preprocessing
-    _target_: torchvision.transforms.Compose
-    transforms:
-      - _target_: hcpdiff.utils.caption_tools.TagShuffle # Shuffle the caption by ","
-      - _target_: hcpdiff.utils.caption_tools.TagDropout # Split the caption by "," and random delete
-        p: 0.1 # Probability of deletion
-      - _target_: hcpdiff.utils.caption_tools.TemplateFill # Fill the prompt template, randomly choice one line in template to fill
-        word_names:
-          pt1: pt-cat1 # Replace {pt1} in the template with pt-cat1
-          class: cat # Replace {class} in the template with cat
-  bucket: # What bucket to use for image processing and grouping
-    _target_: hcpdiff.data.bucket.RatioBucket.from_files # Automatic clustering and grouping of all images in aspect ratio, avoiding crop as much as possible
-    img_root: 'imgs/train' # images path
-    # Image size used for training, value is area
-    # Here we use the hydra syntax and call python's eval function to calculate the area
-    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
-    num_bucket: 5 # The number of groups
-#  bucket:
-#    _target_: data.bucket.FixedBucket # Resize and crop images to fixed size
-#    img_root: 'imgs/train'
-#    target_size: [512, 512]
+  # Multiple parallel datasets can be defined.
+  # Each training step will take one batch from all datasets and train them together.
+  dataset1:
+    _target_: hcpdiff.data.TextImagePairDataset # Package path to dataset class
+    _partial_: True # Required, in order to add additional parameters later
+    batch_size: 4 # batch_size of this part of the data
+    cache_latents: True # Whether pre-encoding the image with VAE, which can speed up the training
+    att_mask_encode: False # Whether to apply self-attention in VAE to attention_mask
+    loss_weight: 1.0 # The weight of this dataset in calculating the loss.
+    
+    # Define a universal image preprocessing that can be applied to all data sources.
+    # For more details, refer to torchvision.transforms.
+    image_transforms:
+      _target_: torchvision.transforms.Compose # "_target_" for hydra.utils.instantiate
+      transforms:
+        - _target_: torchvision.transforms.ToTensor
+        - _target_: torchvision.transforms.Normalize
+          _args_: [[0.5], [0.5]]
+    
+    # Data source. All images from all sources will be processed with this dataset's bucket.
+    # Each dataset can have multiple data sources.
+    source:
+      data_source1: # Data source 1
+        img_root: 'imgs/train' # images path
+        # prompt template, the fill word is configured in the following utils.caption_tools.TemplateFill
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null # path to image captions (file_words)
+        att_mask: null # path to attention_mask
+        bg_color: [255, 255, 255] # Fill background color when reading transparent images
+        image_transforms: ${...image_transforms} # Image augmentation and preprocessing
+        tag_transforms: # Text augmentation and preprocessing
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle # Shuffle the caption by ","
+            - _target_: hcpdiff.utils.caption_tools.TagDropout # Split the caption by "," and random delete
+              p: 0.1 # Probability of deletion
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill # Fill the prompt template, randomly choice one line in template to fill
+              word_names:
+                pt1: pt-cat1 # Replace {pt1} in the template with pt-cat1
+                class: cat # Replace {class} in the template with cat
+      data_source2: ... # Data source 2
+      data_source3: ... # Data source 3
+    bucket: # What bucket to use for image processing and grouping
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # Automatic clustering and grouping of all images in aspect ratio, avoiding crop as much as possible
+      # Image size used for training, value is area
+      # Here we use the hydra syntax and call python's eval function to calculate the area
+      target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+      num_bucket: 5 # The number of groups
+  
+  dataset_class: # Regularization dataset. Same as above.
+    _target_: hcpdiff.data.TextImagePairDataset
+    _partial_: True
+    batch_size: 1
+    cache_latents: True
+    att_mask_encode: False
+    loss_weight: 0.8
+
+    source:
+      data_source1:
+        img_root: 'imgs/db_class'
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null
+        att_mask: null
+        bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
+        image_transforms: ${....dataset1.source.data_source1.image_transforms}
+        tag_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: 0.1
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                class: cat
+    bucket:
+      _target_: hcpdiff.data.bucket.FixedBucket # Resize and crop images to fixed size
+      target_size: [512, 512]
 ```
 
-The settings in ``data_class`` are the same as above.
+## Loss configurations
+
+Min-SNR loss:
+```yaml
+loss:
+    criterion:
+      # The other properties are inherited from train_base
+      _target_: hcpdiff.loss.MinSNRLoss # Loss function class
+      gamma: 2.0
+```
 
 ## Other configurations
 ```yaml

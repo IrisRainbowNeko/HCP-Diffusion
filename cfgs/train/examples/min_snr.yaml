@@ -1,27 +1,16 @@
 _base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml]
 
-lora_unet:
-  - # Linear
-    lr: 1e-4
-    rank: 8
+unet:
+  -
+    lr: 1e-6
     layers:
-      - 're:.*\.attn.?$'
-      - 're:.*\.ff\.net\.0$'
-  - # Conv2d
-    lr: 1e-4
-    rank: 8
-    layers:
-      - 're:.*\.resnets$'
-      - 're:.*\.proj_in$'
-      - 're:.*\.proj_out$'
-      - 're:.*\.conv$'
+      - '' # fine-tuning all layers in unet
 
-lora_text_encoder:
-  - lr: 1e-5
-    rank: 4
-    layers:
-      - 're:.*self_attn$'
-      - 're:.*mlp$'
+## fine-tuning text-encoder
+#text_encoder:
+#  - lr: 1e-6
+#    layers:
+#      - ''
 
 tokenizer_pt:
   train: null
@@ -29,6 +18,11 @@ tokenizer_pt:
 train:
   gradient_accumulation_steps: 1
   save_step: 100
+
+  loss:
+    criterion: # min SNR loss
+      _target_: hcpdiff.loss.MinSNRLoss
+      gamma: 2.0
 
   scheduler:
     name: 'constant_with_warmup'

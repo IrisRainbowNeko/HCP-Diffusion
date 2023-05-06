@@ -20,13 +20,13 @@ DreamArtist同时训练positive和negative两个分支，每个分支都有其�
 lora_unet:
   - lr: 1e-4
     rank: 3
-    type: p # positive分支
+    branch: p # positive分支
     layers:
       - 're:.*\.attn.?$'
       #- 're:.*\.ff\.net\.0$' # 增加拟合程度，但有可能减少泛化性和可控性
   - lr: 2e-5 # Low negative unet lr prevents image collapse
     rank: 3
-    type: n # negative分支
+    branch: n # negative分支
     layers:
       - 're:.*\.attn.?$'
       #- 're:.*\.ff\.net\.0$'
@@ -34,13 +34,13 @@ lora_unet:
 lora_text_encoder:
   - lr: 1e-5
     rank: 1
-    type: p
+    branch: p
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'
   - lr: 1e-5
     rank: 1
-    type: n
+    branch: n
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'

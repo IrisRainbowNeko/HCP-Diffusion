@@ -20,22 +20,24 @@ model:
   ema_text_encoder: 0
 
 data:
-  batch_size: 4
-  prompt_template: 'prompt_tuning_template/object.txt'
-  caption_file: null
-  cache_latents: True
-  tag_transforms:
-    transforms:
-      - _target_: hcpdiff.utils.caption_tools.TagShuffle
-      - _target_: hcpdiff.utils.caption_tools.TagDropout
-        p: 0.1
-      - _target_: hcpdiff.utils.caption_tools.TemplateFill
-        word_names:
-          pt1: pt-catgirl1
-  bucket:
-    _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-    img_root: 'imgs/'
-    target_area: {_target_: "builtins.eval", _args_: ['512*512']}
-    num_bucket: 10
+  dataset1:
+    batch_size: 4
+    cache_latents: True
 
-data_class: null
+    source:
+      data_source1:
+        img_root: 'imgs/'
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: null # path to image captions (file_words)
+        tag_transforms:
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: 0.1
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                pt1: pt-catgirl1
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: {_target_: "builtins.eval", _args_: ['512*512']}
+      num_bucket: 5

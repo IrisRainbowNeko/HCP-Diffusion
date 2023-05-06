@@ -19,7 +19,7 @@ import os.path
 
 import torch
 from transformers import CLIPTextModel
-from hcpdiff.utils.ckpt_manager import CkptManagerSafe, CkptManagerPKL
+from hcpdiff.ckpt_manager import CkptManagerSafe, CkptManagerPKL
 
 import diffusers.pipelines.stable_diffusion.convert_from_ckpt as convert_from_ckpt
 try:
