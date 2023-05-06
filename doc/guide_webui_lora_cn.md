@@ -1,8 +1,6 @@
 # webui格式公开模型使用教程
 
-此教程在于介绍如何使用适用于webui格式的公开模型，包括底层模型和lora模型，在本框架上进行推理
-
-公开模型可以在 [civitai](https://civitai.com/) 上面下载
+此教程在于介绍如何将webui格式的公开模型与本框架模型相互转换，包括底层模型和lora模型。
 
 ## 基础模型转换
 
@@ -55,7 +53,7 @@ python -m hcpdiff.tools.sd2diffusers \
 
 <img src="../imgs/CounterfeitV30_sample.jpeg" style="zoom: 30%">
 
-2. 下载后进行底层模型转换
+2. 下载后进行基础模型转换
 3. 在 [civitai](https://civitai.com/) 下载一个lora模型 [akira-ray-v10](https://civitai.com/models/34147/akira-ray-nijisanji)
 4. 下载后进行lora模型转换
 5. 进行推理。注意底层模型，转换的lora模型的路径需要你进行替换
