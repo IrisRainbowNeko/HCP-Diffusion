@@ -106,6 +106,7 @@ class Visualizer:
             ex_input_dict['cond'] = self.prepare_cond_image(img, self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
         return ex_input_dict
 
+    @torch.no_grad()
     def vis_images(self, prompt, negative_prompt='', **kwargs):
         ex_input_dict = self.get_ex_input()
 
