@@ -27,7 +27,7 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 * Prompt-tuning with multiple words
 * DreamArtist and DreamArtist++
 * Aspect Ratio Bucket (ARB) with automatic clustering
-* Priori data
+* Multiple datasets with multiple data sources
 * Image attention mask
 * Word attention multiplier
 * Custom words that occupy multiple words
