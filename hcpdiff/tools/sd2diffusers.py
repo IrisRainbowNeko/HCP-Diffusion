@@ -30,7 +30,7 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
 from omegaconf import OmegaConf
 from transformers import CLIPTextModel
 
-from hcpdiff.ckpt_manager import CkptManagerSafe, CkptManagerPKL, get_manager
+from hcpdiff.ckpt_manager import CkptManagerSafe, CkptManagerPKL
 
 try:
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from_original_stable_diffusion_ckpt as load_sd_ckpt
@@ -159,13 +159,15 @@ def custom_convert_ldm_vae_checkpoint(checkpoint, config):
 
 def sd_vae_to_diffuser(args):
     original_config = OmegaConf.load(args.original_config_file)
-    image_size = 512
+    vae_config = create_vae_diffusers_config(original_config, image_size=512)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    checkpoint = get_manager(args.vae_pt_path).load_ckpt(args.vae_pt_path, map_location=device)
-
     # Convert the VAE model.
-    vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
-    converted_vae_checkpoint = custom_convert_ldm_vae_checkpoint(checkpoint["state_dict"], vae_config)
+    if args.from_safetensors:
+        checkpoint = CkptManagerSafe().load_ckpt(args.vae_pt_path)
+        converted_vae_checkpoint = custom_convert_ldm_vae_checkpoint(checkpoint, vae_config)
+    else:
+        checkpoint = torch.load(args.vae_pt_path, map_location=device)
+        converted_vae_checkpoint = custom_convert_ldm_vae_checkpoint(checkpoint['state_dict'], vae_config)
 
     vae = AutoencoderKL(**vae_config)
     vae.load_state_dict(converted_vae_checkpoint)
