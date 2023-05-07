@@ -1,0 +1,15 @@
+_base_: [cfgs/train/examples/fine-tuning.yaml]
+
+# Install: pip install lion-pytorch
+
+train:
+  optimizer:
+    _target_: lion_pytorch.Lion
+    _partial_: True
+    weight_decay: 1e-2
+    #use_triton: True # set this to True to use cuda kernel w/ Triton lang (Tillet et al)
+
+  optimizer_pt:
+    _target_: lion_pytorch.Lion
+    _partial_: True
+    weight_decay_pt: 1e-3

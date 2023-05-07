@@ -28,6 +28,7 @@ from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
 from transformers import AutoTokenizer
+from  functools import partial
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, collate_fn_ft
@@ -329,12 +330,14 @@ class Trainer:
         # set optimizer
         parameters, parameters_pt = self.get_param_group_train()
 
-        cfg_opt = self.cfgs.train.optimizer
         if len(parameters)>0:  # do fine-tuning
+            cfg_opt = self.cfgs.train.optimizer
             if self.cfgs.train.scale_lr:
                 self.scale_lr(parameters)
 
-            if cfg_opt.type == 'adamw_8bit':
+            if isinstance(cfg_opt, partial):
+                self.optimizer = cfg_opt(parameters, lr=self.lr)
+            elif cfg_opt.type == 'adamw_8bit':
                 import bitsandbytes as bnb
                 self.optimizer = bnb.optim.AdamW8bit(params=parameters, lr=self.lr, weight_decay=cfg_opt.weight_decay)
             elif cfg_opt.type == 'deepspeed' and self.accelerator.state.deepspeed_plugin is not None:
@@ -343,23 +346,33 @@ class Trainer:
             elif cfg_opt.type == 'adamw':
                 self.optimizer = torch.optim.AdamW(params=parameters, lr=self.lr, weight_decay=cfg_opt.weight_decay)
             else:
-                self.optimizer = cfg_opt.optimizer.opt(parameters, lr=self.lr)
+                raise NotImplementedError(f'Unknown optimizer {cfg_opt.type}')
 
-            self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
+            if isinstance(self.cfgs.train.scheduler, partial):
+                self.lr_scheduler = self.cfgs.train.scheduler(optimizer=self.optimizer)
+            else:
+                self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
 
         if len(parameters_pt)>0:  # do prompt-tuning
+            cfg_opt_pt = self.cfgs.train.optimizer_pt
             if self.cfgs.train.scale_lr_pt:
                 self.scale_lr(parameters_pt)
+            if isinstance(cfg_opt_pt, partial):
+                self.optimizer_pt = cfg_opt_pt(parameters_pt, lr=self.lr)
+            else:
+                self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt_pt.weight_decay)
 
-            self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt.weight_decay_pt)
-            self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
+            if isinstance(self.cfgs.train.scheduler_pt, partial):
+                self.lr_scheduler_pt = self.cfgs.train.scheduler_pt(optimizer=self.optimizer_pt)
+            else:
+                self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
 
     def train(self):
         total_batch_size = sum(self.batch_size_list)*self.world_size*self.cfgs.train.gradient_accumulation_steps
 
         self.loggers.info("***** Running training *****")
         self.loggers.info(f"  Num batches each epoch = {len(self.train_loader_group.loader_list[0])}")
-        self.loggers.info(f"  Num Steps = {self.cfgs.train.scheduler.num_training_steps}")
+        self.loggers.info(f"  Num Steps = {self.cfgs.train.train_steps}")
         self.loggers.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
         self.loggers.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
         self.loggers.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
@@ -380,13 +393,13 @@ class Trainer:
                     lr_model = self.lr_scheduler.get_last_lr()[0] if hasattr(self, 'lr_scheduler') else 0.
                     lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
                     self.loggers.log(datas={
-                        'Step':{'format':'[{}/{}]', 'data':[self.global_step, self.cfgs.train.scheduler.num_training_steps]},
+                        'Step':{'format':'[{}/{}]', 'data':[self.global_step, self.cfgs.train.train_steps]},
                         'LR_model':{'format':'{:.2e}', 'data':[lr_model]},
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum.mean()]},
                     }, step=self.global_step)
 
-            if self.global_step>=self.cfgs.train.scheduler.num_training_steps:
+            if self.global_step>=self.cfgs.train.train_steps:
                 break
 
         self.wait_for_everyone()

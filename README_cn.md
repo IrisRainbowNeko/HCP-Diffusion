@@ -22,17 +22,19 @@ Prompt-tuning (textual inversion), DreamArtist, Fine-tuning, DreamBooth, lora, c
 * DreamArtist and DreamArtist++
 * 带自动聚类的Aspect Ratio Bucket (ARB)
 * 支持多个数据源的多个数据集
-* Image attention mask
+* 图像局部注意力强化
 * 单词注意力调整
 * 占多个词位置的自定义单词
 * 最大句子长度拓展
 * colossal-AI
 * xformers for unet and text-encoder
 * CLIP skip
-* Tag shuffle and dropout
+* 标签打乱和 dropout
 * safetensors支持
 * Controlnet (支持训练)
 * Min-SNR loss
+* 自定义优化器 (Lion, DAdaptation, pytorch-optimizer, ...)
+* 自定义学习率调整器
 
 ## 安装
 通过pip安装:

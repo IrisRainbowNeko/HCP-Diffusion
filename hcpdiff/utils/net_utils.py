@@ -1,12 +1,11 @@
 import os
-from typing import Optional, Union, Tuple, Dict, Callable
+from typing import Optional, Union
 
 import torch
+from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from torch import nn
 from torch.optim import lr_scheduler
-from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from transformers import PretrainedConfig
-from collections import OrderedDict
 
 class TEUnetWrapper(nn.Module):
     def __init__(self, unet, TE):
@@ -33,7 +32,7 @@ def get_scheduler(
     optimizer: Optimizer,
     num_warmup_steps: Optional[int] = None,
     num_training_steps: Optional[int] = None,
-    scheduler_kwargs = {},
+    scheduler_kwargs={},
 ):
     """
     Unified API to get any scheduler from its name.
@@ -64,11 +63,11 @@ def get_scheduler(
     if num_warmup_steps is None:
         raise ValueError(f"{name} requires `num_warmup_steps`, please provide that argument.")
 
-    #One Cycle for super convergence
-    if name=='one_cycle':
+    # One Cycle for super convergence
+    if name == 'one_cycle':
         scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=[x['lr'] for x in optimizer.state_dict()['param_groups']],
-                                steps_per_epoch=num_training_steps, epochs=1,
-                                pct_start=num_warmup_steps/num_training_steps, **scheduler_kwargs)
+                                            steps_per_epoch=num_training_steps, epochs=1,
+                                            pct_start=num_warmup_steps/num_training_steps, **scheduler_kwargs)
         return scheduler
 
     name = SchedulerType(name)
@@ -117,44 +116,46 @@ def remove_all_hooks(model: nn.Module) -> None:
         child._backward_hooks.clear()
 
 def remove_layers(model: nn.Module, layer_class):
-    named_modules = {k: v for k, v in model.named_modules()}
-    for k,v in named_modules.items():
+    named_modules = {k:v for k, v in model.named_modules()}
+    for k, v in named_modules.items():
         if isinstance(v, layer_class):
             parent, name = named_modules[k.rsplit('.', 1)]
             delattr(parent, name)
             del v
 
 def load_emb(path):
-    emb=torch.load(path, map_location='cpu')['string_to_param']['*']
+    emb = torch.load(path, map_location='cpu')['string_to_param']['*']
     emb.requires_grad_(False)
     return emb
 
-def save_emb(path, emb:torch.Tensor, replace=False):
+def save_emb(path, emb: torch.Tensor, replace=False):
     name = os.path.basename(path)
     if os.path.exists(path) and not replace:
         raise FileExistsError(f'embedding "{name}" already exist.')
-    name=name[:name.rfind('.')]
+    name = name[:name.rfind('.')]
     torch.save({'string_to_param':{'*':emb}, 'name':name}, path)
-
 
 def hook_compile(model):
     named_modules = {k:v for k, v in model.named_modules()}
 
     for name, block in named_modules.items():
         if len(block._forward_hooks)>0:
-            for hook in block._forward_hooks.values(): # 从前往后执行
+            for hook in block._forward_hooks.values():  # 从前往后执行
                 old_forward = block.forward
+
                 def new_forward(*args, **kwargs):
                     result = old_forward(*args, **kwargs)
                     hook_result = hook(block, args, result)
                     if hook_result is not None:
                         result = hook_result
                     return result
+
                 block.forward = new_forward
 
         if len(block._forward_pre_hooks)>0:
-            for hook in list(block._forward_pre_hooks.values())[::-1]: # 从前往后执行
+            for hook in list(block._forward_pre_hooks.values())[::-1]:  # 从前往后执行
                 old_forward = block.forward
+
                 def new_forward(*args, **kwargs):
                     result = hook(block, args)
                     if result is not None:
@@ -163,5 +164,6 @@ def hook_compile(model):
                     else:
                         result = args
                     return old_forward(*result, **kwargs)
+
                 block.forward = new_forward
     remove_all_hooks(model)
