@@ -338,7 +338,7 @@ class Trainer:
             if isinstance(cfg_opt, partial):
                 if 'type' in cfg_opt.keywords:
                     del cfg_opt.keywords['type']
-                self.optimizer = cfg_opt(parameters, lr=self.lr)
+                self.optimizer = cfg_opt(params=parameters, lr=self.lr)
             elif cfg_opt.type == 'adamw_8bit':
                 import bitsandbytes as bnb
                 self.optimizer = bnb.optim.AdamW8bit(params=parameters, lr=self.lr, weight_decay=cfg_opt.weight_decay)
@@ -362,7 +362,7 @@ class Trainer:
             if isinstance(cfg_opt_pt, partial):
                 if 'type' in cfg_opt_pt.keywords:
                     del cfg_opt_pt.keywords['type']
-                self.optimizer_pt = cfg_opt_pt(parameters_pt, lr=self.lr)
+                self.optimizer_pt = cfg_opt_pt(params=parameters_pt, lr=self.lr)
             else:
                 self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt_pt.weight_decay)
 
