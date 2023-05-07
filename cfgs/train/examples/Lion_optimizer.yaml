@@ -12,4 +12,4 @@ train:
   optimizer_pt:
     _target_: lion_pytorch.Lion
     _partial_: True
-    weight_decay_pt: 1e-3
+    weight_decay: 1e-3
