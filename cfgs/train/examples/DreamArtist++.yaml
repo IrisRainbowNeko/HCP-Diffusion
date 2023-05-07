@@ -6,15 +6,21 @@ lora_unet:
   - lr: 1e-4
     rank: 0.01875
     branch: p
+    dropout: 0.1
     layers:
-      - 're:.*\.attn.?$'
-      #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
+      - 're:.*\.to_k$'
+      - 're:.*\.to_v$'
+      - 're:.*\.ff$'
+      #- 're:.*\.attn.?$' # Increases fitness, but potentially reduces controllability
   - lr: 4e-5 # Low negative unet lr prevents image collapse
     rank: 0.01875
     branch: n
+    dropout: 0.1
     layers:
-      - 're:.*\.attn.?$'
-      #- 're:.*\.ff\.net\.0$' # Increases fitness, but potentially reduces controllability
+      - 're:.*\.to_k$'
+      - 're:.*\.to_v$'
+      - 're:.*\.ff$'
+      #- 're:.*\.attn.?$' # Increases fitness, but potentially reduces controllability
   #  - lr: 1e-4
   #    rank: 0.01875
   #    type: p
@@ -27,23 +33,25 @@ lora_unet:
   #      - 're:.*\.resnets$' # Increases fitness, but potentially reduces controllability and change style
 
 lora_text_encoder:
-  - lr: 1e-5
-    rank: 0.01
+  - lr: 2e-5
+    rank: 2
     branch: p
+    dropout: 0.1
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'
-  - lr: 1e-5
-    rank: 0.01
+  - lr: 2e-5
+    rank: 2
     branch: n
+    dropout: 0.1
     layers:
       - 're:.*self_attn$'
       - 're:.*mlp$'
 
 tokenizer_pt:
   train: # prompt tuning embeddings
-    - { name: 'pt-botdog1', lr: 0.003 }
-    - { name: 'pt-botdog1-neg', lr: 0.003 }
+    - { name: 'pt-botdog1', lr: 0.0025 }
+    - { name: 'pt-botdog1-neg', lr: 0.0025 }
 
 train:
   gradient_accumulation_steps: 1
@@ -52,13 +60,19 @@ train:
   #cfg_scale: '1.0-3.0:cos' # dynamic CFG with timestamp
   cfg_scale: '3.0'
 
+  loss:
+    criterion: # min SNR loss
+      _target_: hcpdiff.loss.MinSNRLoss
+      gamma: 2.0
+
   scheduler:
-    name: 'constant_with_warmup'
-    num_warmup_steps: 50
+    name: one_cycle
+    num_warmup_steps: 200
     num_training_steps: 1000
+    scheduler_kwargs: { }
 
   scheduler_pt:
-    name: 'one_cycle'
+    name: one_cycle
     num_warmup_steps: 200
     num_training_steps: 1000
     scheduler_kwargs: {}
@@ -68,6 +82,7 @@ model:
   tokenizer_repeats: 1
   ema_unet: 0
   ema_text_encoder: 0
+  clip_skip: 0
 
 data:
   dataset1:

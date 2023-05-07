@@ -72,7 +72,6 @@ def collate_fn_ft(batch):
 
 class CycleData():
     def __init__(self, data_loader):
-        print(data_loader)
         self.data_loader = data_loader
 
     def __iter__(self):
