@@ -22,4 +22,4 @@ for file in os.listdir(args.data_root):
         captions[file] = get_txt_caption(os.path.join(args.data_root, f'{file_name}.txt'))
 
 with open(os.path.join(args.data_root, f'image_captions.json'), "w", encoding='utf8') as f:
-    json.dump(captions, f)
+    json.dump(captions, f, indent=2, ensure_ascii=False)

@@ -124,12 +124,9 @@ class Visualizer:
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
         return images
 
-    @torch.no_grad()
-    def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
+    def save_images(self, images, root, prompt, negative_prompt='', save_cfg=True):
         os.makedirs(root, exist_ok=True)
-        num_img_exist = max([int(x.split('-',1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
-
-        images = self.vis_images(prompt, negative_prompt, **kwargs)
+        num_img_exist = max([int(x.split('-', 1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support]) + 1
 
         for p, pn, img in zip(prompt, negative_prompt, images):
             img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.cfgs.save.image_type}"), quality=self.cfgs.save.quality)
@@ -138,6 +135,10 @@ class Visualizer:
                 with open(os.path.join(root, f"{num_img_exist}-info.yaml"), 'w', encoding='utf-8') as f:
                     f.write(OmegaConf.to_yaml(self.cfgs_raw))
             num_img_exist += 1
+
+    def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
+        images = self.vis_images(prompt, negative_prompt, **kwargs)
+        self.save_images(images, root, prompt, negative_prompt, save_cfg=save_cfg)
 
     def show_latent(self, prompt, negative_prompt='', **kwargs):
         emb_n, emb_p = self.te_hook.encode_prompt_to_emb(negative_prompt + prompt).chunk(2)
