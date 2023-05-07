@@ -194,7 +194,7 @@ class RatioBucket(BaseBucket):
             rs.shuffle(x)
 
         # shuffle of batches
-        bucket_list = np.hstack(bucket_list).reshape(-1, self.bs)
+        bucket_list = np.hstack(bucket_list).reshape(-1, self.bs).astype(int)
         rs.shuffle(bucket_list)
 
         self.idx_arb = bucket_list.reshape(-1)
