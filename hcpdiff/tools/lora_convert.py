@@ -58,6 +58,7 @@ if __name__ == '__main__':
     parser.add_argument("--dump_path", default=None, type=str, required=True, help="Path to save the converted state dict.")
     parser.add_argument("--from_webui", default=None, action="store_true")
     parser.add_argument("--to_webui", default=None, action="store_true")
+    parser.add_argument("--auto_scale_alpha", default=None, action="store_true")
     args = parser.parse_args()
 
     converter = LoraConverter()
@@ -83,5 +84,7 @@ if __name__ == '__main__':
         sd_unet = ckpt_manager.load_ckpt(args.lora_path)
         sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE)
         state = converter.convert_to_webui(sd_unet['lora'], sd_TE['lora'])
+        if args.auto_scale_alpha:
+            state = {k:(v*v.shape[1] if 'lora_up' in k else v) for k,v in state.items()}
         ckpt_manager._save_ckpt(state, save_path=args.dump_path)
         print('save lora to:', args.dump_path)
