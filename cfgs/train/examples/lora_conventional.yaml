@@ -6,7 +6,7 @@ lora_unet:
     rank: 8
     layers:
       - 're:.*\.attn.?$'
-      - 're:.*\.ff\.net\.0$'
+      - 're:.*\.ff$'
 
 lora_text_encoder:
   - lr: 1e-5
