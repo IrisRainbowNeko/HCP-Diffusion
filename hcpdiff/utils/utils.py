@@ -65,7 +65,7 @@ def get_cfg_range(cfg_text:str):
 def to_validate_file(name):
     rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
     new_title = re.sub(rstr, "_", name)  # 替换为下划线
-    return new_title
+    return new_title[:50]
 
 def make_mask(start, end, length):
     mask=torch.zeros(length)
@@ -76,7 +76,10 @@ def get_file_name(file: str):
     return file.rsplit('.',1)[0]
 
 def get_file_ext(file: str):
-    return file.rsplit('.',1)[1].lower()
+    try:
+        return file.rsplit('.',1)[1].lower()
+    except:
+        return ''
 
 def factorization(dimension: int, factor:int=-1) -> Tuple[int, int]:
     find_one = lambda x: len(x) - (x.rfind('1') + 1)

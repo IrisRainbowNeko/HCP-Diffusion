@@ -1,6 +1,7 @@
 from PIL import Image
 import torch
 import cv2
+import numpy as np
 
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
@@ -14,10 +15,16 @@ class DualRandomCrop(object):
         crop_params = T.RandomCrop.get_params(img['img'], self.size)
         img['img'] = F.crop(img['img'], *crop_params)
         if "mask" in img:
-            img['mask'] = F.crop(img['mask'], *crop_params)
+            img['mask'] = self.crop(img['mask'], *crop_params)
         if "cond" in img:
             img['cond'] = F.crop(img['cond'], *crop_params)
         return img
+
+    @staticmethod
+    def crop(img: np.ndarray, top: int, left: int, height: int, width: int) -> np.ndarray:
+        right = left + width
+        bottom = top + height
+        return img[..., top:bottom, left:right]
 
 def resize_crop_fix(img, target_size):
     w,h=img['img'].size

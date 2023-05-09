@@ -28,7 +28,7 @@ from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
 from transformers import AutoTokenizer
-from  functools import partial
+from functools import partial
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, collate_fn_ft
@@ -39,6 +39,7 @@ from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
+from hcpdiff.noise import NoiseBase
 
 class Trainer:
     def __init__(self, cfgs_raw):
@@ -176,8 +177,14 @@ class Trainer:
             )
 
         # Load scheduler and models
-        self.noise_scheduler = getattr(diffusers, self.cfgs.model.noise_scheduler) \
-            .from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
+        noise_scheduler=self.cfgs.model.noise_scheduler
+        noise_class = getattr(noise_scheduler.func, '__self__', noise_scheduler.func)  # support static or class method
+        if issubclass(noise_class, NoiseBase):
+            base_scheduler = noise_scheduler.keywords.pop('base_scheduler')(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
+            self.noise_scheduler = noise_scheduler(base_scheduler)
+        else:
+            self.noise_scheduler = noise_scheduler(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
+
         self.num_train_timesteps = len(self.noise_scheduler.timesteps)
         self.vae: AutoencoderKL = AutoencoderKL.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder="vae",
                                                                 revision=self.cfgs.model.revision)
