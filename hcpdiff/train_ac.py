@@ -103,7 +103,7 @@ class Trainer:
         if cfgs.allow_tf32:
             torch.backends.cuda.matmul.allow_tf32 = True
 
-        self.freeze_model()
+        #self.freeze_model()
         self.prepare()
 
     @property
