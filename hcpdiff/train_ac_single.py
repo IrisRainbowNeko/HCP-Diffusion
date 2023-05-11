@@ -22,12 +22,6 @@ class TrainerSingleCard(Trainer):
         set_seed(self.cfgs.seed + self.local_rank)
 
     def prepare(self):
-        # try:
-        #     self.unet = torch.compile(self.unet)
-        #     self.text_encoder = torch.compile(self.text_encoder)
-        # except:
-        #     print('cannot compile model')
-
         # Prepare everything with accelerator.
         prepare_obj_list = [self.unet]
         prepare_name_list = ['unet']
@@ -41,14 +35,15 @@ class TrainerSingleCard(Trainer):
             prepare_obj_list.append(self.text_encoder)
             prepare_name_list.append('text_encoder')
 
+        prepare_obj_list.extend(self.train_loader_group.loader_list)
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
+
+        ds_num = len(self.train_loader_group.loader_list)
+        self.train_loader_group.loader_list = list(prepared_obj[-ds_num:])
+        prepared_obj = prepared_obj[:-ds_num]
+
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
-
-        if len(self.train_loader_group)>1:
-            self.train_loader_group.loader_list = list(self.accelerator.prepare(*self.train_loader_group.loader_list))
-        else:
-            self.train_loader_group.loader_list = [self.accelerator.prepare(*self.train_loader_group.loader_list)]
 
     def build_data(self, data_builder:partial) -> torch.utils.data.DataLoader:
         batch_size = data_builder.keywords.pop('batch_size')
