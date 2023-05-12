@@ -42,6 +42,12 @@ from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
 from hcpdiff.noise import NoiseBase
 
+# fix checkpoint bug for train part of model
+import torch.utils.checkpoint
+def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw = torch.utils.checkpoint.checkpoint, **kwargs):
+    return checkpoint_raw(function, *args, use_reentrant=use_reentrant, **kwargs)
+torch.utils.checkpoint.checkpoint = checkpoint_fix
+
 class Trainer:
     def __init__(self, cfgs_raw):
         cfgs = hydra.utils.instantiate(cfgs_raw)
@@ -84,6 +90,8 @@ class Trainer:
         loss_weights = [dataset.keywords['loss_weight'] for name, dataset in cfgs.data.items()]
         self.train_loader_group = DataGroup([self.build_data(dataset) for name, dataset in cfgs.data.items()], loss_weights)
 
+        self.freeze_model()
+
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
         self.build_optimizer_scheduler()
@@ -103,7 +111,6 @@ class Trainer:
         if cfgs.allow_tf32:
             torch.backends.cuda.matmul.allow_tf32 = True
 
-        #self.freeze_model()
         self.prepare()
 
     @property
