@@ -109,7 +109,7 @@ python -m hcpdiff.tools.sd2diffusers \
 conda install xformers -c xformers
 
 # use pip
-pip install xfromers>=0.0.17
+pip install xformers>=0.0.17
 ```
 
 ## Team
