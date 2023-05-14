@@ -1,0 +1,6 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+offload:
+  max_VRAM: 2GiB
+  max_RAM: 30GiB
+  vae_cpu: False

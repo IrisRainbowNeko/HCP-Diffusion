@@ -12,13 +12,14 @@ parser = argparse.ArgumentParser(description='Stable Diffusion Training')
 parser.add_argument('--prompt_file', type=str, default='')
 parser.add_argument('--model', type=str, default='runwayml/stable-diffusion-v1-5')
 parser.add_argument('--out_dir', type=str, default=r'./prompt_ds')
-parser.add_argument('--negative_prompt', type=str, default='')
+parser.add_argument('--negative_prompt', type=str, default='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry')
 parser.add_argument('--num', type=int, default=200)
 parser.add_argument('--bs', type=int, default=4)
 args = parser.parse_args()
 
 torch.backends.cudnn.benchmark = True
 
+os.makedirs(args.out_dir, exist_ok=True)
 
 def split_batch(data, bs):
     return [data[i:i + bs] for i in range(0, len(data), bs)]

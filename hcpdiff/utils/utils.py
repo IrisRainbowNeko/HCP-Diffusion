@@ -5,6 +5,9 @@ import torch
 import math
 from omegaconf import OmegaConf
 
+size_mul = {'K': 1<<10, 'M':1<<20, 'G':1<<30, 'T':1<<40}
+size_key = 'TGMK'
+
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
@@ -103,3 +106,11 @@ def mgcd(*args):
     for s in args[1:]:
         g = math.gcd(g, s)
     return g
+
+def size_to_int(size):
+    return int(size[:-3]) * size_mul[size[-3]]
+
+def int_to_size(size):
+    for i,k in zip(range(40, 0, -10), size_key):
+        if size >= 1<<i:
+            return f'{size>>i}{k}iB'

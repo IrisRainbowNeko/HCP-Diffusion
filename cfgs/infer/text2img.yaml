@@ -10,7 +10,7 @@ clip_skip: 0
 bs: 4
 num: 1
 seed: null
-fp16: True
+dtype: 'fp16'
 
 condition: null
 
@@ -21,6 +21,12 @@ save:
 #  image_type: webp
 #  quality: 75
 
+offload: null
+#offload:
+#  max_VRAM: 8GiB
+#  max_RAM: 30GiB
+#  vae_cpu: False
+
 infer_args:
   width: 512
   height: 512
@@ -29,24 +35,4 @@ infer_args:
 
 new_components: {}
 
-merge: # can be null
-  exp_dir: '2023-04-03-10-10-36'
-  alpha: 0.8
-
-  group1:
-    type: 'unet'
-    base_model_alpha: 1.0 # base model weight to merge with lora or part
-    lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-    part: null
-
-  group2:
-    type: 'TE'
-    base_model_alpha: 1.0 # base model weight to infer with lora or part
-    lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-    part: null
+merge: null

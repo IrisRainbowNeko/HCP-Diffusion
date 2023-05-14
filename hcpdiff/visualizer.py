@@ -1,24 +1,27 @@
 import argparse
 import os
 import sys
+import time
 
 import hydra
+import numpy as np
 import torch
+from PIL import Image
+from accelerate import infer_auto_device_map, dispatch_model
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, UNet2DConditionModel
-from diffusers.utils.import_utils import is_xformers_available
 from diffusers.utils import PIL_INTERPOLATION
+from diffusers.utils.import_utils import is_xformers_available
 from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
+from torch.cuda.amp import autocast
 
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
-from hcpdiff.utils.utils import to_validate_file, load_config_with_cli, load_config
 from hcpdiff.utils.img_size_tool import types_support
-from torch.cuda.amp import autocast
-from PIL import Image
-import numpy as np
+from hcpdiff.utils.net_utils import to_cpu, to_cuda
+from hcpdiff.utils.utils import to_validate_file, load_config_with_cli, load_config, size_to_int, int_to_size
 
-class UnetHook(): # for controlnet
+class UnetHook():  # for controlnet
     def __init__(self, unet):
         self.unet = unet
         self.call_raw = UNet2DConditionModel.__call__
@@ -28,20 +31,42 @@ class UnetHook(): # for controlnet
         return self.call_raw(self.unet, sample, timestep, encoder_hidden_states)
 
 class Visualizer:
+    dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16}
+
     def __init__(self, cfgs):
         self.cfgs_raw = cfgs
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.cfg_merge = self.cfgs.merge
+        self.offload = 'offload' in self.cfgs and self.cfgs.offload is not None
+
+        self.dtype = self.dtype_dict[self.cfgs.dtype]
 
         pipeline = self.get_pipeline()
-        comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False).components
+        comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
+                                        torch_dtype=self.dtype).components
         comp.update(self.cfgs.new_components)
-        self.pipe = pipeline(**comp)
+        self.pipe = pipeline(**comp).to(torch_dtype=self.dtype)
 
         if self.cfg_merge:
             self.merge_model()
 
-        self.pipe = self.pipe.to("cuda")
+        if self.offload:
+            self.build_offload(self.cfgs.offload)
+        else:
+            self.pipe.unet.to('cuda')
+
+            def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
+                to_cpu(self.pipe.unet)
+
+                self.pipe.vae.to('cuda')
+                res = decode_latents_raw(latents)
+                to_cpu(self.pipe.vae)
+
+                self.pipe.unet.to('cuda')
+                return res
+
+            self.pipe.decode_latents = decode_latents_offload
+
         emb, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
         self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
@@ -55,15 +80,39 @@ class Visualizer:
         if self.cfgs.condition is None:
             return StableDiffusionPipeline
         else:
-            if self.cfgs.condition.type=='i2i':
+            if self.cfgs.condition.type == 'i2i':
                 return StableDiffusionImg2ImgPipeline
-            elif self.cfgs.condition.type=='controlnet':
+            elif self.cfgs.condition.type == 'controlnet':
                 return StableDiffusionPipeline
             else:
                 raise NotImplementedError(f'No condition type named {self.cfgs.condition.type}')
 
+    def build_offload(self, offload_cfg):
+        vram = size_to_int(offload_cfg.max_VRAM)
+        device_map = infer_auto_device_map(self.pipe.unet, max_memory={0:int_to_size(vram >> 1), "cpu":offload_cfg.max_RAM}, dtype=self.dtype)
+        self.pipe.unet = dispatch_model(self.pipe.unet, device_map)
+        if not offload_cfg.vae_cpu:
+            device_map = infer_auto_device_map(self.pipe.vae, max_memory={0:int_to_size(vram >> 5), "cpu":offload_cfg.max_RAM}, dtype=self.dtype)
+            self.pipe.vae = dispatch_model(self.pipe.vae, device_map)
+
+        def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
+            to_cpu(self.pipe.unet)
+
+            if offload_cfg.vae_cpu:
+                self.pipe.vae.to(dtype=torch.float32)
+                res = decode_latents_raw(latents.cpu().to(dtype=torch.float32))
+            else:
+                to_cuda(self.pipe.vae)
+                res = decode_latents_raw(latents)
+
+            to_cpu(self.pipe.vae)
+            to_cuda(self.pipe.unet)
+            return res
+
+        self.pipe.decode_latents = decode_latents_offload
+
     def merge_model(self):
-        if 'plugin_cfg' in self.cfg_merge: # Build plugins
+        if 'plugin_cfg' in self.cfg_merge:  # Build plugins
             plugin_cfg = hydra.utils.instantiate(load_config(self.cfg_merge.plugin_cfg))
             make_plugin(self.pipe.unet, plugin_cfg.plugin_unet)
             make_plugin(self.pipe.text_encoder, plugin_cfg.plugin_TE)
@@ -88,7 +137,7 @@ class Visualizer:
                     np.array(i.resize((width, height), resample=PIL_INTERPOLATION["lanczos"]))[None, :] for i in image
                 ]
                 image = np.concatenate(image, axis=0)
-                image = np.array(image).astype(np.float32) / 255.0
+                image = np.array(image).astype(np.float32)/255.0
                 image = image.transpose(0, 3, 1, 2)
                 image = torch.from_numpy(image)
             elif isinstance(image[0], torch.Tensor):
@@ -110,12 +159,18 @@ class Visualizer:
     def vis_images(self, prompt, negative_prompt='', **kwargs):
         ex_input_dict = self.get_ex_input()
 
+        to_cuda(self.pipe.text_encoder)
+        torch.cuda.synchronize()
+
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
-        with autocast(enabled=self.cfgs.fp16):
+        with autocast(enabled=self.cfgs.dtype == 'amp'):
             emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p).chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)
             emb_n = self.te_hook.mult_attn(emb_n, mult_n)
+
+            to_cpu(self.pipe.text_encoder)
+            to_cuda(self.pipe.unet)
 
             if hasattr(self.pipe.unet, 'input_feeder'):
                 for feeder in self.pipe.unet.input_feeder:
@@ -126,7 +181,7 @@ class Visualizer:
 
     def save_images(self, images, root, prompt, negative_prompt='', save_cfg=True):
         os.makedirs(root, exist_ok=True)
-        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support]) + 1
+        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for p, pn, img in zip(prompt, negative_prompt, images):
             img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.cfgs.save.image_type}"), quality=self.cfgs.save.quality)
@@ -141,7 +196,7 @@ class Visualizer:
         self.save_images(images, root, prompt, negative_prompt, save_cfg=save_cfg)
 
     def show_latent(self, prompt, negative_prompt='', **kwargs):
-        emb_n, emb_p = self.te_hook.encode_prompt_to_emb(negative_prompt + prompt).chunk(2)
+        emb_n, emb_p = self.te_hook.encode_prompt_to_emb(negative_prompt+prompt).chunk(2)
         emb_p = self.te_hook.mult_attn(emb_p, self.token_ex.parse_attn_mult(prompt))
         emb_n = self.te_hook.mult_attn(emb_n, self.token_ex.parse_attn_mult(negative_prompt))
         images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, output_type='latent', **kwargs).images
@@ -149,10 +204,9 @@ class Visualizer:
         for img in images:
             plt.figure()
             for i, feat in enumerate(img):
-                plt.subplot(221 + i)
+                plt.subplot(221+i)
                 plt.imshow(feat)
             plt.show()
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
@@ -169,5 +223,5 @@ if __name__ == '__main__':
 
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
-        viser.vis_to_dir(cfgs.out_dir, prompt=[cfgs.prompt] * cfgs.bs, negative_prompt=[cfgs.neg_prompt] * cfgs.bs,
+        viser.vis_to_dir(cfgs.out_dir, prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
                          generator=G, save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)

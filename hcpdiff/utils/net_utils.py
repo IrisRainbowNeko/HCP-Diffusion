@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Optional, Union
 
 import torch
@@ -167,3 +168,17 @@ def hook_compile(model):
 
                 block.forward = new_forward
     remove_all_hooks(model)
+
+def _convert_cpu(t):
+    return t.to('cpu') if t.device.type == 'cuda' else t
+
+def _convert_cuda(t):
+    return t.to('cuda') if t.device.type == 'cpu' else t
+
+def to_cpu(model):
+    model._apply(_convert_cpu)
+    torch.cuda.synchronize()
+    torch.cuda.empty_cache()
+
+def to_cuda(model):
+    model._apply(_convert_cuda)

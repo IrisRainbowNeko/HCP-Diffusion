@@ -59,7 +59,8 @@ class TEEXHook:
         if self.clip_skip>0:
             encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
-            encoder_hidden_states = encoder_hidden_states + 0*feat_out['last_hidden_state'] # avoid unused parameters, make gradient checkpointing happy
+            if self.text_enc.training:
+                encoder_hidden_states = encoder_hidden_states + 0*feat_out['last_hidden_state'] # avoid unused parameters, make gradient checkpointing happy
         else:
             encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
 
@@ -131,4 +132,4 @@ class TEEXHook:
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device=pipe._execution_device, clip_skip=clip_skip)
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip)
