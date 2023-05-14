@@ -72,6 +72,9 @@ if __name__ == '__main__':
         state = ckpt_manager.load_ckpt(args.lora_path)
         # convert the weight name
         sd_TE, sd_unet = converter.convert_from_webui(state)
+        if args.auto_scale_alpha:
+            sd_TE['lora'] = {k:(v/v.shape[1] if 'lora_up' in k else v) for k, v in sd_TE['lora'].items()}
+            sd_unet['lora'] = {k:(v/v.shape[1] if 'lora_up' in k else v) for k, v in sd_unet['lora'].items()}
         # wegiht save
         os.makedirs(args.dump_path, exist_ok=True)
         TE_path = os.path.join(args.dump_path, 'TE-'+lora_name)

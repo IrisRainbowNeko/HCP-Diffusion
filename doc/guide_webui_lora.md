@@ -28,14 +28,16 @@ The lora models used in webUI cannot be directly loaded and need to be converted
 After conversion, they are divided into two weight files: ```unet``` and ```text_encoder```.
 
 ```bash
-python -m hcpdiff.tools.lora_convert --from_webui --lora_path lora.safetensors --dump_path lora_hcp/
+python -m hcpdiff.tools.lora_convert --from_webui --lora_path lora.safetensors --dump_path lora_hcp/ \
+      --auto_scale_alpha # auto scale alpha to be compatible with webui models
 ```
 
 ### convert to webUI
 You can also convert the lora models trained within this framework into the webUI format:
 
 ```bash
-python -m hcpdiff.tools.lora_convert --to_webui --lora_path unet-lora.safetensors --lora_path_TE text_encoder-lora.safetensors --dump_path lora-webui.safetensors
+python -m hcpdiff.tools.lora_convert --to_webui --lora_path unet-lora.safetensors --lora_path_TE text_encoder-lora.safetensors --dump_path lora-webui.safetensors \
+      --auto_scale_alpha # auto scale alpha to be compatible with webui models
 ```
 
 ## vae model conversion
