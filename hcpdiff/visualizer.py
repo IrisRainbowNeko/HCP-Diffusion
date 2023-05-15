@@ -52,6 +52,7 @@ class Visualizer:
 
         if 'save_model' in self.cfgs and self.cfgs.save_model is not None:
             self.save_model(self.cfgs.save_model)
+            os._exit(0)
 
         if self.offload:
             self.build_offload(self.cfgs.offload)
