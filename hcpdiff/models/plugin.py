@@ -41,15 +41,17 @@ class BasePluginBlock(nn.Module):
 
     @staticmethod
     def extract_state_without_plugin(model: nn.Module, trainable=False):
+        trainable_keys = {k for k, v in model.named_parameters() if v.requires_grad}
         plugin_names = {k for k,v in model.named_modules() if isinstance(v, BasePluginBlock)}
         model_sd = {}
         for k, v in model.state_dict().items():
-            if (not trainable) or v.requires_grad:
+            if (not trainable) or k in trainable_keys:
                 for name in plugin_names:
                     if k.startswith(name):
                         break
                 else:
                     model_sd[k]=v
+        print(model_sd.keys())
         return model_sd
 
 class SinglePluginBlock(BasePluginBlock):
