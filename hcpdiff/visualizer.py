@@ -84,9 +84,11 @@ class Visualizer:
         for k,v in self.pipe.unet.named_modules():
             if isinstance(v, LoraBlock):
                 v.reparameterization_to_host()
+                v.remove()
         for k,v in self.pipe.text_encoder.named_modules():
             if isinstance(v, LoraBlock):
                 v.reparameterization_to_host()
+                v.remove()
 
         self.pipe.save_pretrained(save_cfg.path, safe_serialization=save_cfg.to_safetensors)
 
