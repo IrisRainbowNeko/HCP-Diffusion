@@ -51,7 +51,6 @@ class BasePluginBlock(nn.Module):
                         break
                 else:
                     model_sd[k]=v
-        print(model_sd.keys())
         return model_sd
 
 class SinglePluginBlock(BasePluginBlock):
