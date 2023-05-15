@@ -70,12 +70,12 @@ class LoraBlock(SinglePluginBlock):
             alpha = self.alpha
 
         host = self.host()
-        re_w, re_b = self.get_collapsed_param()
+        re_w, re_b = self.layer.get_collapsed_param()
         host.weight = nn.Parameter(
             host.weight.data * base_alpha + alpha * re_w.to(host.weight.device, dtype=host.weight.dtype)
         )
 
-        if self.lora_up.bias is not None:
+        if self.layer.lora_up.bias is not None:
             if host.bias is None:
                 host.bias = nn.Parameter(re_b.to(host.weight.device, dtype=host.weight.dtype))
             else:
