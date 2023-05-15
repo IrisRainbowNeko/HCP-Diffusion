@@ -78,14 +78,20 @@ class Visualizer:
 
     def get_pipeline(self):
         if self.cfgs.condition is None:
-            return StableDiffusionPipeline
+            pipe_cls = StableDiffusionPipeline
         else:
             if self.cfgs.condition.type == 'i2i':
-                return StableDiffusionImg2ImgPipeline
+                pipe_cls = StableDiffusionImg2ImgPipeline
             elif self.cfgs.condition.type == 'controlnet':
-                return StableDiffusionPipeline
+                pipe_cls = StableDiffusionPipeline
             else:
                 raise NotImplementedError(f'No condition type named {self.cfgs.condition.type}')
+
+        class CUDAPipe(pipe_cls):
+            @property
+            def _execution_device(self):
+                return torch.device('cuda')
+        return CUDAPipe
 
     def build_offload(self, offload_cfg):
         vram = size_to_int(offload_cfg.max_VRAM)
@@ -160,7 +166,6 @@ class Visualizer:
         ex_input_dict = self.get_ex_input()
 
         to_cuda(self.pipe.text_encoder)
-        torch.cuda.synchronize()
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
