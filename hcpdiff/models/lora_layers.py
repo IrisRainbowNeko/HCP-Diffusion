@@ -16,6 +16,7 @@ from torch import nn
 
 from .lora_base import LoraBlock
 from .layers import GroupLinear
+import warnings
 
 class LoraLayer(LoraBlock):
     def __init__(self, lora_id:int, host, rank=1, dropout=0.1, alpha=1.0, bias=False, inplace=True, alpha_auto_scale=True, **kwargs):
@@ -50,8 +51,9 @@ class LoraLayerGroup(LoraBlock):
         self.rank_groups_raw = rank_groups
         super().__init__(lora_id, host, rank, dropout, alpha, bias, inplace, alpha_auto_scale=alpha_auto_scale)
 
-    def collapse_to_host(self, alpha=None, base_alpha=1.0):
-        raise NotImplementedError('LoraLayerGroup not support reparameterization.')
+    def reparameterization_to_host(self, alpha=None, base_alpha=1.0):
+        warnings.warn('LoraLayerGroup cannot reparameterization.')
+        pass
 
     class LinearLayer(LoraBlock.LinearLayer):
         def __init__(self, host, rank, bias, dropout, block):

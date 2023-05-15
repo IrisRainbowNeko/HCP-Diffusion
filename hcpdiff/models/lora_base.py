@@ -65,7 +65,7 @@ class LoraBlock(SinglePluginBlock):
                 new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.alpha
                 return new_out
 
-    def collapse_to_host(self, alpha=None, base_alpha=1.0):
+    def reparameterization_to_host(self, alpha=None, base_alpha=1.0):
         if alpha is None:
             alpha = self.alpha
 

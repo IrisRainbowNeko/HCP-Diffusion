@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
-from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook
+from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import to_cpu, to_cuda
@@ -50,6 +50,9 @@ class Visualizer:
         if self.cfg_merge:
             self.merge_model()
 
+        if 'save_model' in self.cfgs and self.cfgs.save_model is not None:
+            self.save_model(self.cfgs.save_model)
+
         if self.offload:
             self.build_offload(self.cfgs.offload)
         else:
@@ -75,6 +78,16 @@ class Visualizer:
         if is_xformers_available():
             self.pipe.unet.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
+
+    def save_model(self, save_cfg):
+        for k,v in self.pipe.unet.named_modules():
+            if isinstance(v, LoraBlock):
+                v.reparameterization_to_host()
+        for k,v in self.pipe.text_encoder.named_modules():
+            if isinstance(v, LoraBlock):
+                v.reparameterization_to_host()
+
+        self.pipe.save_pretrained(save_cfg.path, safe_serialization=save_cfg.to_safetensors)
 
     def get_pipeline(self):
         if self.cfgs.condition is None:
