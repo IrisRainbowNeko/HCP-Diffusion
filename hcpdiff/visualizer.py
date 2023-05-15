@@ -45,10 +45,12 @@ class Visualizer:
         comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
                                         torch_dtype=self.dtype).components
         comp.update(self.cfgs.new_components)
-        self.pipe = pipeline(**comp).to(torch_dtype=self.dtype)
+        self.pipe = pipeline(**comp)
 
         if self.cfg_merge:
             self.merge_model()
+
+        self.pipe = self.pipe.to(torch_dtype=self.dtype)
 
         if 'save_model' in self.cfgs and self.cfgs.save_model is not None:
             self.save_model(self.cfgs.save_model)
