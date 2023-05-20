@@ -188,6 +188,36 @@ class MultiPluginBlock(BasePluginBlock):
         for handle_to in self.hook_handle_to:
             handle_to.remove()
 
+
+class WrapPluginBlock(BasePluginBlock):
+    def __init__(self, name:str, host:nn.Module, host_model=None, parent_block:nn.Module=None, host_name:str=None):
+        super().__init__(name)
+        self.host = weakref.ref(host)
+        self.parent_block = weakref.ref(parent_block)
+        self.host_name = host_name
+
+        delattr(parent_block, host_name)
+        setattr(parent_block, f'{host_name}_origin_block', host)
+        setattr(parent_block, host_name, self)
+
+    def forward(self, *args, **kwargs):
+        args, kwargs = self.pre_forward(*args, **kwargs)
+        output = self.host()(*args, **kwargs)
+        output = self.post_forward(output, *args, **kwargs)
+        return output
+
+    def pre_forward(self, *args, **kwargs):
+        return args, kwargs
+
+    def post_forward(self, output, *args, **kwargs):
+        return output
+
+    def remove(self):
+        parent_block = self.parent_block()
+        delattr(parent_block, self.host_name)
+        delattr(parent_block, f'{self.host_name}_origin_block')
+        setattr(parent_block, self.host_name, self.host())
+
 class PluginGroup:
     def __init__(self, plugin_dict:Dict[str, BasePluginBlock]):
         self.plugin_dict = plugin_dict # {host_model_path: plugin_object}

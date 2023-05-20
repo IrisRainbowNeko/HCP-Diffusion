@@ -62,7 +62,7 @@ class TrainerSingleCard(Trainer):
 
         # Pytorch Data loader
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-            num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=collate_fn_ft)
+            num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=train_dataset.collate_fn)
         return train_loader
 
     def encode_decode(self, prompt_ids, noisy_latents, timesteps, **kwargs):

@@ -46,37 +46,6 @@ def resize_crop_fix(img, target_size):
 
     return DualRandomCrop(target_size[::-1])(img)
 
-def collate_fn_ft(batch):
-    datas, sn_list, sp_list = {'img':[]}, [], []
-
-    data0 = batch[0]
-    if 'mask' in data0:
-        datas['mask']=[]
-    if 'cond' in data0:
-        datas['cond']=[]
-
-    for data in batch:
-        datas['img'].append(data['img'])
-        datas['mask'].append(data['mask'])
-        if 'cond' in data:
-            datas['cond'].append(data['cond'])
-
-        target = data['prompt']
-        if len(target.shape)==2:
-            sn_list.append(target[0])
-            sp_list.append(target[1])
-        else:
-            sp_list.append(target)
-    sn_list += sp_list
-
-    datas['img'] = torch.stack(datas['img'])
-    datas['mask'] = torch.stack(datas['mask']).unsqueeze(1)
-    if 'cond' in data0:
-        datas['cond'] = torch.stack(datas['cond'])
-    datas['prompt'] = torch.stack(sn_list)
-
-    return datas
-
 class CycleData():
     def __init__(self, data_loader):
         self.data_loader = data_loader

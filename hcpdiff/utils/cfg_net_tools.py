@@ -18,7 +18,7 @@ from torch import nn
 from .utils import net_path_join
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
-from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup
+from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, WrapPluginBlock
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):
@@ -192,6 +192,20 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 from_layer_meta['layer']=named_modules[from_layer_name]
                 to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
+                if train_plugin:
+                    layer.requires_grad_(True)
+                    layer.train()
+                    params_group.extend(layer.parameters())
+                else:
+                    layer.requires_grad_(False)
+                    layer.eval()
+                all_plugin_blocks[from_layer_name] = layer
+        elif issubclass(plugin_class, WrapPluginBlock):
+            layers_name = builder.keywords.pop('layers')
+            for layer_name in get_match_layers(layers_name, named_modules):
+                parent_name, host_name = layers_name.rsplit('.', 1)
+                layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
+                                parent_block=named_modules[parent_name], host_name=host_name)
                 if train_plugin:
                     layer.requires_grad_(True)
                     layer.train()
