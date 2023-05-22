@@ -1,12 +1,12 @@
 import argparse
 import sys
-import torch
-from loguru import logger
 from functools import partial
 
+import torch
 from accelerate import Accelerator
+from loguru import logger
+
 from hcpdiff.train_ac import Trainer, RatioBucket, load_config_with_cli, set_seed
-from hcpdiff.data import collate_fn_ft
 
 class TrainerSingleCard(Trainer):
     def init_context(self, cfgs_raw):
@@ -19,7 +19,7 @@ class TrainerSingleCard(Trainer):
         self.local_rank = 0
         self.world_size = self.accelerator.num_processes
 
-        set_seed(self.cfgs.seed + self.local_rank)
+        set_seed(self.cfgs.seed+self.local_rank)
 
     def prepare(self):
         # Prepare everything with accelerator.
@@ -45,13 +45,13 @@ class TrainerSingleCard(Trainer):
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
 
-    def build_data(self, data_builder:partial) -> torch.utils.data.DataLoader:
+    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
         batch_size = data_builder.keywords.pop('batch_size')
         cache_latents = data_builder.keywords.pop('cache_latents')
         self.batch_size_list.append(batch_size)
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
-        train_dataset.bucket.build(batch_size * self.world_size,
+        train_dataset.bucket.build(batch_size*self.world_size,
                                    img_root_list=[source.img_root for source in data_builder.keywords['source'].values()])
         arb = isinstance(train_dataset.bucket, RatioBucket)
         logger.info(f"len(train_dataset): {len(train_dataset)}")
@@ -62,7 +62,7 @@ class TrainerSingleCard(Trainer):
 
         # Pytorch Data loader
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-            num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=train_dataset.collate_fn)
+                                                   num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=train_dataset.collate_fn)
         return train_loader
 
     def encode_decode(self, prompt_ids, noisy_latents, timesteps, **kwargs):
@@ -79,7 +79,7 @@ class TrainerSingleCard(Trainer):
         return model_pred
 
     def get_loss(self, model_pred, target, timesteps, att_mask):
-        return (self.criterion(model_pred.float(), target.float(), timesteps) * att_mask).mean()
+        return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
@@ -100,6 +100,6 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='cfg/train/demo.yaml')
     args, _ = parser.parse_known_args()
 
-    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:]) # skip --cfg
-    trainer=TrainerSingleCard(conf)
+    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
+    trainer = TrainerSingleCard(conf)
     trainer.train()
