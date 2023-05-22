@@ -24,7 +24,7 @@ class DualRandomCrop(object):
     def crop(img: np.ndarray, top: int, left: int, height: int, width: int) -> np.ndarray:
         right = left + width
         bottom = top + height
-        return img[..., top:bottom, left:right]
+        return img[top:bottom, left:right, ...]
 
 def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     w,h=img['img'].size
