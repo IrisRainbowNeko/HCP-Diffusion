@@ -168,8 +168,8 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 layer.eval()
             all_plugin_blocks[''] = layer
         elif issubclass(plugin_class, SinglePluginBlock):
-            layers_names = builder.keywords.pop('layers')
-            for layer_name in get_match_layers(layers_names, named_modules):
+            layers_name = builder.keywords.pop('layers')
+            for layer_name in get_match_layers(layers_name, named_modules):
                 blocks = builder(name=plugin_name, host_model=model, host=named_modules[layer_name])
                 if not isinstance(blocks, dict):
                     blocks={'':blocks}
@@ -201,9 +201,9 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                     layer.eval()
                 all_plugin_blocks[from_layer_name] = layer
         elif issubclass(plugin_class, WrapPluginBlock):
-            layers_names = builder.keywords.pop('layers')
-            for layer_name in get_match_layers(layers_names, named_modules):
-                parent_name, host_name = layers_name.rsplit('.', 1)
+            layers_name = builder.keywords.pop('layers')
+            for layer_name in get_match_layers(layers_name, named_modules):
+                parent_name, host_name = layer_name.rsplit('.', 1)
                 layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
                                 parent_block=named_modules[parent_name], host_name=host_name)
                 if train_plugin:
