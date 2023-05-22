@@ -205,7 +205,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             for layer_name in get_match_layers(layers_name, named_modules):
                 name_split = layer_name.rsplit('.', 1)
                 if len(name_split)==1:
-                    parent_name, host_name = '', name_split
+                    parent_name, host_name = '', name_split[0]
                 else:
                     parent_name, host_name = name_split
                 layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
