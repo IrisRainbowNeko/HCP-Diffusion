@@ -213,7 +213,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 else:
                     layer.requires_grad_(False)
                     layer.eval()
-                all_plugin_blocks[from_layer_name] = layer
+                all_plugin_blocks[layer_name] = layer
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
         if train_plugin:
