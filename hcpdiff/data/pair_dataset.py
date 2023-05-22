@@ -39,7 +39,7 @@ class TextImagePairDataset(Dataset):
         self.tokenizer_repeats = tokenizer_repeats
         self.bucket: BaseBucket = bucket
         self.att_mask_encode = att_mask_encode
-        self.load_source()
+        self.load_source(source)
         self.latents = None  # Cache latents for faster training. Works only without image argumentations.
 
     def load_source(self, source: Dict):
