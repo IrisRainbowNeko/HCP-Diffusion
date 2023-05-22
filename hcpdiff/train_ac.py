@@ -493,7 +493,7 @@ class Trainer:
         with self.accelerator.accumulate(self.unet):
             for idx, data in enumerate(data_list):
                 image = data.pop('img').to(self.device, dtype=self.weight_dtype)
-                att_mask = data.pop('mask').to(self.device)
+                att_mask = data.pop('mask').to(self.device) if 'mask' in data else None
                 prompt_ids = data.pop('prompt').to(self.device)
                 other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items()}
 
@@ -522,11 +522,18 @@ class Trainer:
         return loss.item()
 
     def get_loss(self, model_pred, target, timesteps, att_mask):
-        if len(self.embedding_hook.emb_train)>0:
-            return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean() \
-                   +0*sum(self.embedding_hook.emb_train).mean()  # avoid unused parameters, make gradient checkpointing happy
+        if att_mask is None:
+            if len(self.embedding_hook.emb_train)>0:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)).mean() \
+                       +0*sum(self.embedding_hook.emb_train).mean()  # avoid unused parameters, make gradient checkpointing happy
+            else:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)).mean()
         else:
-            return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
+            if len(self.embedding_hook.emb_train)>0:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean() \
+                       +0*sum(self.embedding_hook.emb_train).mean()  # avoid unused parameters, make gradient checkpointing happy
+            else:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):

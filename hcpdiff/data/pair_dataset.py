@@ -37,25 +37,25 @@ class TextImagePairDataset(Dataset):
 
         self.tokenizer = tokenizer
         self.tokenizer_repeats = tokenizer_repeats
-
         self.bucket: BaseBucket = bucket
         self.att_mask_encode = att_mask_encode
+        self.load_source()
+        self.latents = None  # Cache latents for faster training. Works only without image argumentations.
 
+    def load_source(self, source: Dict):
         self.source_dict = {}
         for data_source in source.values():
             source_metas = Namespace()
             source_metas.caption_dict = self.load_captions(data_source.caption_file)
             source_metas.att_mask_path = {} if data_source.att_mask is None else \
-                {get_file_name(file): os.path.join(data_source.att_mask, file)
-                 for file in os.listdir(data_source.att_mask) if get_file_ext(file) in types_support}
+                {get_file_name(file):os.path.join(data_source.att_mask, file)
+                    for file in os.listdir(data_source.att_mask) if get_file_ext(file) in types_support}
             source_metas.prompt_template = self.load_template(data_source.prompt_template)
             source_metas.image_transforms = data_source.image_transforms
             source_metas.tag_transforms = data_source.tag_transforms
             source_metas.bg_color = tuple(data_source.bg_color)
 
             self.source_dict[os.path.dirname(data_source.img_root+'/')] = source_metas
-
-        self.latents = None  # Cache latents for faster training. Works only without image argumentations.
 
     def load_image(self, path):
         image = Image.open(path)

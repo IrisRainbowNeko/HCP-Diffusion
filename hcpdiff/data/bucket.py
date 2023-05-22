@@ -37,7 +37,7 @@ class BaseBucket:
     def rest(self, epoch):
         pass
 
-    def crop_resize(self, image, size):
+    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
         return image
 
 class FixedBucket(BaseBucket):
@@ -48,8 +48,8 @@ class FixedBucket(BaseBucket):
         self.img_root_list = img_root_list
         self.file_names=[os.path.join(img_root, x) for img_root in img_root_list for x in os.listdir(img_root) if get_file_ext(x) in types_support]
 
-    def crop_resize(self, image, size):
-        return resize_crop_fix(image, size)
+    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
+        return resize_crop_fix(image, size, mask_interp=mask_interp)
 
     def __getitem__(self, idx) -> Tuple[str, Tuple[int, int]]:
         return self.file_names[idx], self.target_size
@@ -199,8 +199,8 @@ class RatioBucket(BaseBucket):
 
         self.idx_arb = bucket_list.reshape(-1)
 
-    def crop_resize(self, image, size):
-        return resize_crop_fix(image, size)
+    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
+        return resize_crop_fix(image, size, mask_interp=mask_interp)
 
     def __getitem__(self, idx):
         fidx = self.idx_arb[idx]

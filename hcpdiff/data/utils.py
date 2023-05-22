@@ -26,7 +26,7 @@ class DualRandomCrop(object):
         bottom = top + height
         return img[..., top:bottom, left:right]
 
-def resize_crop_fix(img, target_size):
+def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     w,h=img['img'].size
     if w==target_size[0] and h==target_size[1]:
         return img
@@ -40,7 +40,7 @@ def resize_crop_fix(img, target_size):
         interp_type = Image.ANTIALIAS if w>target_size[0] else Image.BICUBIC
     img['img'] = img['img'].resize(new_size, interp_type)
     if "mask" in img:
-        img['mask'] = cv2.resize(img['mask'], new_size, interpolation=cv2.INTER_CUBIC)
+        img['mask'] = cv2.resize(img['mask'], new_size, interpolation=mask_interp)
     if "cond" in img:
         img['cond'] = img['cond'].resize(new_size, interp_type)
 
