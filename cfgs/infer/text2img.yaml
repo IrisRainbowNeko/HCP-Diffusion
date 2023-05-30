@@ -11,6 +11,7 @@ bs: 4
 num: 1
 seed: null
 dtype: 'fp16'
+show_steps: 0
 
 condition: null
 

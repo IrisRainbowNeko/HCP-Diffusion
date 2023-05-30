@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from PIL import Image
 from accelerate import infer_auto_device_map, dispatch_model
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, UNet2DConditionModel
+from diffusers import UNet2DConditionModel
 from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.import_utils import is_xformers_available
 from matplotlib import pyplot as plt
@@ -19,6 +19,7 @@ from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import to_cpu, to_cuda
+from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I
 from hcpdiff.utils.utils import to_validate_file, load_config_with_cli, load_config, size_to_int, int_to_size
 
 class UnetHook():  # for controlnet
@@ -38,6 +39,7 @@ class Visualizer:
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.cfg_merge = self.cfgs.merge
         self.offload = 'offload' in self.cfgs and self.cfgs.offload is not None
+        self.show_steps = getattr(self.cfgs, 'show_steps', 0)
 
         self.dtype = self.dtype_dict[self.cfgs.dtype]
 
@@ -60,18 +62,20 @@ class Visualizer:
             self.build_offload(self.cfgs.offload)
         else:
             self.pipe.unet.to('cuda')
-
-            def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
-                to_cpu(self.pipe.unet)
-
+            if self.show_steps>0:
                 self.pipe.vae.to('cuda')
-                res = decode_latents_raw(latents)
-                to_cpu(self.pipe.vae)
+            else:
+                def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
+                    to_cpu(self.pipe.unet)
 
-                self.pipe.unet.to('cuda')
-                return res
+                    self.pipe.vae.to('cuda')
+                    res = decode_latents_raw(latents)
+                    to_cpu(self.pipe.vae)
 
-            self.pipe.decode_latents = decode_latents_offload
+                    self.pipe.unet.to('cuda')
+                    return res
+
+                self.pipe.decode_latents = decode_latents_offload
 
         emb, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
         self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
@@ -96,20 +100,16 @@ class Visualizer:
 
     def get_pipeline(self):
         if self.cfgs.condition is None:
-            pipe_cls = StableDiffusionPipeline
+            pipe_cls = HookPipe_T2I
         else:
             if self.cfgs.condition.type == 'i2i':
-                pipe_cls = StableDiffusionImg2ImgPipeline
+                pipe_cls = HookPipe_I2I
             elif self.cfgs.condition.type == 'controlnet':
-                pipe_cls = StableDiffusionPipeline
+                pipe_cls = HookPipe_T2I
             else:
                 raise NotImplementedError(f'No condition type named {self.cfgs.condition.type}')
 
-        class CUDAPipe(pipe_cls):
-            @property
-            def _execution_device(self):
-                return torch.device('cuda')
-        return CUDAPipe
+        return pipe_cls
 
     def build_offload(self, offload_cfg):
         vram = size_to_int(offload_cfg.max_VRAM)
@@ -199,22 +199,32 @@ class Visualizer:
                 for feeder in self.pipe.unet.input_feeder:
                     feeder(ex_input_dict)
 
-            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, **kwargs).images
+            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.vis_inter if self.show_steps>0 else None, **kwargs).images
         return images
+
+    def vis_inter(self, i, t, latents):
+        if i%self.show_steps==0:
+            image = self.pipe.decode_latents(latents)
+            image = self.pipe.numpy_to_pil(image)
+            for u, img in enumerate(image):
+                self.inter_imgs[u].append(img)
 
     def save_images(self, images, root, prompt, negative_prompt='', save_cfg=True):
         os.makedirs(root, exist_ok=True)
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
 
-        for p, pn, img in zip(prompt, negative_prompt, images):
+        for p, pn, img, inter in zip(prompt, negative_prompt, images, self.inter_imgs):
             img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.cfgs.save.image_type}"), quality=self.cfgs.save.quality)
 
             if save_cfg:
                 with open(os.path.join(root, f"{num_img_exist}-info.yaml"), 'w', encoding='utf-8') as f:
                     f.write(OmegaConf.to_yaml(self.cfgs_raw))
+            if self.show_steps > 0:
+                inter[0].save(os.path.join(root, f'{num_img_exist}_steps.webp'), "webp", save_all=True, append_images=inter[1:], duration=100)
             num_img_exist += 1
 
     def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
+        self.inter_imgs = [[] for i in range(self.cfgs.bs)]
         images = self.vis_images(prompt, negative_prompt, **kwargs)
         self.save_images(images, root, prompt, negative_prompt, save_cfg=save_cfg)
 
