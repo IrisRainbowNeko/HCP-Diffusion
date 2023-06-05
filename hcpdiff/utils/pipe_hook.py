@@ -68,6 +68,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
+        self.scheduler.alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
 
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
@@ -107,7 +108,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                alpha_prod_t = self.scheduler.alphas_cumprod[t]
+                alpha_prod_t = self.scheduler.alphas_cumprod[t.long()]
                 beta_prod_t = 1 - alpha_prod_t
                 latents_x0 = (latents - beta_prod_t ** (0.5) * noise_pred) / alpha_prod_t ** (0.5)  # approximate x_0
 

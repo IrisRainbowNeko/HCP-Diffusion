@@ -1,4 +1,5 @@
 from .disk_interface import DiskInterface
+from loguru import logger
 
 class WebUIInterface(DiskInterface):
 
@@ -10,7 +11,7 @@ class WebUIInterface(DiskInterface):
     def on_inter_step(self, i, t, latents, images):
         if self.show_inter:
             super(WebUIInterface, self).on_inter_step(i, t, latents, images)
-        print('\nthis progress steps:', i)
+        logger.info(f'\nthis progress steps: {i}')
 
     def on_save_one(self, num_img_exist, img_path):
-        print('this images output path:', img_path)
+        logger.info(f'this images output path: {img_path}')
