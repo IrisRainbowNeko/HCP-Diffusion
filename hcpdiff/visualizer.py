@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-import time
 
 import hydra
 import numpy as np
@@ -11,16 +10,12 @@ from accelerate import infer_auto_device_map, dispatch_model
 from diffusers import UNet2DConditionModel
 from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.import_utils import is_xformers_available
-from matplotlib import pyplot as plt
-from omegaconf import OmegaConf
-from torch.cuda.amp import autocast
-
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
-from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import to_cpu, to_cuda
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I
-from hcpdiff.utils.utils import to_validate_file, load_config_with_cli, load_config, size_to_int, int_to_size
+from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size
+from torch.cuda.amp import autocast
 
 class UnetHook():  # for controlnet
     def __init__(self, unet):
@@ -39,9 +34,9 @@ class Visualizer:
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.cfg_merge = self.cfgs.merge
         self.offload = 'offload' in self.cfgs and self.cfgs.offload is not None
-        self.show_steps = getattr(self.cfgs, 'show_steps', 0)
-
         self.dtype = self.dtype_dict[self.cfgs.dtype]
+
+        self.need_inter_imgs = any(item.need_inter_imgs for item in self.cfgs.interface)
 
         pipeline = self.get_pipeline()
         comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
@@ -62,7 +57,7 @@ class Visualizer:
             self.build_offload(self.cfgs.offload)
         else:
             self.pipe.unet.to('cuda')
-            if self.show_steps>0:
+            if self.need_inter_imgs:
                 self.pipe.vae.to('cuda')
             else:
                 def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
@@ -87,11 +82,11 @@ class Visualizer:
             # self.te_hook.enable_xformers()
 
     def save_model(self, save_cfg):
-        for k,v in self.pipe.unet.named_modules():
+        for k, v in self.pipe.unet.named_modules():
             if isinstance(v, LoraBlock):
                 v.reparameterization_to_host()
                 v.remove()
-        for k,v in self.pipe.text_encoder.named_modules():
+        for k, v in self.pipe.text_encoder.named_modules():
             if isinstance(v, LoraBlock):
                 v.reparameterization_to_host()
                 v.remove()
@@ -199,47 +194,25 @@ class Visualizer:
                 for feeder in self.pipe.unet.input_feeder:
                     feeder(ex_input_dict)
 
-            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.vis_inter if self.show_steps>0 else None, **kwargs).images
+            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, **kwargs).images
         return images
 
-    def vis_inter(self, i, t, latents):
-        if i%self.show_steps==0:
-            image = self.pipe.decode_latents(latents)
-            image = self.pipe.numpy_to_pil(image)
-            for u, img in enumerate(image):
-                self.inter_imgs[u].append(img)
+    def inter_callback(self, i, t, latents):
+        images = None
+        for interface in self.cfgs.interface:
+            if interface.show_steps>0 and i%interface.show_steps == 0:
+                if self.need_inter_imgs and images is None:
+                    images = self.pipe.decode_latents(latents)
+                    images = self.pipe.numpy_to_pil(images)
+                interface.on_inter_step(i, t, latents, images)
 
-    def save_images(self, images, root, prompt, negative_prompt='', save_cfg=True):
-        os.makedirs(root, exist_ok=True)
-        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(root) if x.rsplit('.', 1)[-1] in types_support])+1
+    def save_images(self, images, prompt, negative_prompt='', save_cfg=True):
+        for interface in self.cfgs.interface:
+            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw if save_cfg else None)
 
-        for p, pn, img, inter in zip(prompt, negative_prompt, images, self.inter_imgs):
-            img.save(os.path.join(root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.cfgs.save.image_type}"), quality=self.cfgs.save.quality)
-
-            if save_cfg:
-                with open(os.path.join(root, f"{num_img_exist}-info.yaml"), 'w', encoding='utf-8') as f:
-                    f.write(OmegaConf.to_yaml(self.cfgs_raw))
-            if self.show_steps > 0:
-                inter[0].save(os.path.join(root, f'{num_img_exist}_steps.webp'), "webp", save_all=True, append_images=inter[1:], duration=100)
-            num_img_exist += 1
-
-    def vis_to_dir(self, root, prompt, negative_prompt='', save_cfg=True, **kwargs):
-        self.inter_imgs = [[] for i in range(self.cfgs.bs)]
+    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, **kwargs):
         images = self.vis_images(prompt, negative_prompt, **kwargs)
-        self.save_images(images, root, prompt, negative_prompt, save_cfg=save_cfg)
-
-    def show_latent(self, prompt, negative_prompt='', **kwargs):
-        emb_n, emb_p = self.te_hook.encode_prompt_to_emb(negative_prompt+prompt).chunk(2)
-        emb_p = self.te_hook.mult_attn(emb_p, self.token_ex.parse_attn_mult(prompt))
-        emb_n = self.te_hook.mult_attn(emb_n, self.token_ex.parse_attn_mult(negative_prompt))
-        images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, output_type='latent', **kwargs).images
-
-        for img in images:
-            plt.figure()
-            for i, feat in enumerate(img):
-                plt.subplot(221+i)
-                plt.imshow(feat)
-            plt.show()
+        self.save_images(images, prompt, negative_prompt, save_cfg=save_cfg)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
@@ -247,7 +220,6 @@ if __name__ == '__main__':
     args, _ = parser.parse_known_args()
     cfgs = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
 
-    os.makedirs(cfgs.out_dir, exist_ok=True)
     if cfgs.seed is not None:
         G = torch.Generator()
         G.manual_seed(cfgs.seed)
@@ -256,5 +228,5 @@ if __name__ == '__main__':
 
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
-        viser.vis_to_dir(cfgs.out_dir, prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
+        viser.vis_to_dir(prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
                          generator=G, save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)
