@@ -204,7 +204,7 @@ class Visualizer:
                 if self.need_inter_imgs and images is None:
                     images = self.pipe.decode_latents(latents)
                     images = self.pipe.numpy_to_pil(images)
-                interface.on_inter_step(i, t, latents, images)
+                interface.on_inter_step(i, self.cfgs.infer_args.num_inference_steps, t, latents, images)
 
     def save_images(self, images, prompt, negative_prompt='', save_cfg=True):
         for interface in self.cfgs.interface:

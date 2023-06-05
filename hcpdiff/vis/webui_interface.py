@@ -8,10 +8,10 @@ class WebUIInterface(DiskInterface):
         self.show_inter = show_inter
         self.need_inter_imgs = self.need_inter_imgs and show_inter
 
-    def on_inter_step(self, i, t, latents, images):
+    def on_inter_step(self, i, num_steps, t, latents, images):
         if self.show_inter:
-            super(WebUIInterface, self).on_inter_step(i, t, latents, images)
-        logger.info(f'\nthis progress steps: {i}')
+            super(WebUIInterface, self).on_inter_step(i, num_steps, t, latents, images)
+        logger.info(f'\nthis progress steps: {i}/{num_steps}')
 
     def on_save_one(self, num_img_exist, img_path):
         logger.info(f'this images output path: {img_path}')

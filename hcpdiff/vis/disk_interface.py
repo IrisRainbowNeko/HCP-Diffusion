@@ -18,7 +18,7 @@ class DiskInterface(BaseInterface):
         if show_steps>0:
             self.need_inter_imgs = True
 
-    def on_inter_step(self, i, t, latents, images):
+    def on_inter_step(self, i, num_steps, t, latents, images):
         if len(self.inter_imgs) == 0:
             for _ in range(len(images)):
                 self.inter_imgs.append([])
