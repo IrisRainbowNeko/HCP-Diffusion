@@ -3,7 +3,6 @@
 pretrained_model: ''
 prompt: ''
 neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-out_dir: 'output/'
 emb_dir: 'embs/'
 N_repeats: 1
 clip_skip: 0
@@ -26,6 +25,11 @@ offload: null
 #  max_VRAM: 8GiB
 #  max_RAM: 30GiB
 #  vae_cpu: False
+
+interface:
+  - _target_: hcpdiff.vis.DiskInterface
+    show_steps: 0
+    save_root: 'output/'
 
 infer_args:
   width: 512

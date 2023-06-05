@@ -55,6 +55,8 @@ class TokenizerHook:
         return mult_list, out_str, clean_str
 
     def parse_attn_mult_one(self, text: str):
+        if text is None or len(text)==0:
+            return torch.tensor([]), ""
         mult_list, out_str, clean_str = self.get_mult_list(text)
         mult_iter = iter(mult_list)
         token_seq = self.tokenizer.tokenize(out_str)

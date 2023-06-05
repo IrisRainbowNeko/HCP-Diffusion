@@ -203,7 +203,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
         elif issubclass(plugin_class, WrapPluginBlock):
             layers_name = builder.keywords.pop('layers')
             for layer_name in get_match_layers(layers_name, named_modules):
-                parent_name, host_name = layers_name.rsplit('.', 1)
+                name_split = layer_name.rsplit('.', 1)
+                if len(name_split)==1:
+                    parent_name, host_name = '', name_split[0]
+                else:
+                    parent_name, host_name = name_split
                 layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
                                 parent_block=named_modules[parent_name], host_name=host_name)
                 if train_plugin:
@@ -213,7 +217,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 else:
                     layer.requires_grad_(False)
                     layer.eval()
-                all_plugin_blocks[from_layer_name] = layer
+                all_plugin_blocks[layer_name] = layer
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
         if train_plugin:
