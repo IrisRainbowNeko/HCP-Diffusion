@@ -5,7 +5,7 @@ bitsandbytes
 colossalai==0.2.5
 diffusers>=0.12.1
 safetensors
-einops
+einops>=0.6.0
 hydra-core
 loguru
 matplotlib
@@ -20,3 +20,4 @@ torch
 torchvision
 tqdm
 transformers==4.25.1
+xformers
