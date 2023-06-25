@@ -41,6 +41,6 @@ class DiskInterface(BaseInterface):
                     f.write(OmegaConf.to_yaml(cfgs_raw))
             if self.need_inter_imgs:
                 inter = self.inter_imgs[bid]
-                inter[0].save(os.path.join(self.save_root, f'{num_img_exist}_steps.webp'), "webp", save_all=True,
+                inter[0].save(os.path.join(self.save_root, f'{num_img_exist}-steps.webp'), "webp", save_all=True,
                               append_images=inter[1:], duration=100)
             num_img_exist += 1

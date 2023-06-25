@@ -13,7 +13,7 @@ from diffusers.utils.import_utils import is_xformers_available
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda
-from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I
+from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size
 from torch.cuda.amp import autocast
 
@@ -72,6 +72,15 @@ class Visualizer:
 
                 self.pipe.decode_latents = decode_latents_offload
 
+                if isinstance(self.pipe, HookPipe_I2I) or isinstance(self.pipe, HookPipe_Inpaint):
+                    def prepare_latents_offload(*args, prepare_latents_raw=self.pipe.prepare_latents):
+                        self.pipe.vae.to('cuda')
+                        res = prepare_latents_raw(*args)
+                        self.pipe.vae.to('cpu')
+                        return res
+
+                    self.pipe.prepare_latents = prepare_latents_offload
+
         emb, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
         self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
@@ -101,6 +110,8 @@ class Visualizer:
                 pipe_cls = HookPipe_I2I
             elif self.cfgs.condition.type == 'controlnet':
                 pipe_cls = HookPipe_T2I
+            elif self.cfgs.condition.type == 'inpaint':
+                pipe_cls = HookPipe_Inpaint
             else:
                 raise NotImplementedError(f'No condition type named {self.cfgs.condition.type}')
 
@@ -168,15 +179,22 @@ class Visualizer:
         return image
 
     def get_ex_input(self):
-        ex_input_dict = {}
+        ex_input_dict, pipe_input_dict = {}, {}
         if self.cfgs.condition is not None:
-            img = Image.open(self.cfgs.condition.image).convert('RGB')
-            ex_input_dict['cond'] = self.prepare_cond_image(img, self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
-        return ex_input_dict
+            if self.cfgs.condition.type == 'i2i':
+                pipe_input_dict['image'] = Image.open(self.cfgs.condition.image).convert('RGB')
+            elif self.cfgs.condition.type == 'controlnet':
+                img = Image.open(self.cfgs.condition.image).convert('RGB')
+                ex_input_dict['cond'] = self.prepare_cond_image(img, self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
+            elif self.cfgs.condition.type == 'inpaint':
+                pipe_input_dict['image'] = Image.open(self.cfgs.condition.image).convert('RGB')
+                pipe_input_dict['mask_image'] = Image.open(self.cfgs.condition.mask).convert('L')
+        return ex_input_dict, pipe_input_dict
 
     @torch.no_grad()
     def vis_images(self, prompt, negative_prompt='', **kwargs):
-        ex_input_dict = self.get_ex_input()
+        ex_input_dict, pipe_input_dict = self.get_ex_input()
+        kwargs.update(pipe_input_dict)
 
         to_cuda(self.pipe.text_encoder)
 
