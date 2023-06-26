@@ -1,4 +1,5 @@
-from typing import Tuple
+import random
+from typing import Tuple, List
 
 import re
 import torch
@@ -114,3 +115,6 @@ def int_to_size(size):
     for i,k in zip(range(40, 0, -10), size_key):
         if size >= 1<<i:
             return f'{size>>i}{k}iB'
+
+def prepare_seed(seeds:List[int], device='cuda'):
+    return [torch.Generator(device=device).manual_seed(s or random.randint(0, 1<<30)) for s in seeds]

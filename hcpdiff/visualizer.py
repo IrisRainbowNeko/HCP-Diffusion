@@ -1,10 +1,12 @@
 import argparse
 import os
 import sys
+from typing import List
 
 import hydra
 import numpy as np
 import torch
+import random
 from PIL import Image
 from accelerate import infer_auto_device_map, dispatch_model
 from diffusers import UNet2DConditionModel
@@ -14,7 +16,7 @@ from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
-from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size
+from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
 from torch.cuda.amp import autocast
 
 class UnetHook():  # for controlnet
@@ -192,7 +194,9 @@ class Visualizer:
         return ex_input_dict, pipe_input_dict
 
     @torch.no_grad()
-    def vis_images(self, prompt, negative_prompt='', **kwargs):
+    def vis_images(self, prompt, negative_prompt='', seeds:List[int]=None, **kwargs):
+        G = prepare_seed(seeds or [None]*len(prompt))
+
         ex_input_dict, pipe_input_dict = self.get_ex_input()
         kwargs.update(pipe_input_dict)
 
@@ -212,7 +216,8 @@ class Visualizer:
                 for feeder in self.pipe.unet.input_feeder:
                     feeder(ex_input_dict)
 
-            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, **kwargs).images
+            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback,
+                               generator=G, **kwargs).images
         return images
 
     def inter_callback(self, i, t, latents):
@@ -224,13 +229,15 @@ class Visualizer:
                     images = self.pipe.numpy_to_pil(images)
                 interface.on_inter_step(i, self.cfgs.infer_args.num_inference_steps, t, latents, images)
 
-    def save_images(self, images, prompt, negative_prompt='', save_cfg=True):
+    def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds:List[int]=None):
         for interface in self.cfgs.interface:
-            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw if save_cfg else None)
+            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw if save_cfg else None, seeds=seeds)
 
-    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, **kwargs):
-        images = self.vis_images(prompt, negative_prompt, **kwargs)
-        self.save_images(images, prompt, negative_prompt, save_cfg=save_cfg)
+    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, seeds:List[int]=None, **kwargs):
+        seeds = [s or random.randint(0, 1<<30) for s in seeds]
+
+        images = self.vis_images(prompt, negative_prompt, seeds=seeds, **kwargs)
+        self.save_images(images, prompt, negative_prompt, save_cfg=save_cfg, seeds=seeds)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
@@ -239,12 +246,11 @@ if __name__ == '__main__':
     cfgs = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
 
     if cfgs.seed is not None:
-        G = torch.Generator()
-        G.manual_seed(cfgs.seed)
+        seeds = list(range(cfgs.seed, cfgs.seed+cfgs.num*cfgs.bs))
     else:
-        G = None
+        seeds = [None]*(cfgs.num*cfgs.bs)
 
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
         viser.vis_to_dir(prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
-                         generator=G, save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)
+                         seeds=seeds[i*cfgs.bs:(i+1)*cfgs.bs], save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)

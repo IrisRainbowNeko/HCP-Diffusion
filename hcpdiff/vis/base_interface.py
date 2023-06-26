@@ -1,7 +1,3 @@
-from PIL import Image
-import torch
-import numpy as np
-from diffusers.utils import PIL_INTERPOLATION
 
 class BaseInterface:
     need_inter_imgs = False
@@ -12,5 +8,5 @@ class BaseInterface:
     def on_inter_step(self, i, num_steps, t, latents, images):
         pass
 
-    def on_infer_finish(self, images, prompt, negative_prompt, save_cfg=False):
+    def on_infer_finish(self, images, prompt, negative_prompt, save_cfg=False, seeds=None):
         pass

@@ -28,19 +28,20 @@ class DiskInterface(BaseInterface):
     def on_save_one(self, num_img_exist, img_path):
         pass
 
-    def on_infer_finish(self, images, prompt, negative_prompt, cfgs_raw=None):
+    def on_infer_finish(self, images, prompt, negative_prompt, cfgs_raw=None, seeds=None):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
-            img_path = os.path.join(self.save_root, f"{num_img_exist}-{to_validate_file(prompt[0])}.{self.image_type}")
+            img_path = os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
             img.save(img_path, quality=self.quality)
             self.on_save_one(num_img_exist, img_path)
 
             if cfgs_raw is not None:
-                with open(os.path.join(self.save_root, f"{num_img_exist}-info.yaml"), 'w', encoding='utf-8') as f:
+                with open(os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info.yaml"), 'w', encoding='utf-8') as f:
+                    cfgs_raw.seed = seeds[bid]
                     f.write(OmegaConf.to_yaml(cfgs_raw))
             if self.need_inter_imgs:
                 inter = self.inter_imgs[bid]
-                inter[0].save(os.path.join(self.save_root, f'{num_img_exist}-steps.webp'), "webp", save_all=True,
+                inter[0].save(os.path.join(self.save_root, f'{num_img_exist}-{seeds[bid]}-steps.webp'), "webp", save_all=True,
                               append_images=inter[1:], duration=100)
             num_img_exist += 1
