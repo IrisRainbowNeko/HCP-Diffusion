@@ -70,7 +70,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
-        self.scheduler.alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
+        alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
 
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
@@ -110,7 +110,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
                     noise_pred = noise_pred_uncond+guidance_scale*(noise_pred_text-noise_pred_uncond)
 
                 # x_t -> x_0
-                alpha_prod_t = self.scheduler.alphas_cumprod[t.long()]
+                alpha_prod_t = alphas_cumprod[t.long()]
                 beta_prod_t = 1-alpha_prod_t
                 latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
 
@@ -206,7 +206,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size*num_images_per_prompt)
-        self.scheduler.alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
+        alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
 
         # 6. Prepare latent variables
         latents = self.prepare_latents(
@@ -238,7 +238,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
                     noise_pred = noise_pred_uncond+guidance_scale*(noise_pred_text-noise_pred_uncond)
 
                 # x_t -> x_0
-                alpha_prod_t = self.scheduler.alphas_cumprod[t.long()]
+                alpha_prod_t = alphas_cumprod[t.long()]
                 beta_prod_t = 1-alpha_prod_t
                 latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
 
@@ -340,7 +340,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size*num_images_per_prompt)
-        self.scheduler.alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
+        alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
 
         # 6. Prepare latent variables
         # encode the init image into latents and scale the latents
@@ -380,7 +380,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
                     init_latents_proper = self.scheduler.add_noise(init_latents_orig, noise, torch.tensor([t]))
 
                 # x_t-1 -> x_0
-                alpha_prod_t = self.scheduler.alphas_cumprod[t.long()]
+                alpha_prod_t = alphas_cumprod[t.long()]
                 beta_prod_t = 1-alpha_prod_t
                 latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
                 # normalize latents_x0 to keep the contrast consistent with the original image
