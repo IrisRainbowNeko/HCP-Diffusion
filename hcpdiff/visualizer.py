@@ -62,17 +62,17 @@ class Visualizer:
             if self.need_inter_imgs:
                 self.pipe.vae.to('cuda')
             else:
-                def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
+                def vae_decode_offload(latents, return_dict=True, decode_raw=self.pipe.vae.decode):
                     to_cpu(self.pipe.unet)
 
                     self.pipe.vae.to('cuda')
-                    res = decode_latents_raw(latents)
+                    res = decode_raw(latents, return_dict=return_dict)
                     to_cpu(self.pipe.vae)
 
                     self.pipe.unet.to('cuda')
                     return res
 
-                self.pipe.decode_latents = decode_latents_offload
+                self.pipe.vae.decode = vae_decode_offload
 
                 if isinstance(self.pipe, HookPipe_I2I) or isinstance(self.pipe, HookPipe_Inpaint):
                     def prepare_latents_offload(*args, prepare_latents_raw=self.pipe.prepare_latents):

@@ -125,18 +125,13 @@ class HookPipe_T2I(StableDiffusionPipeline):
                     if callback is not None and i%callback_steps == 0:
                         callback(i, t, latents_x0)
 
-        if output_type == "latent":
-            image = latents
-            has_nsfw_concept = None
-        elif output_type == "pil":
-            # 8. Post-processing
-            image = self.decode_latents(latents)
-
-            # 10. Convert to PIL
-            image = self.numpy_to_pil(image)
+        if not output_type == "latent":
+            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
         else:
-            # 8. Post-processing
-            image = self.decode_latents(latents)
+            image = latents
+
+        do_denormalize = [True] * image.shape[0]
+        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         # Offload last model to CPU
         if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
@@ -253,16 +248,14 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
                     if callback is not None and i%callback_steps == 0:
                         callback(i, t, latents_x0)
 
-        if output_type not in ["latent", "pt", "np", "pil"]:
-            output_type = "np"
-
-        if output_type == "latent":
-            image = latents
-            has_nsfw_concept = None
+        if not output_type == "latent":
+            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
         else:
-            image = self.decode_latents(latents)
-            has_nsfw_concept = False
-            image = self.image_processor.postprocess(image, output_type=output_type)
+            image = latents
+        has_nsfw_concept = None
+
+        do_denormalize = [True] * image.shape[0]
+        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         # Offload last model to CPU
         if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
@@ -403,15 +396,14 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         # use original latents corresponding to unmasked portions of the image
         latents = (init_latents_orig*mask)+(latents*(1-mask))
 
-        # 10. Post-processing
-        image = self.decode_latents(latents)
+        if not output_type == "latent":
+            image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
+        else:
+            image = latents
+        has_nsfw_concept = None
 
-        # 11. Run safety checker
-        image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
-
-        # 12. Convert to PIL
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
+        do_denormalize = [True]*image.shape[0]
+        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         # Offload last model to CPU
         if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
