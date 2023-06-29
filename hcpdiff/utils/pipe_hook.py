@@ -5,6 +5,7 @@ import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipelineLegacy
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_inpaint_legacy import preprocess_mask, preprocess_image
+from einops import repeat
 
 class HookPipe_T2I(StableDiffusionPipeline):
     @property
@@ -201,6 +202,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
 
         # 4. Preprocess image
         image = self.image_processor.preprocess(image)
+        image = repeat(image, 'n ... -> (n b) ...', b=batch_size)
 
         # 5. set timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
