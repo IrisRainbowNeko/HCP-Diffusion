@@ -29,7 +29,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
         negative_prompt_embeds: Optional[torch.FloatTensor] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
-        callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
+        callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs
@@ -123,7 +123,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 if i == len(timesteps)-1 or ((i+1)>num_warmup_steps and (i+1)%self.scheduler.order == 0):
                     progress_bar.update()
                     if callback is not None and i%callback_steps == 0:
-                        callback(i, t, latents_x0)
+                        callback(i, t, timesteps, latents_x0)
 
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
@@ -163,7 +163,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
         negative_prompt_embeds: Optional[torch.FloatTensor] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
-        callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
+        callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs
@@ -246,7 +246,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
                 if i == len(timesteps)-1 or ((i+1)>num_warmup_steps and (i+1)%self.scheduler.order == 0):
                     progress_bar.update()
                     if callback is not None and i%callback_steps == 0:
-                        callback(i, t, latents_x0)
+                        callback(i, t, timesteps, latents_x0)
 
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
@@ -293,7 +293,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         negative_prompt_embeds: Optional[torch.FloatTensor] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
-        callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
+        callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
         **kwargs
     ):
@@ -391,7 +391,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
                 if i == len(timesteps)-1 or ((i+1)>num_warmup_steps and (i+1)%self.scheduler.order == 0):
                     progress_bar.update()
                     if callback is not None and i%callback_steps == 0:
-                        callback(i, t, latents_x0)
+                        callback(i, t, timesteps, latents_x0)
 
         # use original latents corresponding to unmasked portions of the image
         latents = (init_latents_orig*mask)+(latents*(1-mask))

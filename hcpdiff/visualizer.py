@@ -220,14 +220,14 @@ class Visualizer:
                                generator=G, **kwargs).images
         return images
 
-    def inter_callback(self, i, t, latents):
+    def inter_callback(self, i, t, num_t, latents):
         images = None
         for interface in self.cfgs.interface:
             if interface.show_steps>0 and i%interface.show_steps == 0:
                 if self.need_inter_imgs and images is None:
                     images = self.pipe.decode_latents(latents)
                     images = self.pipe.numpy_to_pil(images)
-                interface.on_inter_step(i, self.cfgs.infer_args.num_inference_steps, t, latents, images)
+                interface.on_inter_step(i, num_t, t, latents, images)
 
     def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds:List[int]=None):
         for interface in self.cfgs.interface:
