@@ -14,5 +14,10 @@ def main():
         shutil.copytree(os.path.join(prefix, 'hcpdiff/cfgs'), r'./cfgs')
         shutil.copytree(os.path.join(prefix, 'hcpdiff/prompt_tuning_template'), r'./prompt_tuning_template')
     except:
-        shutil.copytree(os.path.join(prefix, '../hcpdiff/cfgs'), r'./cfgs')
-        shutil.copytree(os.path.join(prefix, '../hcpdiff/prompt_tuning_template'), r'./prompt_tuning_template')
+        try:
+            shutil.copytree(os.path.join(prefix, '../hcpdiff/cfgs'), r'./cfgs')
+            shutil.copytree(os.path.join(prefix, '../hcpdiff/prompt_tuning_template'), r'./prompt_tuning_template')
+        except:
+            this_file_dir = os.path.dirname(os.path.abspath(__file__))
+            shutil.copytree(os.path.join(this_file_dir, '../../cfgs'), r'./cfgs')
+            shutil.copytree(os.path.join(this_file_dir, '../../prompt_tuning_template'), r'./prompt_tuning_template')
