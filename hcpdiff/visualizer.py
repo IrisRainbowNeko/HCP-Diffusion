@@ -55,35 +55,16 @@ class Visualizer:
             self.save_model(self.cfgs.save_model)
             os._exit(0)
 
+        self.build_optimize()
+
+    def build_optimize(self):
         if self.offload:
             self.build_offload(self.cfgs.offload)
         else:
             self.pipe.unet.to('cuda')
-            if self.need_inter_imgs:
-                self.pipe.vae.to('cuda')
-            else:
-                def vae_decode_offload(latents, return_dict=True, decode_raw=self.pipe.vae.decode):
-                    to_cpu(self.pipe.unet)
+        self.build_vae_offload()
 
-                    self.pipe.vae.to('cuda')
-                    res = decode_raw(latents, return_dict=return_dict)
-                    to_cpu(self.pipe.vae)
-
-                    self.pipe.unet.to('cuda')
-                    return res
-
-                self.pipe.vae.decode = vae_decode_offload
-
-                if isinstance(self.pipe, HookPipe_I2I) or isinstance(self.pipe, HookPipe_Inpaint):
-                    def prepare_latents_offload(*args, prepare_latents_raw=self.pipe.prepare_latents):
-                        self.pipe.vae.to('cuda')
-                        res = prepare_latents_raw(*args)
-                        self.pipe.vae.to('cpu')
-                        return res
-
-                    self.pipe.prepare_latents = prepare_latents_offload
-
-        emb, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
+        self.emb_hook, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
         self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
         UnetHook(self.pipe.unet)
@@ -127,21 +108,34 @@ class Visualizer:
             device_map = infer_auto_device_map(self.pipe.vae, max_memory={0:int_to_size(vram >> 5), "cpu":offload_cfg.max_RAM}, dtype=self.dtype)
             self.pipe.vae = dispatch_model(self.pipe.vae, device_map)
 
-        def decode_latents_offload(latents, decode_latents_raw=self.pipe.decode_latents):
-            to_cpu(self.pipe.unet)
-
-            if offload_cfg.vae_cpu:
-                self.pipe.vae.to(dtype=torch.float32)
-                res = decode_latents_raw(latents.cpu().to(dtype=torch.float32))
-            else:
+    def build_vae_offload(self):
+        def vae_decode_offload(latents, return_dict=True, decode_raw=self.pipe.vae.decode):
+            if self.need_inter_imgs:
                 to_cuda(self.pipe.vae)
-                res = decode_latents_raw(latents)
+                res = decode_raw(latents, return_dict=return_dict)
+            else:
+                to_cpu(self.pipe.unet)
 
-            to_cpu(self.pipe.vae)
-            to_cuda(self.pipe.unet)
+                if self.offload and self.cfgs.offload.vae_cpu:
+                    self.pipe.vae.to(dtype=torch.float32)
+                    res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
+                else:
+                    to_cuda(self.pipe.vae)
+                    res = decode_raw(latents, return_dict=return_dict)
+
+                to_cpu(self.pipe.vae)
+                to_cuda(self.pipe.unet)
             return res
 
-        self.pipe.decode_latents = decode_latents_offload
+        self.pipe.vae.decode = vae_decode_offload
+
+        def vae_encode_offload(x, return_dict=True, encode_raw=self.pipe.vae.encode):
+            to_cuda(self.pipe.vae)
+            res = encode_raw(x, return_dict=return_dict)
+            to_cpu(self.pipe.vae)
+            return res
+
+        self.pipe.vae.encode = vae_encode_offload
 
     def merge_model(self):
         if 'plugin_cfg' in self.cfg_merge:  # Build plugins
