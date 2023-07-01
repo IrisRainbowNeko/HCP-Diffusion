@@ -177,6 +177,8 @@ def _convert_cuda(t):
 
 def to_cpu(model):
     model._apply(_convert_cpu)
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
 
 def to_cuda(model):
     model._apply(_convert_cuda)

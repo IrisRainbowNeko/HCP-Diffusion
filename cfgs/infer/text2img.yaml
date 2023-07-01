@@ -26,6 +26,11 @@ offload: null
 #  max_RAM: 30GiB
 #  vae_cpu: False
 
+#vae_optimize: null
+vae_optimize:
+  tiling: True
+  slicing: False
+
 interface:
   - _target_: hcpdiff.vis.DiskInterface
     show_steps: 0

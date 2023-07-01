@@ -101,7 +101,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 noise_pred = self.unet(
                     latent_model_input,
                     t,
-                    encoder_hidden_states=prompt_embeds,
+                    prompt_embeds,
                     cross_attention_kwargs=cross_attention_kwargs,
                 ).sample
 
@@ -225,7 +225,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
                 noise_pred = self.unet(
                     latent_model_input,
                     t,
-                    encoder_hidden_states=prompt_embeds,
+                    prompt_embeds,
                     cross_attention_kwargs=cross_attention_kwargs,
                 ).sample
 
@@ -359,7 +359,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
                 # predict the noise residual
-                noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=prompt_embeds).sample
+                noise_pred = self.unet(latent_model_input, t, prompt_embeds).sample
 
                 # perform guidance
                 if do_classifier_free_guidance:

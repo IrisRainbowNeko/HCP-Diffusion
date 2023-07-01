@@ -1,32 +1,24 @@
 import argparse
 import os
+import random
 import sys
 from typing import List
 
 import hydra
 import numpy as np
 import torch
-import random
 from PIL import Image
 from accelerate import infer_auto_device_map, dispatch_model
 from diffusers import UNet2DConditionModel
 from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.import_utils import is_xformers_available
+from torch.cuda.amp import autocast
+
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
-from torch.cuda.amp import autocast
-
-class UnetHook():  # for controlnet
-    def __init__(self, unet):
-        self.unet = unet
-        self.call_raw = UNet2DConditionModel.__call__
-        UNet2DConditionModel.__call__ = self.unet_call
-
-    def unet_call(self, sample, timestep, encoder_hidden_states, **kwargs):
-        return self.call_raw(self.unet, sample, timestep, encoder_hidden_states)
 
 class Visualizer:
     dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16}
@@ -64,10 +56,16 @@ class Visualizer:
             self.pipe.unet.to('cuda')
         self.build_vae_offload()
 
-        self.emb_hook, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder, N_repeats=self.cfgs.N_repeats)
+        if getattr(self.cfgs, 'vae_optimize', None) is not None:
+            if self.cfgs.vae_optimize.tiling:
+                self.pipe.vae.enable_tiling()
+            if self.cfgs.vae_optimize.slicing:
+                self.pipe.vae.enable_slicing()
+
+        self.emb_hook, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
+                                                         N_repeats=self.cfgs.N_repeats)
         self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
-        UnetHook(self.pipe.unet)
 
         if is_xformers_available():
             self.pipe.unet.enable_xformers_memory_efficient_attention()
@@ -188,7 +186,7 @@ class Visualizer:
         return ex_input_dict, pipe_input_dict
 
     @torch.no_grad()
-    def vis_images(self, prompt, negative_prompt='', seeds:List[int]=None, **kwargs):
+    def vis_images(self, prompt, negative_prompt='', seeds: List[int] = None, **kwargs):
         G = prepare_seed(seeds or [None]*len(prompt))
 
         ex_input_dict, pipe_input_dict = self.get_ex_input()
@@ -223,12 +221,12 @@ class Visualizer:
                     images = self.pipe.numpy_to_pil(images)
                 interface.on_inter_step(i, num_t, t, latents, images)
 
-    def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds:List[int]=None):
+    def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None):
         for interface in self.cfgs.interface:
             interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw if save_cfg else None, seeds=seeds)
 
-    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, seeds:List[int]=None, **kwargs):
-        seeds = [s or random.randint(0, 1<<30) for s in seeds]
+    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None, **kwargs):
+        seeds = [s or random.randint(0, 1 << 30) for s in seeds]
 
         images = self.vis_images(prompt, negative_prompt, seeds=seeds, **kwargs)
         self.save_images(images, prompt, negative_prompt, save_cfg=save_cfg, seeds=seeds)
