@@ -6,6 +6,8 @@ import torch
 import math
 from omegaconf import OmegaConf
 
+OmegaConf.register_new_resolver("times", lambda a, b: a*b)
+
 size_mul = {'K': 1<<10, 'M':1<<20, 'G':1<<30, 'T':1<<40}
 size_key = 'TGMK'
 
@@ -38,22 +40,28 @@ def low_rank_approximate(weight, rank, clamp_quantile=0.99):
         Vh = Vh.reshape(Vh.shape[0], in_ch, k1, k2)
     return U, Vh
 
-def load_config(path):
+def remove_config_undefined(cfg):
+    for k in OmegaConf.missing_keys(cfg):
+        exec(f'del cfg.{k}')
+    return cfg
+
+def load_config(path, remove_undefined=True):
     cfg = OmegaConf.load(path)
     if '_base_' in cfg:
         for base in cfg['_base_']:
             cfg = OmegaConf.merge(load_config(base), cfg)
         del cfg['_base_']
+    if remove_undefined:
+        cfg = remove_config_undefined(cfg)
     return cfg
 
-def load_config_with_cli(path, args_list=None):
-    cfg = load_config(path)
+def load_config_with_cli(path, args_list=None, remove_undefined=True):
+    cfg = load_config(path, remove_undefined=False)
     cfg_cli = OmegaConf.from_cli(args_list)
     cfg = OmegaConf.merge(cfg, cfg_cli)
+    if remove_undefined:
+        cfg = remove_config_undefined(cfg)
     return cfg
-
-def _default(v, default):
-    return default if v is None else v
 
 def get_cfg_range(cfg_text:str):
     dy_cfg_f='ln'
