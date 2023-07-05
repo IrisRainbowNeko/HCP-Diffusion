@@ -49,7 +49,7 @@ def load_config(path, remove_undefined=True):
     cfg = OmegaConf.load(path)
     if '_base_' in cfg:
         for base in cfg['_base_']:
-            cfg = OmegaConf.merge(load_config(base), cfg)
+            cfg = OmegaConf.merge(load_config(base, remove_undefined=False), cfg)
         del cfg['_base_']
     if remove_undefined:
         cfg = remove_config_undefined(cfg)
