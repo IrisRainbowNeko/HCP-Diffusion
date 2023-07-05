@@ -214,12 +214,15 @@ class Visualizer:
 
     def inter_callback(self, i, t, num_t, latents):
         images = None
+        interrupt = False
         for interface in self.cfgs.interface:
             if interface.show_steps>0 and i%interface.show_steps == 0:
                 if self.need_inter_imgs and images is None:
                     images = self.pipe.decode_latents(latents)
                     images = self.pipe.numpy_to_pil(images)
-                interface.on_inter_step(i, num_t, t, latents, images)
+                feed_back = interface.on_inter_step(i, num_t, t, latents, images)
+                interrupt |= bool(feed_back)
+        return interrupt
 
     def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None):
         for interface in self.cfgs.interface:
