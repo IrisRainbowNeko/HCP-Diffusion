@@ -1,4 +1,7 @@
-_base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml, cfgs/train/dataset/base_dataset.yaml]
+_base_:
+  - cfgs/train/dataset/base_dataset.yaml
+  - cfgs/train/train_base.yaml
+  - cfgs/train/tuning_base.yaml
 
 lora_unet:
   -
