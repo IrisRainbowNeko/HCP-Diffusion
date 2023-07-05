@@ -98,7 +98,7 @@ data:
         caption_file: null # path to image captions (file_words)
         att_mask: null
 
-        word_names: ??? # remove unused item
+        word_names: --- # remove unused item
         tag_transforms:
           transforms: # without TagShuffle and TagDropout. | 去掉 TagShuffle 和 TagDropout.
             - _target_: hcpdiff.utils.caption_tools.TemplateFill

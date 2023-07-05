@@ -4,14 +4,14 @@ _base_: [cfgs/train/examples/fine-tuning.yaml]
 
 train:
   optimizer:
-    type: ??? # remove unused item
+    type: --- # remove unused item
     _target_: lion_pytorch.Lion
     _partial_: True
     weight_decay: 1e-2
     #use_triton: True # set this to True to use cuda kernel w/ Triton lang (Tillet et al)
 
   optimizer_pt:
-    type: ???
+    type: ---
     _target_: lion_pytorch.Lion
     _partial_: True
     weight_decay: 1e-3

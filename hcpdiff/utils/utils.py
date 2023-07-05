@@ -1,10 +1,10 @@
 import random
-from typing import Tuple, List
+from typing import Tuple, List, Iterable, Any
 
 import re
 import torch
 import math
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, ListConfig
 
 OmegaConf.register_new_resolver("times", lambda a, b: a*b)
 
@@ -41,8 +41,16 @@ def low_rank_approximate(weight, rank, clamp_quantile=0.99):
     return U, Vh
 
 def remove_config_undefined(cfg):
-    for k in OmegaConf.missing_keys(cfg):
-        exec(f'del cfg.{k}')
+    itr: Iterable[Any] = range(len(cfg)) if isinstance(cfg, ListConfig) else cfg
+
+    undefined_keys = []
+    for key in itr:
+        if cfg._get_child(key) == '---':
+            undefined_keys.append(key)
+        elif OmegaConf.is_config(cfg[key]):
+            remove_config_undefined(cfg[key])
+    for key in undefined_keys:
+        del cfg[key]
     return cfg
 
 def load_config(path, remove_undefined=True):
