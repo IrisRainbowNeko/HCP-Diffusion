@@ -10,7 +10,7 @@ from diffusers import StableDiffusionPipeline
 from tqdm.auto import tqdm
 
 class DatasetCreator:
-    def __init__(self, pretrained_model):
+    def __init__(self, pretrained_model, out_dir: str, img_w: int=512, img_h: int=512):
         self.pipeline = StableDiffusionPipeline.from_pretrained(pretrained_model, torch_dtype=torch.float16)
         self.pipeline.requires_safety_checker = False
         self.pipeline.safety_checker = None
@@ -18,9 +18,13 @@ class DatasetCreator:
         self.pipeline.unet.to(memory_format=torch.channels_last)
         self.pipeline.enable_xformers_memory_efficient_attention()
 
-    def create_from_prompt_dataset(self, prompt_file: str, negative_prompt: str, out_dir: str, bs: int, num: int,
+        self.out_dir = out_dir
+        self.img_w = img_w
+        self.img_h = img_h
+
+    def create_from_prompt_dataset(self, prompt_file: str, negative_prompt: str, bs: int, num: int,
                                    callback: Callable[[int, int], bool] = None):
-        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(self.out_dir, exist_ok=True)
         data = pq.read_table(prompt_file).to_batches(bs)
 
         count = 0
@@ -29,17 +33,18 @@ class DatasetCreator:
         with torch.inference_mode():
             for i in tqdm(range(num)):
                 p_batch = data[i][0].to_pylist()
-                imgs = self.pipeline(p_batch, negative_prompt=[negative_prompt]*len(p_batch)).images
+                imgs = self.pipeline(p_batch, negative_prompt=[negative_prompt]*len(p_batch), width=self.img_w, height=self.img_h).images
                 for prompt, img in zip(p_batch, imgs):
-                    img.resize((512, 512), Image.BILINEAR).save(os.path.join(out_dir, f'{count}.png'), format='PNG')
+                    img.save(os.path.join(self.out_dir, f'{count}.png'), format='PNG')
                     captions[f'{count}.png'] = prompt
                     count += 1
                 if callback:
                     if not callback(count, total):
                         break
 
-        with open(os.path.join(out_dir, f'image_captions.json'), "w") as f:
+        with open(os.path.join(self.out_dir, f'image_captions.json'), "w") as f:
             json.dump(captions, f)
+            import huggingface_hub.utils._validators
 
     @staticmethod
     def split_batch(data, bs):
@@ -55,7 +60,9 @@ if __name__ == '__main__':
                         default='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry')
     parser.add_argument('--num', type=int, default=200)
     parser.add_argument('--bs', type=int, default=4)
+    parser.add_argument('--img_w', type=int, default=512)
+    parser.add_argument('--img_h', type=int, default=512)
     args = parser.parse_args()
 
-    ds_creator = DatasetCreator(args.model)
-    ds_creator.create_from_prompt_dataset(args.prompt_file, args.negative_prompt, args.out_dir, args.bs, args.num)
+    ds_creator = DatasetCreator(args.model, args.out_dir, args.img_w, args.img_h)
+    ds_creator.create_from_prompt_dataset(args.prompt_file, args.negative_prompt, args.bs, args.num)
