@@ -100,12 +100,11 @@ class VisualizerReloadable(Visualizer):
             return True
         return False
 
-    def reload_model_pipe(self) -> bool:
+    def reload_model(self) -> bool:
         pipeline = self.get_pipeline()
-        if self.cfgs.pretrained_model!=self.cfgs_old.pretrained_model or type(self.pipe)!=pipeline or self.part_plugin_changed():
+        if self.cfgs.pretrained_model!=self.cfgs_old.pretrained_model or self.part_plugin_changed():
             comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
                                         torch_dtype=self.dtype).components
-
             if 'vae' in self.cfgs.new_components:
                 self.cfgs.new_components.vae = hydra.utils.instantiate(self.cfgs.new_components.vae)
             comp.update(self.cfgs.new_components)
@@ -116,6 +115,14 @@ class VisualizerReloadable(Visualizer):
             self.build_optimize()
             return True
         return False
+
+    def reload_pipe(self) -> bool:
+        pipeline = self.get_pipeline()
+        if type(self.pipe)!=pipeline:
+            self.pipe = pipeline(**self.pipe.components)
+            return True
+        return False
+
 
     def reload_scheduler(self) -> bool:
         if 'scheduler' in self.cfgs_raw_old.new_components and 'scheduler' not in self.cfgs_raw.new_components:
@@ -193,7 +200,7 @@ class VisualizerReloadable(Visualizer):
 
         self.need_inter_imgs = any(item.need_inter_imgs for item in self.cfgs.interface)
 
-        is_model_reload = self.reload_model_pipe()
+        is_model_reload = self.reload_model()
         if not is_model_reload:
             is_vae_reload = self.reload_vae()
             if is_vae_reload:
@@ -203,6 +210,7 @@ class VisualizerReloadable(Visualizer):
             self.reload_offload()
             self.reload_emb_hook()
             self.reload_te_hook()
+            self.reload_pipe()
 
         if getattr(self.cfgs, 'vae_optimize', None) is not None:
             if self.cfgs.vae_optimize.tiling:
