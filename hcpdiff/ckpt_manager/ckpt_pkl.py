@@ -32,7 +32,7 @@ class CkptManagerPKL:
         if key is None:
             return state
         else:
-            return {k: v for k, v in state.items() if key in k}
+            return {k: v for k, v in state.items() if key not in k}
 
     def save_model(self, model: nn.Module, name, step, model_ema=None, exclude_key=None):
         sd_model = {
