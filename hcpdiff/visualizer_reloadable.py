@@ -5,8 +5,57 @@ from hcpdiff.models import EmbeddingPTHook
 import hydra
 from diffusers import AutoencoderKL, PNDMScheduler
 import torch
+from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
+from hcpdiff.utils import load_config, hash_str
+from copy import deepcopy
 
 class VisualizerReloadable(Visualizer):
+    def __init__(self, cfgs):
+        self.lora_dict = {}
+        self.part_plugin_cfg_set = set()
+        super().__init__(cfgs)
+
+    def _merge_model(self, cfg_merge):
+        if 'plugin_cfg' in cfg_merge:  # Build plugins
+            plugin_cfg = hydra.utils.instantiate(load_config(cfg_merge.plugin_cfg))
+            make_plugin(self.pipe.unet, plugin_cfg.plugin_unet)
+            make_plugin(self.pipe.text_encoder, plugin_cfg.plugin_TE)
+
+        for cfg_group in cfg_merge.values():
+            if hasattr(cfg_group, 'type'):
+                if cfg_group.type == 'unet':
+                    lora_group = load_hcpdiff(self.pipe.unet, cfg_group)
+                elif cfg_group.type == 'TE':
+                    lora_group = load_hcpdiff(self.pipe.text_encoder, cfg_group)
+                else:
+                    raise ValueError(f'no host model type named {cfg_group.type}')
+
+                # record all lora plugin with its config hash
+                if not lora_group.empty():
+                    for cfg_lora, lora_plugin in zip(cfg_group.lora, lora_group.plugin_dict.values()):
+                        self.lora_dict[hash_str(OmegaConf.to_yaml(cfg_lora, resolve=True))] = lora_plugin
+
+                # record all part and plugin config hash
+                for cfg_part in getattr(cfg_group, "part", []):
+                    self.part_plugin_cfg_set.add(hash_str(OmegaConf.to_yaml(cfg_part, resolve=True)))
+                for cfg_plugin in getattr(cfg_group, "plugin", []):
+                    self.part_plugin_cfg_set.add(hash_str(OmegaConf.to_yaml(cfg_plugin, resolve=True)))
+
+    def merge_model(self):
+        self.part_plugin_cfg_set.clear()
+        self.lora_dict.clear()
+        self._merge_model(self.cfg_merge)
+
+    def part_plugin_changed(self):
+        if not self.cfg_merge:
+            return not self.cfg_same(self.cfg_merge, self.cfgs_old.merge)
+        part_plugin_cfg_set_new = set()
+        for cfg_group in self.cfg_merge.values():
+            for cfg_part in getattr(cfg_group, "part", []):
+                part_plugin_cfg_set_new.add(hash_str(OmegaConf.to_yaml(cfg_part, resolve=True)))
+            for cfg_plugin in getattr(cfg_group, "plugin", []):
+                part_plugin_cfg_set_new.add(hash_str(OmegaConf.to_yaml(cfg_plugin, resolve=True)))
+        return part_plugin_cfg_set_new !=  self.part_plugin_cfg_set
 
     @staticmethod
     def cfg_same(cfg1, cfg2):
@@ -53,7 +102,7 @@ class VisualizerReloadable(Visualizer):
 
     def reload_model_pipe(self) -> bool:
         pipeline = self.get_pipeline()
-        if self.cfgs.pretrained_model!=self.cfgs_old.pretrained_model or type(self.pipe)!=pipeline:
+        if self.cfgs.pretrained_model!=self.cfgs_old.pretrained_model or type(self.pipe)!=pipeline or self.part_plugin_changed():
             comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
                                         torch_dtype=self.dtype).components
 
@@ -93,6 +142,31 @@ class VisualizerReloadable(Visualizer):
             return True
         return False
 
+    def reload_lora(self):
+        cfg_merge = deepcopy(self.cfg_merge)
+        all_lora_hash = set()
+        for k, cfg_group in self.cfg_merge.items():
+            if 'part' in cfg_merge[k]:
+                del cfg_merge[k].part
+            if 'plugin' in cfg_merge[k]:
+                del cfg_merge[k].plugin
+
+            lora_add = []
+            for cfg_lora in getattr(cfg_group, "lora", []):
+                cfg_hash = hash_str(OmegaConf.to_yaml(cfg_lora, resolve=True))
+                if cfg_hash not in self.lora_dict:
+                    lora_add.append(cfg_lora)
+                    all_lora_hash.add(cfg_hash)
+            cfg_merge[k].lora = OmegaConf.create(lora_add)
+
+        lora_rm_set = set(self.lora_dict.keys())-all_lora_hash
+        for cfg_hash in lora_rm_set:
+            self.lora_dict[cfg_hash].remove()
+        for cfg_hash in lora_rm_set:
+            del self.lora_dict[cfg_hash]
+
+        self._merge_model(cfg_merge)
+
     def check_reload(self, cfgs):
         '''
         Reload and modify each module based on the changes of configuration file.
@@ -124,6 +198,7 @@ class VisualizerReloadable(Visualizer):
             is_vae_reload = self.reload_vae()
             if is_vae_reload:
                 self.build_vae_offload()
+            self.reload_lora()
             self.reload_scheduler()
             self.reload_offload()
             self.reload_emb_hook()

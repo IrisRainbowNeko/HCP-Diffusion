@@ -5,6 +5,7 @@ import re
 import torch
 import math
 from omegaconf import OmegaConf, ListConfig
+import hashlib
 
 OmegaConf.register_new_resolver("times", lambda a, b: a*b)
 
@@ -134,3 +135,6 @@ def int_to_size(size):
 
 def prepare_seed(seeds:List[int], device='cuda'):
     return [torch.Generator(device=device).manual_seed(s or random.randint(0, 1<<30)) for s in seeds]
+
+def hash_str(data):
+    return hashlib.sha256(data.encode('utf-8')).hexdigest()

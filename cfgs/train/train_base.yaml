@@ -34,11 +34,13 @@ train:
     type: 'eps' # 'eps' or 'sample'
 
   optimizer:
-    type: adamw
+    _target_: torch.optim.AdamW
+    _partial_: True
     weight_decay: 1e-3
 
   optimizer_pt:
-    type: adamw
+    _target_: torch.optim.AdamW
+    _partial_: True
     weight_decay: 5e-4
 
   scale_lr: True # auto scale lr with total batch size

@@ -19,5 +19,5 @@ scikit_learn
 torch
 torchvision
 tqdm
-transformers==4.25.1
+transformers>=4.25.1
 xformers
