@@ -28,6 +28,6 @@ class ControlNetProcessor:
 
         return image
 
-    def __call__(self, width, height, batch_size, device):
+    def __call__(self, width, height, batch_size, device, dtype):
         img = Image.open(self.image_path).convert('RGB')
-        return self.prepare_cond_image(img, width, height, batch_size, 'cuda')
+        return self.prepare_cond_image(img, width, height, batch_size, 'cuda').to(dtype=dtype)

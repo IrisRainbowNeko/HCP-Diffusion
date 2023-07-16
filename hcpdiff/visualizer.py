@@ -155,9 +155,9 @@ class Visualizer:
                 pipe_input_dict['image'] = Image.open(self.cfgs.condition.image).convert('RGB')
                 pipe_input_dict['mask_image'] = Image.open(self.cfgs.condition.mask).convert('L')
 
-            if getattr(self.cfgs, 'ex_input', None) is not None:
-                for key, processor in self.cfgs.ex_input.items():
-                    ex_input_dict[key] = processor(self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
+        if getattr(self.cfgs, 'ex_input', None) is not None:
+            for key, processor in self.cfgs.ex_input.items():
+                ex_input_dict[key] = processor(self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda', self.dtype)
         return ex_input_dict, pipe_input_dict
 
     @torch.no_grad()
