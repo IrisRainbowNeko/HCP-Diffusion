@@ -1,8 +1,9 @@
 _base_: [cfgs/infer/text2img.yaml]
 
-condition:
-  type: controlnet
-  image: 'cond_img.png'
+ex_input:
+  cond:
+    _target_: hcpdiff.data.data_processor.ControlNetProcessor
+    image: 'cond_img.png'
 
 merge:
   plugin_cfg: cfgs/plugins/plugin_controlnet.yaml

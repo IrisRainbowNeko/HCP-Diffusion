@@ -20,7 +20,7 @@ from sklearn.cluster import KMeans
 
 from hcpdiff.utils.img_size_tool import types_support, get_image_size
 from hcpdiff.utils.utils import get_file_ext
-from .utils import resize_crop_fix
+from .utils import resize_crop_fix, pad_crop_fix
 
 class BaseBucket:
     def __getitem__(self, idx):
@@ -59,13 +59,13 @@ class FixedBucket(BaseBucket):
         return len(self.file_names)
 
 class RatioBucket(BaseBucket):
-    def __init__(self, taget_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_arb: str = None):
+    def __init__(self, taget_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
         self.taget_area = taget_area
         self.step_size = step_size
         self.num_bucket = num_bucket
-        self.pre_build_arb = pre_build_arb
+        self.pre_build_bucket = pre_build_bucket
 
-    def load_arb(self, path):
+    def load_bucket(self, path):
         with open(path, 'rb') as f:
             data = pickle.load(f)
         self.buckets = data['buckets']
@@ -74,7 +74,7 @@ class RatioBucket(BaseBucket):
         self.idx_bucket_map = data['idx_bucket_map']
         self.data_len = data['data_len']
 
-    def save_arb(self, path):
+    def save_bucket(self, path):
         with open(path, 'wb') as f:
             pickle.dump({
                 'buckets':self.buckets,
@@ -103,7 +103,7 @@ class RatioBucket(BaseBucket):
         data_use = data[np.argsort(error_area)[:self.num_bucket*3], :]  # 取最小的num_bucket*3个
 
         # 聚类，选出指定个数的bucket
-        kmeans = KMeans(n_clusters=self.num_bucket, random_state=0).fit(data_use[:, 1].reshape(-1, 1))
+        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407).fit(data_use[:, 1].reshape(-1, 1))
         labels = kmeans.labels_
         self.buckets = []  # [bucket_id:[file_idx,...]]
         self.ratios_log = []
@@ -137,7 +137,7 @@ class RatioBucket(BaseBucket):
         ratio_list = np.array(ratio_list)
 
         # 聚类，选出指定个数的bucket
-        kmeans = KMeans(n_clusters=self.num_bucket, random_state=0).fit(ratio_list.reshape(-1, 1))
+        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407).fit(ratio_list.reshape(-1, 1))
         labels = kmeans.labels_
         self.ratios_log = kmeans.cluster_centers_.reshape(-1)
 
@@ -162,11 +162,11 @@ class RatioBucket(BaseBucket):
     def build(self, bs: int, img_root_list: List[str]):
         '''
         :param bs: batch_size * n_gpus * accumulation_step
-        :param pre_build_arb:
+        :param img_root_list:
         '''
         self.img_root_list = img_root_list
-        if self.pre_build_arb and os.path.exists(self.pre_build_arb):
-            self.load_arb(self.pre_build_arb)
+        if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
+            self.load_bucket(self.pre_build_bucket)
             return
         else:
             self.file_names = [os.path.join(img_root, x) for img_root in img_root_list for x in os.listdir(img_root)
@@ -184,8 +184,8 @@ class RatioBucket(BaseBucket):
             self.data_len += len(bucket)
             self.buckets[bidx] = np.array(bucket)
 
-        if self.pre_build_arb:
-            self.save_arb(self.pre_build_arb)
+        if self.pre_build_bucket:
+            self.save_bucket(self.pre_build_bucket)
 
     def rest(self, epoch):
         rs = np.random.RandomState(42+epoch)
@@ -198,29 +198,69 @@ class RatioBucket(BaseBucket):
         bucket_list = np.hstack(bucket_list).reshape(-1, self.bs).astype(int)
         rs.shuffle(bucket_list)
 
-        self.idx_arb = bucket_list.reshape(-1)
+        self.idx_bucket = bucket_list.reshape(-1)
 
     def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
         return resize_crop_fix(image, size, mask_interp=mask_interp)
 
     def __getitem__(self, idx):
-        fidx = self.idx_arb[idx]
-        bidx = self.idx_bucket_map[fidx]
-        return self.file_names[fidx], self.size_buckets[bidx]
+        file_idx = self.idx_bucket[idx]
+        bucket_idx = self.idx_bucket_map[file_idx]
+        return self.file_names[file_idx], self.size_buckets[bucket_idx]
 
     def __len__(self):
         return self.data_len
 
     @classmethod
     def from_ratios(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, ratio_max: float = 4,
-                    pre_build_arb: str = None):
-        arb = cls(target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+                    pre_build_bucket: str = None):
+        arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb.ratio_max = ratio_max
         arb._build = arb.build_buckets_from_ratios
         return arb
 
     @classmethod
-    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_arb: str = None):
-        arb = RatioBucket(target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+        arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
+        arb._build = arb.build_buckets_from_images
+        return arb
+
+class SizeBucket(RatioBucket):
+    def __init__(self, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+        super().__init__(step_size=step_size, num_bucket=num_bucket, pre_build_bucket=pre_build_bucket)
+
+    def build_buckets_from_images(self):
+        '''
+        根据图像尺寸聚类，不会resize图像，只有剪裁和填充操作。
+        '''
+        logger.info('build buckets from images size')
+        size_list = []
+        for i, file in enumerate(self.file_names):
+            w, h = get_image_size(file)
+            size_list.append([w, h])
+        size_list = np.array(size_list)
+
+        # 聚类，选出指定个数的bucket
+        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407).fit(size_list)
+        labels = kmeans.labels_
+        size_buckets = kmeans.cluster_centers_
+
+        # SD需要边长是8的倍数
+        self.size_buckets = (np.round(size_buckets/self.step_size)*self.step_size).astype(int)
+
+        self.buckets = []  # [bucket_id:[file_idx,...]]
+        self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
+        for bidx in range(self.num_bucket):
+            bnow = labels == bidx
+            self.buckets.append(np.where(bnow)[0].tolist())
+            self.idx_bucket_map[bnow] = bidx
+        logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+
+    def crop_resize(self, image, size):
+        return pad_crop_fix(image, size)
+
+    @classmethod
+    def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+        arb = cls(step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb

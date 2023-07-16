@@ -237,7 +237,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
     def get_ckpt_manager(path:str):
         return ckpt_manager_safe if path.endswith('.safetensors') else ckpt_manager_torch
 
-    if "lora" in cfg_merge and cfg_merge.lora is not None:
+    if getattr(cfg_merge, "lora", None) is not None:
         for lora_id, item in enumerate(cfg_merge.lora):
             lora_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
             lora_block_state = {}
@@ -274,7 +274,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                 lora_block.set_mask(getattr(item, 'mask', None))
                 lora_block.to(model.device)
 
-    if "part" in cfg_merge and cfg_merge.part is not None:
+    if getattr(cfg_merge, "part", None) is not None:
         for item in cfg_merge.part:
             part_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
             if item.layers == 'all':
@@ -286,7 +286,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                 for k, v in state_add.items():
                     named_params[k].data = cfg_merge.base_model_alpha * named_params[k].data + item.alpha * v
 
-    if "plugin" in cfg_merge and cfg_merge.plugin is not None:
+    if getattr(cfg_merge, "plugin", None) is not None:
         for name, item in cfg_merge.plugin.items():
             plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')
             if item.layers != 'all':

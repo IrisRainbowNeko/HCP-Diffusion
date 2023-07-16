@@ -1,4 +1,7 @@
-_base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml]
+_base_:
+  - cfgs/train/dataset/base_dataset.yaml
+  - cfgs/train/train_base.yaml
+  - cfgs/train/tuning_base.yaml
 
 tokenizer_pt:
   train: # prompt tuning embeddings, needs to be created in advance
@@ -29,15 +32,10 @@ data:
         img_root: 'imgs/'
         prompt_template: 'prompt_tuning_template/object.txt'
         caption_file: null # path to image captions (file_words)
-        tag_transforms:
-          transforms:
-            - _target_: hcpdiff.utils.caption_tools.TagShuffle
-            - _target_: hcpdiff.utils.caption_tools.TagDropout
-              p: 0.1
-            - _target_: hcpdiff.utils.caption_tools.TemplateFill
-              word_names:
-                pt1: pt-catgirl1
+
+        word_names:
+          pt1: pt-catgirl1
     bucket:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-      target_area: {_target_: "builtins.eval", _args_: ['512*512']}
-      num_bucket: 5
+      target_area: ${times:512,512}
+      num_bucket: 1

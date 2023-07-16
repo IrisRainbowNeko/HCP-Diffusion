@@ -5,12 +5,9 @@ import sys
 from typing import List
 
 import hydra
-import numpy as np
 import torch
 from PIL import Image
 from accelerate import infer_auto_device_map, dispatch_model
-from diffusers import UNet2DConditionModel
-from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.import_utils import is_xformers_available
 from torch.cuda.amp import autocast
 
@@ -89,8 +86,6 @@ class Visualizer:
         else:
             if self.cfgs.condition.type == 'i2i':
                 pipe_cls = HookPipe_I2I
-            elif self.cfgs.condition.type == 'controlnet':
-                pipe_cls = HookPipe_T2I
             elif self.cfgs.condition.type == 'inpaint':
                 pipe_cls = HookPipe_Inpaint
             else:
@@ -151,38 +146,18 @@ class Visualizer:
     def set_scheduler(self, scheduler):
         self.pipe.scheduler = scheduler
 
-    def prepare_cond_image(self, image, width, height, batch_size, device):
-        if not isinstance(image, torch.Tensor):
-            if isinstance(image, Image.Image):
-                image = [image]
-
-            if isinstance(image[0], Image.Image):
-                image = [
-                    np.array(i.resize((width, height), resample=PIL_INTERPOLATION["lanczos"]))[None, :] for i in image
-                ]
-                image = np.concatenate(image, axis=0)
-                image = np.array(image).astype(np.float32)/255.0
-                image = image.transpose(0, 3, 1, 2)
-                image = torch.from_numpy(image)
-            elif isinstance(image[0], torch.Tensor):
-                image = torch.cat(image, dim=0)
-
-        image = image.repeat_interleave(batch_size, dim=0)
-        image = image.to(device=device)
-
-        return image
-
     def get_ex_input(self):
         ex_input_dict, pipe_input_dict = {}, {}
         if self.cfgs.condition is not None:
             if self.cfgs.condition.type == 'i2i':
                 pipe_input_dict['image'] = Image.open(self.cfgs.condition.image).convert('RGB')
-            elif self.cfgs.condition.type == 'controlnet':
-                img = Image.open(self.cfgs.condition.image).convert('RGB')
-                ex_input_dict['cond'] = self.prepare_cond_image(img, self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda')
             elif self.cfgs.condition.type == 'inpaint':
                 pipe_input_dict['image'] = Image.open(self.cfgs.condition.image).convert('RGB')
                 pipe_input_dict['mask_image'] = Image.open(self.cfgs.condition.mask).convert('L')
+
+        if getattr(self.cfgs, 'ex_input', None) is not None:
+            for key, processor in self.cfgs.ex_input.items():
+                ex_input_dict[key] = processor(self.cfgs.infer_args.width, self.cfgs.infer_args.height, self.cfgs.bs*2, 'cuda', self.dtype)
         return ex_input_dict, pipe_input_dict
 
     @torch.no_grad()
@@ -214,12 +189,15 @@ class Visualizer:
 
     def inter_callback(self, i, t, num_t, latents):
         images = None
+        interrupt = False
         for interface in self.cfgs.interface:
             if interface.show_steps>0 and i%interface.show_steps == 0:
                 if self.need_inter_imgs and images is None:
                     images = self.pipe.decode_latents(latents)
                     images = self.pipe.numpy_to_pil(images)
-                interface.on_inter_step(i, num_t, t, latents, images)
+                feed_back = interface.on_inter_step(i, num_t, t, latents, images)
+                interrupt |= bool(feed_back)
+        return interrupt
 
     def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None):
         for interface in self.cfgs.interface:
