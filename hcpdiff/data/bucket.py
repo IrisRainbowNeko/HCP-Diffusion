@@ -213,15 +213,15 @@ class RatioBucket(BaseBucket):
 
     @classmethod
     def from_ratios(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, ratio_max: float = 4,
-                    pre_build_arb: str = None):
-        arb = cls(target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+                    pre_build_bucket: str = None):
+        arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb.ratio_max = ratio_max
         arb._build = arb.build_buckets_from_ratios
         return arb
 
     @classmethod
-    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_arb: str = None):
-        arb = cls(target_area, step_size, num_bucket, pre_build_arb=pre_build_arb)
+    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+        arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb
 
@@ -243,7 +243,7 @@ class SizeBucket(RatioBucket):
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407).fit(size_list)
         labels = kmeans.labels_
-        size_buckets = kmeans.cluster_centers_.reshape(-1)
+        size_buckets = kmeans.cluster_centers_
 
         # SD需要边长是8的倍数
         self.size_buckets = (np.round(size_buckets/self.step_size)*self.step_size).astype(int)
@@ -260,7 +260,7 @@ class SizeBucket(RatioBucket):
         return pad_crop_fix(image, size)
 
     @classmethod
-    def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_arb: str = None):
-        arb = cls(step_size, num_bucket, pre_build_arb=pre_build_arb)
+    def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+        arb = cls(step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb
