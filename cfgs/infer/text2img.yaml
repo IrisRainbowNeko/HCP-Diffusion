@@ -13,6 +13,8 @@ dtype: 'fp16'
 
 condition: null
 
+ex_input: {}
+
 save:
   save_cfg: True
   image_type: png
