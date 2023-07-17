@@ -150,6 +150,15 @@ class VisualizerReloadable(Visualizer):
         return False
 
     def reload_lora(self):
+        if self.cfg_merge is None:
+            if self.cfgs_old.merge is None:
+                return False
+            else:
+                for lora in self.lora_dict.values():
+                    lora.remove()
+                self.lora_dict.clear()
+                return True
+
         cfg_merge = deepcopy(self.cfg_merge)
         all_lora_hash = set()
         for k, cfg_group in self.cfg_merge.items():
