@@ -292,20 +292,24 @@ class Trainer:
         self.text_enc_hook = TEEXHook(self.text_encoder, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device,
                                       clip_skip=self.cfgs.model.clip_skip)
 
-    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
+    def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop('batch_size')
         cache_latents = data_builder.keywords.pop('cache_latents')
         self.batch_size_list.append(batch_size)
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         train_dataset.bucket.build(batch_size*self.world_size,
-                                   img_root_list=[source.img_root for source in data_builder.keywords['source'].values()])
+                                   img_root_list=[(source.img_root, source.repeat) for source in data_builder.keywords['source'].values()])
         arb = isinstance(train_dataset.bucket, RatioBucket)
         self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
 
         if cache_latents:
             self.cache_latents = True
             train_dataset.cache_latents(self.vae, self.weight_dtype, self.device, show_prog=self.is_local_main_process)
+        return train_dataset, batch_size, arb
+
+    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
+        train_dataset, batch_size, arb = self.build_dataset(data_builder)
 
         # Pytorch Data loader
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,

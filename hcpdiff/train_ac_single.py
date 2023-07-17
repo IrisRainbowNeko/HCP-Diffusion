@@ -46,23 +46,13 @@ class TrainerSingleCard(Trainer):
             setattr(self, name, obj)
 
     def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
-        batch_size = data_builder.keywords.pop('batch_size')
-        cache_latents = data_builder.keywords.pop('cache_latents')
-        self.batch_size_list.append(batch_size)
-
-        train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
-        train_dataset.bucket.build(batch_size*self.world_size,
-                                   img_root_list=[source.img_root for source in data_builder.keywords['source'].values()])
-        arb = isinstance(train_dataset.bucket, RatioBucket)
-        logger.info(f"len(train_dataset): {len(train_dataset)}")
-
-        if cache_latents:
-            self.cache_latents = True
-            train_dataset.cache_latents(self.vae, self.weight_dtype, self.device, show_prog=self.is_local_main_process)
+        train_dataset, batch_size, arb = self.build_dataset(data_builder)
 
         # Pytorch Data loader
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-                                                   num_workers=self.cfgs.train.workers, shuffle=not arb, collate_fn=train_dataset.collate_fn)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,
+                                                                        rank=self.local_rank, shuffle=not arb)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=self.cfgs.train.workers,
+                                                   sampler=train_sampler, collate_fn=train_dataset.collate_fn)
         return train_loader
 
     def encode_decode(self, prompt_ids, noisy_latents, timesteps, **kwargs):

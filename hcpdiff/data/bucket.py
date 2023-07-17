@@ -47,7 +47,10 @@ class FixedBucket(BaseBucket):
 
     def build(self, bs: int, img_root_list: List[str]):
         self.img_root_list = img_root_list
-        self.file_names = [os.path.join(img_root, x) for img_root in img_root_list for x in os.listdir(img_root) if get_file_ext(x) in types_support]
+        self.file_names = []
+        for img_root, repeat in img_root_list:
+            imgs = [os.path.join(img_root, x) for x in os.listdir(img_root) if get_file_ext(x) in types_support]
+            self.file_names.extend(imgs*repeat)
 
     def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
         return resize_crop_fix(image, size, mask_interp=mask_interp)
@@ -169,8 +172,10 @@ class RatioBucket(BaseBucket):
             self.load_bucket(self.pre_build_bucket)
             return
         else:
-            self.file_names = [os.path.join(img_root, x) for img_root in img_root_list for x in os.listdir(img_root)
-                if get_file_ext(x) in types_support]
+            self.file_names = []
+            for img_root, repeat in img_root_list:
+                imgs = [os.path.join(img_root, x) for x in os.listdir(img_root) if get_file_ext(x) in types_support]
+                self.file_names.extend(imgs*repeat)
         self._build()
 
         self.bs = bs

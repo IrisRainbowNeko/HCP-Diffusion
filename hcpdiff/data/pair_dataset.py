@@ -54,6 +54,7 @@ class TextImagePairDataset(Dataset):
             source_metas.image_transforms = data_source.image_transforms
             source_metas.tag_transforms = data_source.tag_transforms
             source_metas.bg_color = tuple(data_source.bg_color)
+            source_metas.repeat = getattr(data_source, 'repeat', 1)
 
             self.source_dict[os.path.dirname(data_source.img_root+'/')] = source_metas
 
