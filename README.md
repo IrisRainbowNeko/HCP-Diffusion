@@ -9,10 +9,10 @@
 [📘中文说明](./README_cn.md)
 
 ## Introduction
-HCP-Diffusion is a toolbox for stable diffusion models based on diffusers.
-It facilitates flexiable configurations and component support for training, in comparison with webui and sd-scripts.
+HCP-Diffusion is a toolbox for Stable Diffusion models based on [🤗 Diffusers](https://github.com/huggingface/diffusers).
+It facilitates flexiable configurations and component support for training, in comparison with [webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
 
-This toolbox supports **colossal-AI**, which can significantly reduce GPU memory usage.
+This toolbox supports [**Colossal-AI**](https://github.com/hpcaitech/ColossalAI), which can significantly reduce GPU memory usage.
 
 HCP-Diffusion can unify existing training methods for text-to-image generation (e.g., Prompt-tuning, Textual Inversion, DreamArtist, Fine-tuning, DreamBooth, LoRA, ControlNet, etc) and model structures through a single ```.yaml``` configuration file.
 
@@ -32,12 +32,13 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 * Word attention multiplier
 * Custom words that occupy multiple words
 * Maximum sentence length expansion
-* colossal-AI
-* xformers for unet and text-encoder
+* [🤗 Accelerate](https://github.com/huggingface/accelerate)
+* [Colossal-AI](https://github.com/hpcaitech/ColossalAI)
+* [xFormers](https://github.com/facebookresearch/xformers) for UNet and text-encoder
 * CLIP skip
 * Tag shuffle and dropout
-* safetensors support
-* Controlnet (support train)
+* [Safetensors](https://github.com/huggingface/safetensors) support
+* [Controlnet](https://github.com/lllyasviel/ControlNet) (support training)
 * Min-SNR loss
 * Custom optimizer (Lion, DAdaptation, pytorch-optimizer, ...)
 * Custom lr scheduler
@@ -60,19 +61,33 @@ pip install -e .
 ## hcpinit
 ```
 
+To use xFormers to reduce VRAM usage and accelerate training:
+```bash
+# use conda
+conda install xformers -c xformers
+
+# use pip
+pip install xfromers>=0.0.17
+```
+
 ## User guidance
 
-Training:
+### Training
+
+Training scripts based on 🤗 Accelerate or Colossal-AI are provided.
++ For 🤗 Accelerate, you may need to [configure the environment](https://github.com/huggingface/accelerate/tree/main#launching-script) before launching the scripts.
++ For Colossal-AI, you can use [torchrun](https://pytorch.org/docs/stable/elastic/run.html) to launch the scripts.
+
 ```yaml
-# with accelerate
+# with Accelerate
 accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/cfg_file.yaml
-# with accelerate and only one gpu
+# with Accelerate and only one GPU
 accelerate launch -m hcpdiff.train_ac_single --cfg cfgs/train/cfg_file.yaml
-# with colossal-AI
+# with Colossal-AI
 torchrun --nproc_per_node 1 -m hcpdiff.train_colo --cfg cfgs/train/cfg_file.yaml
 ```
 
-Inference:
+### Inference
 ```yaml
 python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrained_model_path \
         prompt='positive_prompt' \
@@ -80,7 +95,8 @@ python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrain
         seed=42
 ```
 
-The framework is based on diffusers. So it needs to convert the original stable diffusion model into a supported format using the [scripts provided by diffusers](https://github.com/huggingface/diffusers/blob/main/scripts/convert_original_stable_diffusion_to_diffusers.py).
+### Conversion of Stable Diffusion models
+The framework is based on 🤗 Diffusers. So it needs to convert the original Stable Diffusion model into a supported format using the [scripts provided by 🤗 Diffusers](https://github.com/huggingface/diffusers/blob/main/scripts/convert_original_stable_diffusion_to_diffusers.py).
 + Download the [config file](https://huggingface.co/runwayml/stable-diffusion-v1-5/blob/main/v1-inference.yaml)
 + Convert models based on config file
 
@@ -89,7 +105,7 @@ python -m hcpdiff.tools.sd2diffusers \
     --checkpoint_path "path_to_stable_diffusion_model" \
     --original_config_file "path_to_config_file" \
     --dump_path "save_directory" \
-    [--extract_ema] # Extract ema model
+    [--extract_ema] # Extract EMA model
     [--from_safetensors] # Whether the original model is in safetensors format
     [--to_safetensors] # Whether to save to safetensors format
 ```
@@ -103,25 +119,20 @@ python -m hcpdiff.tools.sd2diffusers \
     [--from_safetensors]
 ```
 
+### Tutorials
 + [Model Training Tutorial](doc/guide_train.md)
 + [DreamArtist++ Tutorial](doc/guide_DA.md)
 + [Model Inference Tutorial](doc/guide_infer.md)
 + [Configuration File Explanation](doc/guide_cfg.md)
 + [webui Model Conversion Tutorial](doc/guide_webui_lora.md)
 
-Use xformer to reduce VRAM usage and accelerate training:
-```bash
-# use conda
-conda install xformers -c xformers
+## Contributing
 
-# use pip
-pip install xfromers>=0.0.17
-```
+You are welcome to contribute more models and features to this toolbox!
 
 ## Team
 
 This toolbox is maintained by [HCP-Lab, SYSU](https://www.sysu-hcp.net/).
-More models and features are welcome to contribute to this toolbox.
 
 ## Citation
 
