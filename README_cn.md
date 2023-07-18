@@ -59,7 +59,7 @@ pip install -e .
 conda install xformers -c xformers
 
 # use pip
-pip install xfromers>=0.0.17
+pip install xformers>=0.0.17
 ```
 
 ## 使用教程
