@@ -216,8 +216,8 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='cfg/train/demo.yaml')
     parser.add_argument( "--placement", type=str, default="cpu",
         help="Placement Policy for Gemini. Valid when using colossalai as dist plan.")
-    args, _ = parser.parse_known_args()
+    args, cfg_args = parser.parse_known_args()
 
-    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:]) # skip --cfg
+    conf = load_config_with_cli(args.cfg, args_list=cfg_args) # skip --cfg
     trainer=TrainerColo(conf)
     trainer.train()
