@@ -16,6 +16,14 @@
 
 import argparse
 import os.path
+import sys
+
+if sys.version_info < (3, 8):
+    import importlib_metadata
+else:
+    import importlib.metadata as importlib_metadata
+
+from packaging.version import parse
 
 import diffusers.pipelines.stable_diffusion.convert_from_ckpt as convert_from_ckpt
 import torch
@@ -27,6 +35,7 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
     renew_vae_attention_paths,
     renew_vae_resnet_paths,
 )
+from diffusers.utils.import_utils import compare_versions
 from omegaconf import OmegaConf
 from transformers import CLIPTextModel
 
@@ -38,6 +47,26 @@ except:
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import load_pipeline_from_original_stable_diffusion_ckpt as load_sd_ckpt
 
 def convert_ldm_clip_checkpoint(checkpoint, local_files_only=False):
+    text_model = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14", local_files_only=local_files_only)
+
+    keys = list(checkpoint.keys())
+
+    text_model_dict = {}
+
+    add_prefix = 'cond_stage_model.transformer.embeddings.position_ids' in checkpoint
+
+    for key in keys:
+        if key.startswith("cond_stage_model.transformer"):
+            t_key = key[len("cond_stage_model.transformer."):]
+            if add_prefix:
+                t_key = 'text_model.'+t_key
+            text_model_dict[t_key] = checkpoint[key]
+
+    text_model.load_state_dict(text_model_dict)
+
+    return text_model
+
+def convert_ldm_clip_checkpoint_0_18(checkpoint, local_files_only=False, text_encoder=None):
     text_model = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14", local_files_only=local_files_only)
 
     keys = list(checkpoint.keys())
@@ -221,7 +250,11 @@ def convert_ckpt(args):
         pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
 
 if __name__ == "__main__":
-    convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint
+    diffusers_version = importlib_metadata.version("diffusers")
+    if compare_versions(parse(diffusers_version), '>=', '0.18.0'):
+        convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint_0_18
+    else:
+        convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint
 
     parser = argparse.ArgumentParser()
 
