@@ -1,34 +1,9 @@
-# base_state*base_model_alpha + (lora_state[i]*lora_scale[i]*lora_alpha[i]) + (part_state[k]*part_alpha[k])
+_base_: [cfgs/infer/text2img.yaml]
 
-pretrained_model: ''
-prompt: ''
-neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-out_dir: 'output/'
-emb_dir: 'embs/'
-N_repeats: 1
-clip_skip: 0
-bs: 4
-num: 1
-seed: null
-fp16: True
-
-condition:
-  type: controlnet
-  image: 'cond_img.png'
-
-save:
-  save_cfg: True
-  image_type: png
-  quality: 95
-#  image_type: webp
-#  quality: 75
-
-infer_args:
-  width: 512
-  height: 512
-  num_inference_steps: 30
-
-new_components: {}
+ex_input:
+  cond:
+    _target_: hcpdiff.data.data_processor.ControlNetProcessor
+    image: 'cond_img.png'
 
 merge:
   plugin_cfg: cfgs/plugins/plugin_controlnet.yaml

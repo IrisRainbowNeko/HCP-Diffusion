@@ -1,4 +1,4 @@
-_base_: [cfgs/infer/v1.yaml]
+_base_: [cfgs/infer/text2img.yaml]
 
 new_components:
   scheduler:
@@ -6,22 +6,3 @@ new_components:
     beta_start: 0.00085
     beta_end: 0.012
     beta_schedule: 'scaled_linear'
-
-merge: # can be null
-
-  group1:
-    lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-    part:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-
-  group2:
-    lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
-        alpha: ${....alpha}
-        layers: 'all'
-    part: null

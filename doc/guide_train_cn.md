@@ -11,23 +11,13 @@ HCP-Diffusion可以通过```.yaml```配置文件，配置各种训练阶段可�
 
 配置文件中的值，可以在cli中修改:
 ```bash
-accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/配置文件.yaml data.batch_size=2 seed=1919810
+accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/配置文件.yaml data.dataset1.batch_size=2 seed=1919810
 ```
 
 # 数据集配置
 
-数据的配置包含下面几条:
-```yaml
-data:
-  batch_size: 4 # 这一部分数据的batch_size
-  prompt_template: 'prompt_tuning_template/object.txt' # prompt填充模板，配合caption与自定义词使用
-  caption_file: null # 描述文件(tags)的路径
-  cache_latents: True # 是否在训练前将图像用VAE编码缓存
-  att_mask: null # attention mask所在目录
-  image_transforms: null # 图像变换与数据增强
-  tag_transforms: null # prompt变换与数据增强，填充模板
-  bucket: null # 图像数据的提供者，描述图像的排列与组合方式
-```
+可以定义多个并行数据集，每个数据集都可以有多个数据源。每步训练会从所有数据集中各抽取一个batch一起训练。
+每个数据集中所有数据源会有该数据集的bucket统一处理，并按顺序迭代。 [详细说明](guide_cfg_cn.md#%E6%95%B0%E6%8D%AE%E9%9B%86%E8%AE%BE%E7%BD%AE)
 
 如果已有针对每个图片的```.txt```标注，可以通过下面的命令转换成```.json```标注:
 ```yaml
@@ -43,14 +33,15 @@ Bucket可以将图像分组排列组合，把具有相同特性的图像放入�
     + from ratios: 根据给定的宽高比范围，自动筛选出和目标尺寸最接近的n个不同宽高比的bucket。
     + from_images: 根据训练用到的图像自动对宽高比进行聚类，选出与目标尺寸最接近的n个bucket。
 
-## 添加先验数据集 (借鉴DreamBooth)
-先验数据集在配置文件中为```data_class```，所有设置与```data```一致。
-可以以DreamBooth的方法使用，或是让模型学习一些自己生成的图像，保留原有生成能力。
+## 添加正则化数据集
+正则化数据集可以用于DreamBooth，或是让模型学习一些自己生成的图像，保留原有生成能力。
 
 可以从prompt数据库中随机抽取，生成图像，作为这一部分数据。
 ```bash
 python -m hcpdiff.tools.gen_from_ptlist --model 预训练模型 --prompt_file prompt数据库.parquet --out_dir 图像输出路径
 ```
+
+prompt数据库可以从这里选一个: [prompt数据库](https://huggingface.co/datasets/7eu7d7/HCP-Diffusion-datas/tree/main)
 
 ## prompt模板使用 (配合tag_transforms)
 prompt模板可以在训练阶段将其中的占位符替换成指定的文本。
@@ -146,9 +137,9 @@ lora_text_encoder: ...
 
 attention mask和原始图像应放置于不同文件夹中，并且有着相同的文件名。
 
-attention mask是一个灰度图，其灰度值与注意力倍率如下图所示。
+attention mask是一个灰度图，其亮度值与注意力倍率如下图所示。
 
-| 灰度  | 0% | 25% | 50%  | 75%  | 100% |
+| 亮度  | 0% | 25% | 50%  | 75%  | 100% |
 |-----|----|-----|------|------|------|
 | 倍率  | 0% | 50% | 100% | 300% | 500% |
 

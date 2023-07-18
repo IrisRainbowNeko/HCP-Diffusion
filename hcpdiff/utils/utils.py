@@ -1,9 +1,16 @@
-from typing import Tuple
+import random
+from typing import Tuple, List, Iterable, Any
 
 import re
 import torch
 import math
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, ListConfig
+import hashlib
+
+OmegaConf.register_new_resolver("times", lambda a, b: a*b)
+
+size_mul = {'K': 1<<10, 'M':1<<20, 'G':1<<30, 'T':1<<40}
+size_key = 'TGMK'
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
@@ -34,22 +41,36 @@ def low_rank_approximate(weight, rank, clamp_quantile=0.99):
         Vh = Vh.reshape(Vh.shape[0], in_ch, k1, k2)
     return U, Vh
 
-def load_config(path):
+def remove_config_undefined(cfg):
+    itr: Iterable[Any] = range(len(cfg)) if isinstance(cfg, ListConfig) else cfg
+
+    undefined_keys = []
+    for key in itr:
+        if cfg._get_child(key) == '---':
+            undefined_keys.append(key)
+        elif OmegaConf.is_config(cfg[key]):
+            remove_config_undefined(cfg[key])
+    for key in undefined_keys:
+        del cfg[key]
+    return cfg
+
+def load_config(path, remove_undefined=True):
     cfg = OmegaConf.load(path)
     if '_base_' in cfg:
         for base in cfg['_base_']:
-            cfg = OmegaConf.merge(load_config(base), cfg)
+            cfg = OmegaConf.merge(load_config(base, remove_undefined=False), cfg)
         del cfg['_base_']
+    if remove_undefined:
+        cfg = remove_config_undefined(cfg)
     return cfg
 
-def load_config_with_cli(path, args_list=None):
-    cfg = load_config(path)
+def load_config_with_cli(path, args_list=None, remove_undefined=True):
+    cfg = load_config(path, remove_undefined=False)
     cfg_cli = OmegaConf.from_cli(args_list)
     cfg = OmegaConf.merge(cfg, cfg_cli)
+    if remove_undefined:
+        cfg = remove_config_undefined(cfg)
     return cfg
-
-def _default(v, default):
-    return default if v is None else v
 
 def get_cfg_range(cfg_text:str):
     dy_cfg_f='ln'
@@ -103,3 +124,17 @@ def mgcd(*args):
     for s in args[1:]:
         g = math.gcd(g, s)
     return g
+
+def size_to_int(size):
+    return int(size[:-3]) * size_mul[size[-3]]
+
+def int_to_size(size):
+    for i,k in zip(range(40, 0, -10), size_key):
+        if size >= 1<<i:
+            return f'{size>>i}{k}iB'
+
+def prepare_seed(seeds:List[int], device='cuda'):
+    return [torch.Generator(device=device).manual_seed(s or random.randint(0, 1<<30)) for s in seeds]
+
+def hash_str(data):
+    return hashlib.sha256(data.encode('utf-8')).hexdigest()

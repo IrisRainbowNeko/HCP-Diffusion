@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Optional, Union
 
 import torch
@@ -124,7 +125,11 @@ def remove_layers(model: nn.Module, layer_class):
             del v
 
 def load_emb(path):
-    emb = torch.load(path, map_location='cpu')['string_to_param']['*']
+    state = torch.load(path, map_location='cpu')
+    if 'string_to_param' in state:
+        emb = state['string_to_param']['*']
+    else:
+        emb = state['emb_params']
     emb.requires_grad_(False)
     return emb
 
@@ -133,7 +138,7 @@ def save_emb(path, emb: torch.Tensor, replace=False):
     if os.path.exists(path) and not replace:
         raise FileExistsError(f'embedding "{name}" already exist.')
     name = name[:name.rfind('.')]
-    torch.save({'string_to_param':{'*':emb}, 'name':name}, path)
+    torch.save({'emb_params':emb, 'name':name}, path)
 
 def hook_compile(model):
     named_modules = {k:v for k, v in model.named_modules()}
@@ -167,3 +172,17 @@ def hook_compile(model):
 
                 block.forward = new_forward
     remove_all_hooks(model)
+
+def _convert_cpu(t):
+    return t.to('cpu') if t.device.type == 'cuda' else t
+
+def _convert_cuda(t):
+    return t.to('cuda') if t.device.type == 'cpu' else t
+
+def to_cpu(model):
+    model._apply(_convert_cpu)
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+
+def to_cuda(model):
+    model._apply(_convert_cuda)

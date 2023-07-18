@@ -65,17 +65,17 @@ class LoraBlock(SinglePluginBlock):
                 new_out[batch_mask, ...] = fea_out[batch_mask, ...] + self.layer(fea_in[0][batch_mask, ...]) * self.alpha
                 return new_out
 
-    def collapse_to_host(self, alpha=None, base_alpha=1.0):
+    def reparameterization_to_host(self, alpha=None, base_alpha=1.0):
         if alpha is None:
             alpha = self.alpha
 
         host = self.host()
-        re_w, re_b = self.get_collapsed_param()
+        re_w, re_b = self.layer.get_collapsed_param()
         host.weight = nn.Parameter(
             host.weight.data * base_alpha + alpha * re_w.to(host.weight.device, dtype=host.weight.dtype)
         )
 
-        if self.lora_up.bias is not None:
+        if self.layer.lora_up.bias is not None:
             if host.bias is None:
                 host.bias = nn.Parameter(re_b.to(host.weight.device, dtype=host.weight.dtype))
             else:

@@ -32,7 +32,7 @@ from transformers import AutoTokenizer
 from functools import partial
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
-from hcpdiff.data import RatioBucket, DataGroup, collate_fn_ft
+from hcpdiff.data import RatioBucket, DataGroup
 from hcpdiff.loggers import LoggerGroup
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
@@ -292,26 +292,30 @@ class Trainer:
         self.text_enc_hook = TEEXHook(self.text_encoder, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device,
                                       clip_skip=self.cfgs.model.clip_skip)
 
-    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
+    def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop('batch_size')
         cache_latents = data_builder.keywords.pop('cache_latents')
         self.batch_size_list.append(batch_size)
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         train_dataset.bucket.build(batch_size*self.world_size,
-                                   img_root_list=[source.img_root for source in data_builder.keywords['source'].values()])
+                                   img_root_list=[(source.img_root, source.repeat) for source in data_builder.keywords['source'].values()])
         arb = isinstance(train_dataset.bucket, RatioBucket)
         self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
 
         if cache_latents:
             self.cache_latents = True
             train_dataset.cache_latents(self.vae, self.weight_dtype, self.device, show_prog=self.is_local_main_process)
+        return train_dataset, batch_size, arb
+
+    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
+        train_dataset, batch_size, arb = self.build_dataset(data_builder)
 
         # Pytorch Data loader
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,
                                                                         rank=self.local_rank, shuffle=not arb)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-                                                   num_workers=self.cfgs.train.workers, sampler=train_sampler, collate_fn=collate_fn_ft)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=self.cfgs.train.workers,
+                                                   sampler=train_sampler, collate_fn=train_dataset.collate_fn)
         return train_loader
 
     def get_param_group_train(self):
@@ -493,7 +497,7 @@ class Trainer:
         with self.accelerator.accumulate(self.unet):
             for idx, data in enumerate(data_list):
                 image = data.pop('img').to(self.device, dtype=self.weight_dtype)
-                att_mask = data.pop('mask').to(self.device)
+                att_mask = data.pop('mask').to(self.device) if 'mask' in data else None
                 prompt_ids = data.pop('prompt').to(self.device)
                 other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items()}
 
@@ -522,11 +526,18 @@ class Trainer:
         return loss.item()
 
     def get_loss(self, model_pred, target, timesteps, att_mask):
-        if len(self.embedding_hook.emb_train)>0:
-            return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean() \
-                   +0*sum(self.embedding_hook.emb_train).mean()  # avoid unused parameters, make gradient checkpointing happy
+        if att_mask is None:
+            if len(self.embedding_hook.emb_train)>0:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)).mean() \
+                       +0*sum(self.embedding_hook.emb_train).mean()  # avoid unused parameters, make gradient checkpointing happy
+            else:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)).mean()
         else:
-            return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
+            if len(self.embedding_hook.emb_train)>0:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean() \
+                       +0*sum(self.embedding_hook.emb_train).mean()  # avoid unused parameters, make gradient checkpointing happy
+            else:
+                return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):

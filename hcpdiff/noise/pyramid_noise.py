@@ -23,11 +23,11 @@ class PyramidNoiseScheduler(NoiseBase):
             for i in range(1, self.level):
                 r = random.random() * 2 + self.step
                 wn, hn = max(1, int(w / (r ** i))), max(1, int(h / (r ** i)))
-                noise += F.interpolate(torch.randn(b, c, hn, wn).to(noise), (w, h), None, self.mode) * (self.discount ** i)
+                noise += F.interpolate(torch.randn(b, c, hn, wn).to(noise), (h, w), None, self.mode) * (self.discount ** i)
                 if wn == 1 or hn == 1:
                     break
             noise = noise / noise.std()
-        return super(PyramidNoiseScheduler, self).add_noise(original_samples, noise, timesteps)
+        return self.base_scheduler.add_noise(original_samples, noise, timesteps)
 
 # if __name__ == '__main__':
 #     noise = torch.randn(1,3,512,512)

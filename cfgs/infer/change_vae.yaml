@@ -1,4 +1,4 @@
-_base_: [cfgs/infer/v1.yaml]
+_base_: [cfgs/infer/text2img.yaml]
 
 new_components:
   vae:

@@ -1,17 +1,14 @@
 import argparse
-import sys
-import torch
-from torch import nn
 import os
-import itertools
-from functools import partial
+import sys
 import warnings
+from functools import partial
 
-from accelerate import Accelerator
-from hcpdiff.train_ac import Trainer, RatioBucket, load_config_with_cli, set_seed
+import torch
+
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.train_ac import Trainer, load_config_with_cli
 from hcpdiff.utils.net_utils import get_scheduler
-
 
 class TrainerDeepSpeed(Trainer):
 
@@ -81,6 +78,6 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='cfg/train/demo.yaml')
     args, _ = parser.parse_known_args()
 
-    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:]) # skip --cfg
-    trainer=TrainerDeepSpeed(conf)
+    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
+    trainer = TrainerDeepSpeed(conf)
     trainer.train()

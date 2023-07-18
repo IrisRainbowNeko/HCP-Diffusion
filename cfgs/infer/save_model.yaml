@@ -1,0 +1,44 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+save_model:
+  path: ckpts/model
+  to_safetensors: true
+
+merge:
+
+  group_lora_unet:
+    type: 'unet'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: 'exps/lora1/ckpts/unet-600.safetensors'
+        alpha: 0.8
+        layers: 'all'
+      - path: 'exps/lora2/ckpts/unet-800.safetensors'
+        alpha: 0.7
+        layers:
+          - 're:.*\.to_k$'
+          - 're:.*\.to_v$'
+
+  group_lora_TE:
+    type: 'TE'
+    base_model_alpha: 1.0 # base model weight to infer with lora or part
+    lora:
+      - path: 'exps/lora1/ckpts/text_encoder-600.safetensors'
+        alpha: 0.8
+        layers: 'all'
+merge:
+  group_part_unet:
+    type: 'unet'
+    base_model_alpha: 0.4 # base model weight to merge with lora or part
+    part:
+      - path: 'exps/part1/ckpts/unet-500.safetensors'
+        alpha: 0.6
+        layers: 'all'
+
+  group_part_TE:
+    type: 'TE'
+    base_model_alpha: 0.4 # base model weight to merge with lora or part
+    part:
+      - path: 'exps/part1/ckpts/text_encoder-500.safetensors'
+        alpha: 0.6
+        layers: 'all'

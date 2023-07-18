@@ -25,14 +25,16 @@ python -m hcpdiff.tools.sd2diffusers \
 webui使用的lora模型不能直接被加载，需要对其权重名字进行转换以适应本框架。转换后分为```unet```和```text_encoder```两个权重文件:
 
 ```bash
-python -m hcpdiff.tools.lora_convert --from_webui --lora_path lora.safetensors --dump_path lora_hcp/
+python -m hcpdiff.tools.lora_convert --from_webui --lora_path lora.safetensors --dump_path lora_hcp/ \
+      --auto_scale_alpha # 现有webui模型没有alpha自动缩放，需要转换
 ```
 
 ### 转换为webui格式
 也可以将本框架训练得到的lora模型转换成webui支持的格式:
 
 ```bash
-python -m hcpdiff.tools.lora_convert --to_webui --lora_path unet-lora.safetensors --lora_path_TE text_encoder-lora.safetensors --dump_path lora-webui.safetensors
+python -m hcpdiff.tools.lora_convert --to_webui --lora_path unet-lora.safetensors --lora_path_TE text_encoder-lora.safetensors --dump_path lora-webui.safetensors \
+      --auto_scale_alpha # 现有webui模型没有alpha自动缩放，需要转换
 ```
 
 ## vae模型转换

@@ -1,35 +1,6 @@
-# base_state*base_model_alpha + (lora_state[i]*lora_scale[i]*lora_alpha[i]) + (part_state[k]*part_alpha[k])
+_base_: [cfgs/infer/text2img.yaml]
 
-pretrained_model: ''
-prompt: ''
-neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-out_dir: 'output/'
-emb_dir: 'embs/'
-N_repeats: 1
-clip_skip: 0
-bs: 4
-num: 1
-seed: null
-fp16: True
-
-condition: null
-
-save:
-  save_cfg: True
-  image_type: png
-  quality: 95
-#  image_type: webp
-#  quality: 75
-
-infer_args:
-  width: 512
-  height: 512
-  guidance_scale: 7.5
-  num_inference_steps: 50
-
-new_components: {}
-
-merge: # can be null
+merge:
   exp_dir: '2023-04-03-10-10-36'
   alpha: 0.8
 
@@ -40,7 +11,7 @@ merge: # can be null
       - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
         alpha: ${....alpha}
         layers: 'all'
-        mask: [ 0.5, 1 ]
+        mask: [ 0.5, 1 ] #
       - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.safetensors'
         alpha: 0.65
         layers: 'all'

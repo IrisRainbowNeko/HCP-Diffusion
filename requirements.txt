@@ -3,9 +3,9 @@ torchvision>=0.13.0
 accelerate>=0.15.0
 bitsandbytes
 colossalai==0.2.5
-diffusers>=0.12.1
+diffusers>=0.17.1
 safetensors
-einops
+einops>=0.6.0
 hydra-core
 loguru
 matplotlib
@@ -19,4 +19,5 @@ scikit_learn
 torch
 torchvision
 tqdm
-transformers==4.25.1
+transformers>=4.25.1
+xformers

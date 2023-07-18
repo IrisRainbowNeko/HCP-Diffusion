@@ -1,8 +1,9 @@
 _base_: [cfgs/infer/text2img.yaml]
 
 condition:
-  type: i2i
+  type: inpaint
   image: 'cond_img.png'
+  mask: 'mask.png'
 
 infer_args:
   guidance_scale: 7.5
