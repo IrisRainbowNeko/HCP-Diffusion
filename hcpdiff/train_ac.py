@@ -14,6 +14,7 @@ import os
 import sys
 import time
 from functools import partial
+import math
 
 import diffusers
 import hydra
@@ -108,8 +109,13 @@ class Trainer:
 
         self.load_resume()
 
-        if cfgs.allow_tf32:
-            torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
+
+        self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
+        if self.cfgs.train.train_epochs is not None:
+            self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch
+        else:
+            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps / self.steps_per_epoch)
 
         self.prepare()
 
@@ -422,6 +428,7 @@ class Trainer:
                     lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
                     self.loggers.log(datas={
                         'Step':{'format':'[{}/{}]', 'data':[self.global_step, self.cfgs.train.train_steps]},
+                        'Epoch':{'format':'[{}/{}]', 'data':[self.global_step//self.steps_per_epoch, self.cfgs.train.train_epochs]},
                         'LR_model':{'format':'{:.2e}', 'data':[lr_model]},
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum.mean()]},

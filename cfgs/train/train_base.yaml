@@ -11,6 +11,7 @@ vis_info:
 
 train:
   train_steps: 1000
+  train_epochs: null # Choose one of [train_steps, train_epochs]
   gradient_accumulation_steps: 1
   workers: 4
   max_grad_norm: 1.0
