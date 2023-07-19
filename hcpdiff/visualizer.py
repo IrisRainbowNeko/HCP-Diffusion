@@ -212,8 +212,8 @@ class Visualizer:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
     parser.add_argument('--cfg', type=str, default='')
-    args, _ = parser.parse_known_args()
-    cfgs = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
+    args, cfg_args = parser.parse_known_args()
+    cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
 
     if cfgs.seed is not None:
         seeds = list(range(cfgs.seed, cfgs.seed+cfgs.num*cfgs.bs))
