@@ -10,8 +10,8 @@ train_ac.py
 
 import argparse
 import itertools
+import math
 import os
-import sys
 import time
 from functools import partial
 
@@ -19,7 +19,8 @@ import diffusers
 import hydra
 import numpy as np
 import torch
-from torch import nn
+import torch.utils.checkpoint
+# fix checkpoint bug for train part of model
 import torch.utils.checkpoint
 import torch.utils.data
 import transformers
@@ -28,24 +29,23 @@ from accelerate.utils import set_seed
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
+from torch import nn
 from transformers import AutoTokenizer
-from functools import partial
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup
 from hcpdiff.loggers import LoggerGroup
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
+from hcpdiff.noise import NoiseBase
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
-from hcpdiff.noise import NoiseBase
 
-# fix checkpoint bug for train part of model
-import torch.utils.checkpoint
-def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw = torch.utils.checkpoint.checkpoint, **kwargs):
+def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw=torch.utils.checkpoint.checkpoint, **kwargs):
     return checkpoint_raw(function, *args, use_reentrant=use_reentrant, **kwargs)
+
 torch.utils.checkpoint.checkpoint = checkpoint_fix
 
 class Trainer:
@@ -108,8 +108,13 @@ class Trainer:
 
         self.load_resume()
 
-        if cfgs.allow_tf32:
-            torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
+
+        self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
+        if self.cfgs.train.train_epochs is not None:
+            self.cfgs.train.train_steps = self.cfgs.train.train_epochs*self.steps_per_epoch
+        else:
+            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps/self.steps_per_epoch)
 
         self.prepare()
 
@@ -190,7 +195,7 @@ class Trainer:
             )
 
         # Load scheduler and models
-        noise_scheduler=self.cfgs.model.noise_scheduler
+        noise_scheduler = self.cfgs.model.noise_scheduler
         noise_class = getattr(noise_scheduler.func, '__self__', noise_scheduler.func)  # support static or class method
         if issubclass(noise_class, NoiseBase):
             base_scheduler = noise_scheduler.keywords.pop('base_scheduler')(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
@@ -299,7 +304,7 @@ class Trainer:
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         train_dataset.bucket.build(batch_size*self.world_size,
-                                   img_root_list=[(source.img_root, source.repeat) for source in data_builder.keywords['source'].values()])
+                                   img_root_list=[(img_root, source.repeat) for img_root, source in train_dataset.source_dict.items()])
         arb = isinstance(train_dataset.bucket, RatioBucket)
         self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
 
@@ -422,6 +427,8 @@ class Trainer:
                     lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
                     self.loggers.log(datas={
                         'Step':{'format':'[{}/{}]', 'data':[self.global_step, self.cfgs.train.train_steps]},
+                        'Epoch':{'format':'[{}/{}]<{}/{}>', 'data':[self.global_step//self.steps_per_epoch, self.cfgs.train.train_epochs,
+                            self.global_step%self.steps_per_epoch, self.steps_per_epoch]},
                         'LR_model':{'format':'{:.2e}', 'data':[lr_model]},
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum.mean()]},
@@ -503,7 +510,7 @@ class Trainer:
 
                 latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
                 model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
-                loss = self.get_loss(model_pred, target, timesteps, att_mask) * self.train_loader_group.get_loss_weights(idx)
+                loss = self.get_loss(model_pred, target, timesteps, att_mask)*self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):
@@ -584,8 +591,8 @@ class Trainer:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
     parser.add_argument('--cfg', type=str, default=None, required=True)
-    args, _ = parser.parse_known_args()
+    args, cfg_args = parser.parse_known_args()
 
-    conf = load_config_with_cli(args.cfg, args_list=sys.argv[3:])  # skip --cfg
+    conf = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
     trainer = Trainer(conf)
     trainer.train()

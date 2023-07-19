@@ -26,7 +26,7 @@ merge:
       - path: 'exps/lora1/ckpts/text_encoder-600.safetensors'
         alpha: 0.8
         layers: 'all'
-merge:
+
   group_part_unet:
     type: 'unet'
     base_model_alpha: 0.4 # base model weight to merge with lora or part
