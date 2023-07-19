@@ -1,6 +1,16 @@
 _base_: [cfgs/infer/text2img.yaml]
 
+pretrained_model: 'deepghs/animefull-latest'  # animefull-latest model
+prompt: 'masterpiece, best quality, 1girl, solo, tohsaka rin'  # image of 远坂凛(tohsaka rin)
+neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+
 clip_skip: 1 #动漫模型通常会跳过一个CLIP层
+
+infer_args:
+  width: 512
+  height: 768  # image size
+  guidance_scale: 7.5  # scale, when higher, the images will tend to be more similar
+  num_inference_steps: 30  # how many steps
 
 new_components:
   scheduler:
@@ -8,3 +18,4 @@ new_components:
     beta_start: 0.00085
     beta_end: 0.012
     beta_schedule: 'scaled_linear'
+
