@@ -1,0 +1,18 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+merge:
+  group1:
+    type: 'unet'
+    base_model_alpha: 0.0 # 基础模型权重0.0，part部分新模型权重1.0，表示用part模型覆盖原有模型
+    part:
+      - path: 'unet-100.safetensors的路径'
+        alpha: 1.0
+        layers: 'all'
+
+  group2: # 如果没有练text_encoder，这部分可以不加
+    type: 'TE'
+    base_model_alpha: 0.0
+    lora:
+      - path: 'text_encoder-100.safetensors的路径'
+        alpha: 1.0
+        layers: 'all'
