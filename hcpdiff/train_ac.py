@@ -299,7 +299,7 @@ class Trainer:
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
         train_dataset.bucket.build(batch_size*self.world_size,
-                                   img_root_list=[(source.img_root, source.repeat) for source in data_builder.keywords['source'].values()])
+                                   img_root_list=[(img_root, source.repeat) for img_root, source in train_dataset.source_dict.items()])
         arb = isinstance(train_dataset.bucket, RatioBucket)
         self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
 
