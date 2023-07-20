@@ -1,0 +1,39 @@
+_base_: 
+  - cfgs/infer/text2img_anime.yaml
+
+# pretrained_model: 'deepghs/animefull-latest'  # animefull-latest model
+pretrained_model: 'stablediffusionapi/anything-v5'
+prompt: 'masterpiece, best quality, highres, 1girl, solo, full_body, standing, {surtr_arknights-new-1000:1.2}, {bikini:1.3}, high heels, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage'
+# prompt: 'nsfw, masterpiece, best quality, 1girl, solo, {surtr_arknights-new-1000:1.2}, nude, panty_pull, medium breasts, {pussy:1.35}, {pussy juice:1.15}, spread legs, lying on bed, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage'
+neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+
+infer_args:
+  width: 512
+  height: 768  # image size
+  guidance_scale: 7.5  # scale, when higher, the images will tend to be more similar
+  num_inference_steps: 30  # how many steps
+
+emb_dir: 'exps/${merge.exp_dir}/ckpts/'
+
+merge:
+  exp_dir: '2023-07-20-15-17-40' # 实验文件夹
+  alpha: 1.0 # lora权重, default: 0.85
+  steps: 1000 # 步数
+
+  group1:
+    type: 'unet'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: 'exps/${....exp_dir}/ckpts/unet-${....steps}.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+    part: null
+
+  group2:
+    type: 'TE'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: 'exps/${....exp_dir}/ckpts/text_encoder-${....steps}.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+    part: null
