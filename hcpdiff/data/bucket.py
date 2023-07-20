@@ -42,7 +42,7 @@ class BaseBucket:
         return image
 
 class FixedBucket(BaseBucket):
-    def __init__(self, target_size: Union[Tuple[int, int], int] = 512):
+    def __init__(self, target_size: Union[Tuple[int, int], int] = 512, **kwargs):
         self.target_size = (target_size, target_size) if isinstance(target_size, int) else target_size
 
     def build(self, bs: int, img_root_list: List[str]):
@@ -218,14 +218,14 @@ class RatioBucket(BaseBucket):
 
     @classmethod
     def from_ratios(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, ratio_max: float = 4,
-                    pre_build_bucket: str = None):
+                    pre_build_bucket: str = None, **kwargs):
         arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb.ratio_max = ratio_max
         arb._build = arb.build_buckets_from_ratios
         return arb
 
     @classmethod
-    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
         arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb
@@ -265,7 +265,7 @@ class SizeBucket(RatioBucket):
         return pad_crop_fix(image, size)
 
     @classmethod
-    def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+    def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
         arb = cls(step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb
