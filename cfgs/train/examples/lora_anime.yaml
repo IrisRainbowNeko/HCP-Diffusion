@@ -1,0 +1,48 @@
+_base_:
+  - cfgs/train/examples/lora_conventional.yaml
+
+model:
+  pretrained_model_name_or_path: 'deepghs/animefull-latest'
+  clip_skip: 1
+
+tokenizer_pt:
+  emb_dir: 'embs/' #自定义word目录
+  replace: False #训练后是否替换原有word
+  train: 
+    - name: surtr_arknights
+      lr: 0.003
+
+data:
+  dataset1:
+    batch_size: 4
+    cache_latents: True
+
+    source:
+      data_source1:
+        img_root: '/data/arknights_ds/surtr/'
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: '/data/arknights_ds/surtr/image_captions.json' # path to image captions (file_words)
+
+        word_names:
+          pt1: surtr_arknights
+
+    bucket:
+      _target_: hcpdiff.data.bucket.SizeBucket.from_files # aspect ratio bucket
+      target_area: ---
+      num_bucket: 1
+
+logger:
+  - _target_: hcpdiff.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+  - _target_: hcpdiff.loggers.TBLogger
+    _partial_: True
+    out_path: 'tblog/'
+    log_step: 5
+#  - _target_: hcpdiff.loggers.WanDBLogger
+#    _partial_: True
+#    out_path: null
+#    log_step: 5
+
+

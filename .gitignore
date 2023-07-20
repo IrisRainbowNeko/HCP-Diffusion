@@ -2415,4 +2415,5 @@ fabric.properties
 /docs/source/**/*.dat.*
 !/docs/source/_static/**/*
 /output
-
+/embs
+/exps
