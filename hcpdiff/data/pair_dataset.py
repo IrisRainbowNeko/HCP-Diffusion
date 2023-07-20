@@ -66,7 +66,7 @@ class TextImagePairDataset(Dataset):
             image = canvas
         return image.convert("RGB")
 
-    def load_captions(self, caption_file: Union[str, : BaseCaptionLoader]):
+    def load_captions(self, caption_file: Union[str, BaseCaptionLoader]):
         if caption_file is None:
             return {}
         elif isinstance(caption_file, str):
