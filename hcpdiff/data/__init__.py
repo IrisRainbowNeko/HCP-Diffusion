@@ -2,7 +2,7 @@ from .pair_dataset import TextImagePairDataset
 from .cond_pair_dataset import TextImageCondPairDataset
 from .bucket import BaseBucket, FixedBucket, RatioBucket
 from .utils import CycleData
-
+from .caption_loader import JsonCaptionLoader, TXTCaptionLoader
 
 class DataGroup:
     def __init__(self, loader_list, loss_weights):

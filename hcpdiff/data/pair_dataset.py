@@ -8,13 +8,11 @@ pair_dataset.py
     :Licence:     Apache-2.0
 """
 
-import json
 import os.path
 from argparse import Namespace
 
 import cv2
 import torch
-import yaml
 from PIL import Image
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
@@ -23,7 +21,7 @@ from hcpdiff.utils.caption_tools import *
 from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.utils import get_file_name, get_file_ext
 from .bucket import BaseBucket
-
+from .caption_loader import BaseCaptionLoader, auto_caption_loader
 
 class TextImagePairDataset(Dataset):
     """
@@ -68,17 +66,13 @@ class TextImagePairDataset(Dataset):
             image = canvas
         return image.convert("RGB")
 
-    def load_captions(self, caption_file):
+    def load_captions(self, caption_file: Union[str, : BaseCaptionLoader]):
         if caption_file is None:
-            return dict()
-        elif caption_file.endswith('.json'):
-            with open(caption_file, 'r', encoding='utf-8') as f:
-                return json.loads(f.read())
-        elif caption_file.endswith('.yaml'):
-            with open(caption_file, 'r', encoding='utf-8') as f:
-                return yaml.load(f.read(), Loader=yaml.FullLoader)
+            return {}
+        elif isinstance(caption_file, str):
+            return auto_caption_loader(caption_file).load()
         else:
-            return dict()
+            return caption_file.load()
 
     def load_template(self, template_file):
         with open(template_file, 'r', encoding='utf-8') as f:
@@ -95,7 +89,7 @@ class TextImagePairDataset(Dataset):
                 data = self.load_data(path, size)
                 image = data['img'].unsqueeze(0).to(device, dtype=weight_dtype)
                 latents = vae.encode(image).latent_dist.sample().squeeze(0)
-                data['img'] = (latents * 0.18215).cpu()
+                data['img'] = (latents*0.18215).cpu()
                 self.latents[img_name] = data
 
     def get_att_map(self, img_root, img_name):
@@ -103,8 +97,8 @@ class TextImagePairDataset(Dataset):
             return None
         att_mask = Image.open(self.source_dict[img_root].att_mask_path[img_name]).convert("L")
         np_mask = np.array(att_mask).astype(float)
-        np_mask[np_mask <= 127 + 0.1] = (np_mask[np_mask <= 127 + 0.1] / 127.)
-        np_mask[np_mask > 127] = ((np_mask[np_mask > 127] - 127) / 128.) * 4 + 1
+        np_mask[np_mask<=127+0.1] = (np_mask[np_mask<=127+0.1]/127.)
+        np_mask[np_mask>127] = ((np_mask[np_mask>127]-127)/128.)*4+1
         return np_mask
 
     def load_data(self, path, size):
@@ -112,14 +106,14 @@ class TextImagePairDataset(Dataset):
         image = self.load_image(path)
         att_mask = self.get_att_map(img_root, get_file_name(img_name))
         if att_mask is None:
-            data = self.bucket.crop_resize({"img": image}, size)
+            data = self.bucket.crop_resize({"img":image}, size)
             image = self.source_dict[img_root].image_transforms(data['img'])  # resize to bucket size
-            att_mask = torch.ones((size[1] // 8, size[0] // 8))
+            att_mask = torch.ones((size[1]//8, size[0]//8))
         else:
-            data = self.bucket.crop_resize({"img": image, "mask": att_mask}, size)
+            data = self.bucket.crop_resize({"img":image, "mask":att_mask}, size)
             image = self.source_dict[img_root].image_transforms(data['img'])
-            att_mask = torch.tensor(cv2.resize(att_mask, (size[0] // 8, size[1] // 8), interpolation=cv2.INTER_LINEAR))
-        return {'img': image, 'mask': att_mask}
+            att_mask = torch.tensor(cv2.resize(att_mask, (size[0]//8, size[1]//8), interpolation=cv2.INTER_LINEAR))
+        return {'img':image, 'mask':att_mask}
 
     def __len__(self):
         return len(self.bucket)
@@ -134,14 +128,14 @@ class TextImagePairDataset(Dataset):
             data = self.latents[img_name]
 
         caption_ist = self.source_dict[img_root].caption_dict[img_name] if img_name in \
-                            self.source_dict[img_root].caption_dict else None
+                                                                           self.source_dict[img_root].caption_dict else None
         prompt_ist = self.source_dict[img_root].tag_transforms(
-            {'prompt': random.choice(self.source_dict[img_root].prompt_template), 'caption': caption_ist})['prompt']
+            {'prompt':random.choice(self.source_dict[img_root].prompt_template), 'caption':caption_ist})['prompt']
 
         # tokenize Sp or (Sn, Sp)
         prompt_ids = self.tokenizer(
             prompt_ist, truncation=True, padding="max_length", return_tensors="pt",
-            max_length=self.tokenizer.model_max_length * self.tokenizer_repeats).input_ids.squeeze()
+            max_length=self.tokenizer.model_max_length*self.tokenizer_repeats).input_ids.squeeze()
 
         data['prompt'] = prompt_ids
 

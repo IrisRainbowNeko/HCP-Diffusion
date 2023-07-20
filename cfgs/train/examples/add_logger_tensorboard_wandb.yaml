@@ -1,0 +1,15 @@
+_base_: [cfgs/train/train_base.yaml]
+
+logger:
+  -
+    _target_: hcpdiff.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+  - _target_: hcpdiff.loggers.TBLogger
+    _partial_: True
+    out_path: 'tblog/'
+    log_step: 5
+  - _target_: hcpdiff.loggers.WanDBLogger
+    _partial_: True
+    log_step: 5
