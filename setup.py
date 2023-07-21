@@ -1,5 +1,6 @@
 import setuptools
 import os
+import platform
 
 with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
@@ -9,6 +10,10 @@ with open('requirements.txt', encoding='utf8') as f:
     for x in f.readlines():
         requires.append(f'{x.strip()}')
 
+if platform.system().lower() == 'windows':
+    requires.append('bitsandbytes-windows')
+else:
+    requires.append('bitsandbytes')
 
 def get_data_files(data_dir, prefix=''):
     file_dict = {}
