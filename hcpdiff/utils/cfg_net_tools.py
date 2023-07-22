@@ -292,6 +292,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
             if item.layers != 'all':
                 match_blocks = get_match_layers(item.layers, named_modules)
                 plugin_state = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
+            plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
             plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()} # replace placeholder to target plugin name
             model.load_state_dict(plugin_state, strict=False)
             del item.layers
@@ -299,7 +300,6 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
             if hasattr(model, name): # MultiPluginBlock
                 getattr(model, name).set_hyper_params(**item)
             else:
-                plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
                 for plugin_key in plugin_key_set:
                     named_modules[plugin_key].set_hyper_params(**item)
 
