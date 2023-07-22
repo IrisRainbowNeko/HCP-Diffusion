@@ -43,7 +43,8 @@ data:
           transforms:
             - _target_: torchvision.transforms.ToTensor
             - _target_: torchvision.transforms.Normalize
-              _args_: [ [ 0.5 ], [ 0.5 ] ]
+              mean: [ 0.5 ]
+              std: [ 0.5 ]
         tag_transforms:
           _target_: torchvision.transforms.Compose
           transforms:

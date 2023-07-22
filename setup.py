@@ -1,5 +1,6 @@
 import setuptools
 import os
+import platform
 
 with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
@@ -9,6 +10,10 @@ with open('requirements.txt', encoding='utf8') as f:
     for x in f.readlines():
         requires.append(f'{x.strip()}')
 
+if platform.system().lower() == 'windows':
+    requires.append('bitsandbytes-windows')
+else:
+    requires.append('bitsandbytes')
 
 def get_data_files(data_dir, prefix=''):
     file_dict = {}
@@ -23,7 +28,7 @@ def get_data_files(data_dir, prefix=''):
 setuptools.setup(
     name="hcpdiff",
     py_modules=["hcpdiff"],
-    version="0.5.4",
+    version="0.5.5",
     author="Ziyi Dong",
     author_email="dzy7eu7d7@gmail.com",
     description="A universal Stable-Diffusion toolbox",
