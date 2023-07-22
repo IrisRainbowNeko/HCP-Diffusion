@@ -288,7 +288,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
 
     if getattr(cfg_merge, "plugin", None) is not None:
         for name, item in cfg_merge.plugin.items():
-            plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')
+            plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
             if item.layers != 'all':
                 match_blocks = get_match_layers(item.layers, named_modules)
                 plugin_state = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
