@@ -188,6 +188,15 @@ class MultiPluginBlock(BasePluginBlock):
         for handle_to in self.hook_handle_to:
             handle_to.remove()
 
+class WrapPluginContainer(nn.Module):
+    def __init__(self, plugin, name):
+        super().__init__()
+        self.name = name
+        setattr(self, name, plugin)
+
+    def forward(self, *args, **kwargs):
+        return getattr(self, self.name)(*args, **kwargs)
+
 
 class WrapPluginBlock(BasePluginBlock):
     def __init__(self, name:str, host:nn.Module, host_model=None, parent_block:nn.Module=None, host_name:str=None):
@@ -196,9 +205,11 @@ class WrapPluginBlock(BasePluginBlock):
         self.parent_block = weakref.ref(parent_block)
         self.host_name = host_name
 
+        container = WrapPluginContainer(self, name)
+
         delattr(parent_block, host_name)
         setattr(parent_block, f'{host_name}_origin_block', host)
-        setattr(parent_block, host_name, self)
+        setattr(parent_block, host_name, container)
 
     def forward(self, *args, **kwargs):
         args, kwargs = self.pre_forward(*args, **kwargs)
