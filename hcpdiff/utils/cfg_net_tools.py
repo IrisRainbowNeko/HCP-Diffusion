@@ -296,6 +296,12 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
             model.load_state_dict(plugin_state, strict=False)
             del item.layers
             del item.path
-            getattr(model, name).set_hyper_params(**item)
+            if hasattr(model, name): # MultiPluginBlock
+                getattr(model, name).set_hyper_params(**item)
+            else:
+                plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
+                for plugin_key in plugin_key_set:
+                    named_modules[plugin_key].set_hyper_params(**item)
+
 
     return LoraGroup(all_lora_blocks)
