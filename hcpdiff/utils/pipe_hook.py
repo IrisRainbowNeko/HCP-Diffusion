@@ -10,7 +10,11 @@ from einops import repeat
 
 class HookPipe_T2I(StableDiffusionPipeline):
     @property
-    def _execution_device(self):
+    def _execution_device(self) -> torch.device:
+        return torch.device('cuda')
+
+    @property
+    def device(self) -> torch.device:
         return torch.device('cuda')
 
     @torch.no_grad()
@@ -146,7 +150,11 @@ class HookPipe_T2I(StableDiffusionPipeline):
 
 class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
     @property
-    def _execution_device(self):
+    def _execution_device(self) -> torch.device:
+        return torch.device('cuda')
+
+    @property
+    def device(self) -> torch.device:
         return torch.device('cuda')
 
     @torch.no_grad()
