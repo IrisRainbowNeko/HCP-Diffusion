@@ -3,9 +3,11 @@ _base_:
 
 # pretrained_model: 'deepghs/animefull-latest'  # animefull-latest model
 pretrained_model: 'stablediffusionapi/anything-v5'
-prompt: 'masterpiece, best quality, highres, 1girl, solo, full_body, standing, {surtr_arknights-new-1000:1.2}, {bikini:1.3}, high heels, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage'
+prompt: 'masterpiece, best quality, highres, game cg, 1girl, solo, {night}, {starry sky}, beach, beautiful detailed sky, {extremely detailed background:1.2}, mature, {surtr_arknights-1000:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, {standing}, looking at viewer, {bikini:1.3}, light smile'
+# prompt: 'masterpiece, best quality, highres, 1girl, solo, standing, {surtr_arknights-1000:1.2}, {bikini:1.3}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage'
 # prompt: 'nsfw, masterpiece, best quality, 1girl, solo, {surtr_arknights-new-1000:1.2}, nude, panty_pull, medium breasts, {pussy:1.35}, {pussy juice:1.15}, spread legs, lying on bed, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage'
 neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+N_repeats: 2
 
 infer_args:
   width: 512
@@ -16,7 +18,8 @@ infer_args:
 emb_dir: 'exps/${merge.exp_dir}/ckpts/'
 
 merge:
-  exp_dir: '2023-07-20-15-17-40' # 实验文件夹
+  # exp_dir: '2023-07-20-15-17-40' # 实验文件夹
+  exp_dir: '2023-07-26-01-05-35'
   alpha: 1.0 # lora权重, default: 0.85
   steps: 1000 # 步数
 

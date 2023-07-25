@@ -22,11 +22,11 @@ class YamlCaptionLoader(BaseCaptionLoader):
 
 class TXTCaptionLoader(BaseCaptionLoader):
     def load(self):
-        txt_files = os.listdir(self.path)
+        txt_files = glob.glob(os.path.join(self.path, '*.txt'))
         captions = {}
         for file in txt_files:
-            with open(os.path.join(self.path, file), 'r', encoding='utf-8') as f:
-                captions[file] = f.read().strip()
+            with open(file, 'r', encoding='utf-8') as f:
+                captions[os.path.basename(file)] = f.read().strip()
         return captions
 
 def auto_caption_loader(path):
