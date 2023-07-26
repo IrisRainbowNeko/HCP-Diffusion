@@ -36,9 +36,9 @@ class VisualizerReloadable(Visualizer):
                         self.lora_dict[hash_str(OmegaConf.to_yaml(cfg_lora, resolve=True))] = lora_plugin
 
                 # record all part and plugin config hash
-                for cfg_part in getattr(cfg_group, "part", []):
+                for cfg_part in getattr(cfg_group, "part", None) or []:
                     self.part_plugin_cfg_set.add(hash_str(OmegaConf.to_yaml(cfg_part, resolve=True)))
-                for cfg_plugin in getattr(cfg_group, "plugin", []):
+                for cfg_plugin in getattr(cfg_group, "plugin", None) or []:
                     self.part_plugin_cfg_set.add(hash_str(OmegaConf.to_yaml(cfg_plugin, resolve=True)))
 
     def merge_model(self):
@@ -51,9 +51,9 @@ class VisualizerReloadable(Visualizer):
             return not self.cfg_same(self.cfg_merge, self.cfgs_old.merge)
         part_plugin_cfg_set_new = set()
         for cfg_group in self.cfg_merge.values():
-            for cfg_part in getattr(cfg_group, "part", []):
+            for cfg_part in getattr(cfg_group, "part", None) or []:
                 part_plugin_cfg_set_new.add(hash_str(OmegaConf.to_yaml(cfg_part, resolve=True)))
-            for cfg_plugin in getattr(cfg_group, "plugin", []):
+            for cfg_plugin in getattr(cfg_group, "plugin", None) or []:
                 part_plugin_cfg_set_new.add(hash_str(OmegaConf.to_yaml(cfg_plugin, resolve=True)))
         return part_plugin_cfg_set_new !=  self.part_plugin_cfg_set
 
@@ -168,7 +168,7 @@ class VisualizerReloadable(Visualizer):
                 del cfg_merge[k].plugin
 
             lora_add = []
-            for cfg_lora in getattr(cfg_group, "lora", []):
+            for cfg_lora in getattr(cfg_group, "lora", None) or []:
                 cfg_hash = hash_str(OmegaConf.to_yaml(cfg_lora, resolve=True))
                 if cfg_hash not in self.lora_dict:
                     lora_add.append(cfg_lora)
