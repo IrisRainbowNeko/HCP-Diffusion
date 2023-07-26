@@ -4,10 +4,10 @@ _base_:
 pretrained_model: 'stablediffusionapi/anything-v5'  # better generic anime model
 
 # safe prompt
-# prompt: 'masterpiece, best quality, highres, game cg, 1girl, solo, {night}, {starry sky}, beach, beautiful detailed sky, {extremely detailed background:1.2}, mature, {surtr_arknights-1000:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, {standing}, looking at viewer, {bikini:1.3}, light smile'
+prompt: 'masterpiece, best quality, highres, game cg, 1girl, solo, {night}, {starry sky}, beach, beautiful detailed sky, {extremely detailed background:1.2}, mature, {surtr_arknights-1000:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, {standing}, looking at viewer, {bikini:1.3}, light smile'
 
 # r18 prompt
-prompt: 'nsfw, masterpiece, best quality, highres, 1girl, solo, {lyging on bed}, {extremely detailed background:1.2}, {nude:1.4}, {spread legs}, {arms up}, mature, {surtr_arknights-1000:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, nipples, {pussy:1.15}, {pussy juice:1.3}, looking at viewer, {embarrassed}, endured face, feet out of frame'
+# prompt: 'nsfw, masterpiece, best quality, highres, 1girl, solo, {lyging on bed}, {extremely detailed background:1.2}, {nude:1.4}, {spread legs}, {arms up}, mature, {surtr_arknights-1000:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, nipples, {pussy:1.15}, {pussy juice:1.3}, looking at viewer, {embarrassed}, endured face, feet out of frame'
 
 # negative prompt
 neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
@@ -15,7 +15,8 @@ N_repeats: 2  # if prompt or neg_prompt is too long, increase this number
 
 bs: 1
 num: 1
-seed: 465191133
+seed: 758691538  # seed for safe
+# seed: 465191133  # seed for r18
 
 infer_args:
   width: 512
@@ -23,19 +24,18 @@ infer_args:
   guidance_scale: 7.5  # scale, when higher, the images will tend to be more similar
   num_inference_steps: 30  # how many steps
 
-emb_dir: 'exps/${merge.exp_dir}/ckpts/'
+emb_dir: 'exps/${merge.exp_name}/ckpts/'
 
 merge:
-  # exp_dir: '2023-07-20-15-17-40' # 实验文件夹
-  exp_dir: '2023-07-26-12-34-45'
-  alpha: 0.85 # lora权重, default: 0.85
+  exp_name: 'surtr_3_640'  # experiment name
+  alpha: 1.0 # lora权重, default: 0.85
   steps: 1000 # 步数
 
   group1:
     type: 'unet'
     base_model_alpha: 1.0 # base model weight to merge with lora or part
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-${....steps}.safetensors'
+      - path: 'exps/${....exp_name}/ckpts/unet-${....steps}.safetensors'
         alpha: ${....alpha}
         layers: 'all'
     part: null
@@ -44,7 +44,7 @@ merge:
     type: 'TE'
     base_model_alpha: 1.0 # base model weight to merge with lora or part
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-${....steps}.safetensors'
+      - path: 'exps/${....exp_name}/ckpts/text_encoder-${....steps}.safetensors'
         alpha: ${....alpha}
         layers: 'all'
     part: null

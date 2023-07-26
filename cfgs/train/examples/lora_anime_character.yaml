@@ -6,8 +6,8 @@ model:
   clip_skip: 1
 
 character_name: surtr_arknights
-# dataset_dir: '/root/autodl-tmp/dataset/surtr/'
-dataset_dir: '/root/autodl-tmp/dataset/surtr_2/surtr/'
+dataset_dir: '/root/autodl-tmp/dataset/surtr_3'
+exp_dir: 'exps/surtr_3_640'
 
 tokenizer_pt:
   emb_dir: 'embs/' #自定义word目录
@@ -31,9 +31,10 @@ data:
           pt1: ${character_name}
 
     bucket:
-      _target_: hcpdiff.data.bucket.SizeBucket.from_files # aspect ratio bucket
-      target_area: ---
-      num_bucket: 1
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${times:640,640}
+      num_bucket: 5
+
 
 logger:
   - _target_: hcpdiff.loggers.CLILogger

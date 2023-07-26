@@ -11,7 +11,7 @@ matplotlib
 numpy
 omegaconf
 opencv_python
-Pillow
+Pillow>=9,<10
 pyarrow
 PyYAML
 scikit_learn
