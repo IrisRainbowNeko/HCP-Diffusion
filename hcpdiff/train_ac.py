@@ -56,7 +56,7 @@ class Trainer:
         self.init_context(cfgs_raw)
 
         if self.is_local_main_process:
-            self.exp_dir = os.path.join(self.cfgs.exp_dir, f'{time.strftime("%Y-%m-%d-%H-%M-%S")}')
+            self.exp_dir = self.cfgs.exp_dir.format(time=time.strftime("%Y-%m-%d-%H-%M-%S"))
             os.makedirs(os.path.join(self.exp_dir, 'ckpts/'), exist_ok=True)
             with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
                 f.write(OmegaConf.to_yaml(cfgs_raw))

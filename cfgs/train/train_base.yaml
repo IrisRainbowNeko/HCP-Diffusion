@@ -1,5 +1,5 @@
 
-exp_dir: exps/
+exp_dir: exps/{time}
 mixed_precision: 'fp16'
 allow_tf32: False
 seed: 114514
