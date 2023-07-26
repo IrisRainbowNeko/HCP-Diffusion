@@ -170,7 +170,7 @@ python -m hcpdiff.tools.lora_convert --to_webui \
     --auto_scale_alpha # 现有webui模型没有alpha自动缩放，需要转换
 ```
 
-在本例子中，你命令如下
+在本例子中，所使用的命令如下
 
 ```shell
 python -m hcpdiff.tools.lora_convert --to_webui \
