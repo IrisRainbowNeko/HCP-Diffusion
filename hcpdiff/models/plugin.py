@@ -188,6 +188,28 @@ class MultiPluginBlock(BasePluginBlock):
         for handle_to in self.hook_handle_to:
             handle_to.remove()
 
+class WrapPluginContainer(nn.Module):
+    def __init__(self, plugin, name, host):
+        super().__init__()
+        self.name = name
+        self._host = host
+        super(WrapPluginContainer, self).__setattr__(name, plugin)
+
+    def forward(self, *args, **kwargs):
+        return getattr(self, self.name)(*args, **kwargs)
+
+    def __getattr__(self, item):
+        try:
+            return super(WrapPluginContainer, self).__getattr__(item)
+        except:
+            return getattr(self._host, item)
+
+    def __setattr__(self, key, value):
+        if key == '_host' or key == 'name' or key == self.name:
+            super(WrapPluginContainer, self).__setattr__(key, value)
+        else:
+            setattr(self._host, key, value)
+
 
 class WrapPluginBlock(BasePluginBlock):
     def __init__(self, name:str, host:nn.Module, host_model=None, parent_block:nn.Module=None, host_name:str=None):
@@ -196,9 +218,11 @@ class WrapPluginBlock(BasePluginBlock):
         self.parent_block = weakref.ref(parent_block)
         self.host_name = host_name
 
+        container = WrapPluginContainer(self, name, host)
+
         delattr(parent_block, host_name)
-        setattr(parent_block, f'{host_name}_origin_block', host)
-        setattr(parent_block, host_name, self)
+        #setattr(parent_block, f'{host_name}_origin_block', host)
+        setattr(parent_block, host_name, container)
 
     def forward(self, *args, **kwargs):
         args, kwargs = self.pre_forward(*args, **kwargs)
@@ -215,7 +239,7 @@ class WrapPluginBlock(BasePluginBlock):
     def remove(self):
         parent_block = self.parent_block()
         delattr(parent_block, self.host_name)
-        delattr(parent_block, f'{self.host_name}_origin_block')
+        #delattr(parent_block, f'{self.host_name}_origin_block')
         setattr(parent_block, self.host_name, self.host())
 
 class PluginGroup:
