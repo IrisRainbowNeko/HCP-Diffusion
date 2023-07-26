@@ -155,8 +155,7 @@ python -m hcpdiff.visualizer \
 
 运行完毕后，将在`output`路径下生成一个png图片和一个yaml配置文件，分别为生成的图片和生成时的具体配置信息。一种可能的图片如下所示（因seed为随机取值，因此图片可能与下图不同，仅供参考）：
 
-![surtr_arknight_sample](./imgs/surtr_arknights_sample.png)
-
+![surtr_arknight_sample](../imgs/surtr_arknights_sample.png)
 
 
 ## 模型格式转换
