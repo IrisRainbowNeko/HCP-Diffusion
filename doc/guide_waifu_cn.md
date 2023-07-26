@@ -44,7 +44,7 @@ python -m hcpdiff.tools.create_embedding 预训练模型路径 word名称 一个
 例如对于我们需要训练的角色史尔特尔（关键词名称为：`surtr_arknights`），我们可以这样创建embedding
 
 ```shell
-python -m hcpdiff.tools.create_embedding embs surtr_arknights 4
+python -m hcpdiff.tools.create_embedding deepghs/animefull-latest surtr_arknights 4
 ```
 
 此时，在`embs`路径下，将包含一个`surtr_arknights.pt`文件。
@@ -141,6 +141,7 @@ python -m hcpdiff.visualizer \
 * `prompt`为生成图片时的提示词。请注意，使用embedding中的触发词时，格式应当为`character_name-xxxx`，其中`xxxx`为步数，该值应当与`model_steps`保持一致。在本例子中，即为`surtr_arknights-1000`。
 * 【可选】`neg_prompt`为生成图片时的负面提示词。默认值为一条通用的负面提示词。
 * 【可选】`N_repeats`代表提示词的容量。默认值为`2`，当提示词较长且由此导致出现报错后，可以提高该值。
+* 【可选】`pretrained_model`为生成图片所使用的基模型。默认值为`stablediffusionapi/anything-v5`，该模型在实际的动漫图片生成中拥有比`deepghs/animefull-latest`更好的性能。
 * 【可选】`infer_args.width`为生成图片的宽度，应当为8的整倍数。默认值为`512`。
 * 【可选】`infer_args.height`为生成图片的高度，应当为8的整倍数。默认值为`768`。
 * 【可选】`infer_args.guidance_scale`为生成图片时的scale，该值越高，提示词对图片的控制力将越强，生成的图片也将越趋同。默认值为`7.5`。
@@ -166,7 +167,7 @@ python -m hcpdiff.visualizer \
 python -m hcpdiff.tools.lora_convert --to_webui \
     --lora_path unet-xxxx.safetensors \
     --lora_path_TE text_encoder-xxxx.safetensors \
-    --dump_path lora-webui.safetensors \
+    --dump_path lora-xxxx.safetensors \
     --auto_scale_alpha # 现有webui模型没有alpha自动缩放，需要转换
 ```
 
