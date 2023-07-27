@@ -17,6 +17,8 @@
 import argparse
 import os.path
 import sys
+from hcpdiff.utils.configs import Sd2diffusers_convert_args
+from time import sleep
 
 if sys.version_info < (3, 8):
     import importlib_metadata
@@ -363,7 +365,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--vae_pt_path", default=None, type=str, help="Path to the VAE.pt to convert.")
     args = parser.parse_args()
-
     if args.vae_pt_path is None:
         convert_ckpt(args)
     else:
