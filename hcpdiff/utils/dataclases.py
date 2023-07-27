@@ -22,6 +22,25 @@ class Sd2diffusers_convert_args:
     to_safetensors:bool=field(default=False,metadata="一个布尔参数，用于决定是否导出safetensors")
     half:bool=field(default=False,metadata="一个布尔参数，用于决定是否导出半精度（fp16）")
     upcast_attention:bool=field(default=False,metadata="")
-    #TODO 一个将参数转换成对象的方法
-    def convert_parser_args(args):
-        pass
+    
+    def convert_parser_args(self,args):
+        self.checkpoint_path=args.checkpoint_path
+        self.clip_stats_path=args.clip_stats_path
+        self.dump_path=args.dump_path
+        self.vae_pt_path=args.vae_pt_path
+        self.original_config_file=args.original_config_file
+        self.controlnet=args.controlnet
+        self.device=args.device
+        self.image_size=args.image_size
+        self.num_in_channels=args.num_in_channels
+        self.pipeline_type=args.pipeline_type
+        self.prediction_type=args.prediction_type
+        self.model_type=args.model_type
+        self.scheduler_type=args.scheduler_type
+        self.stable_unclip=args.stable_unclip
+        self.stable_unclip_prior=args.stable_unclip_prior
+        self.extract_ema=args.extract_ema
+        self.from_safetensors=args.from_safetensors
+        self.to_safetensors=args.to_safetensors
+        self.half=args.half
+        self.upcast_attention=args.upcast_attention
