@@ -17,7 +17,7 @@
 import argparse
 import os.path
 import sys
-from hcpdiff.utils.dataclases import Sd2diffusers_convert_args
+from hcpdiff.utils.args_class import Sd2diffusers_convert_args
 from time import sleep
 
 if sys.version_info < (3, 8):
