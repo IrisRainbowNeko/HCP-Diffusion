@@ -204,10 +204,10 @@ def sd_vae_to_diffuser(args):
     vae.load_state_dict(converted_vae_checkpoint)
     vae.save_pretrained(args.dump_path)
 
-def convert_ckpt(args):
+def convert_ckpt(checkpoint_path:str,original_config_file:str,dump_path:str,args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()):
     pipe = load_sd_ckpt(
-        checkpoint_path=args.checkpoint_path,
-        original_config_file=args.original_config_file,
+        checkpoint_path=checkpoint_path,
+        original_config_file=original_config_file,
         image_size=args.image_size,
         prediction_type=args.prediction_type,
         model_type=args.pipeline_type,
@@ -245,11 +245,11 @@ def convert_ckpt(args):
             sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
         sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
         sd_control = {f'___.{k}':v for k, v in sd_control.items()}  # Add placeholder for plugin
-        os.makedirs(args.dump_path, exist_ok=True)
-        ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(args.dump_path,
+        os.makedirs(dump_path, exist_ok=True)
+        ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(dump_path,
                                                                                f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))
     else:
-        pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
+        pipe.save_pretrained(dump_path, safe_serialization=args.to_safetensors)
 
 if __name__ == "__main__":
     diffusers_version = importlib_metadata.version("diffusers")
@@ -365,10 +365,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--vae_pt_path", default=None, type=str, help="Path to the VAE.pt to convert.")
     args = parser.parse_args()
-    config= Sd2diffusers_convert_args
-    config.checkpoint_path
+    config= Sd2diffusers_convert_args(args)
     if args.vae_pt_path is None:
-        convert_ckpt(args)
+        convert_ckpt(args.checkpoint_path,args.original_config_file,args.dump_path,config)
     else:
         sd_vae_to_diffuser(args)
     # python -m hcpdiff.tools.sd2diffusers --checkpoint_path test/control_sd15_canny.pth --original_config_file test/config.yaml --dump_path test/ckpt/control --controlnet
