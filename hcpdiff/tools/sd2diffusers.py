@@ -188,7 +188,12 @@ def custom_convert_ldm_vae_checkpoint(checkpoint, config):
     conv_attn_to_linear(new_checkpoint)
     return new_checkpoint
 
-def sd_vae_to_diffuser(vae_pt_path,dump_path,original_config_file,args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()):
+def sd_vae_to_diffuser(
+        vae_pt_path:str,
+        dump_path:str,
+        original_config_file:str,
+        args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()
+        ):
     original_config = OmegaConf.load(original_config_file)
     vae_config = create_vae_diffusers_config(original_config, image_size=512)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -204,7 +209,12 @@ def sd_vae_to_diffuser(vae_pt_path,dump_path,original_config_file,args:Sd2diffus
     vae.load_state_dict(converted_vae_checkpoint)
     vae.save_pretrained(dump_path)
 
-def convert_ckpt(checkpoint_path:str,original_config_file:str,dump_path:str,args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()):
+def convert_ckpt(
+        checkpoint_path:str,
+        original_config_file:str,
+        dump_path:str,
+        args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()
+                 ):
     pipe = load_sd_ckpt(
         checkpoint_path=checkpoint_path,
         original_config_file=original_config_file,
