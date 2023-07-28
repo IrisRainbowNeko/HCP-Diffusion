@@ -188,21 +188,21 @@ def custom_convert_ldm_vae_checkpoint(checkpoint, config):
     conv_attn_to_linear(new_checkpoint)
     return new_checkpoint
 
-def sd_vae_to_diffuser(args):
-    original_config = OmegaConf.load(args.original_config_file)
+def sd_vae_to_diffuser(vae_pt_path,dump_path,original_config_file,args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()):
+    original_config = OmegaConf.load(original_config_file)
     vae_config = create_vae_diffusers_config(original_config, image_size=512)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # Convert the VAE model.
     if args.from_safetensors:
-        checkpoint = CkptManagerSafe().load_ckpt(args.vae_pt_path)
+        checkpoint = CkptManagerSafe().load_ckpt(vae_pt_path)
         converted_vae_checkpoint = custom_convert_ldm_vae_checkpoint(checkpoint, vae_config)
     else:
-        checkpoint = torch.load(args.vae_pt_path, map_location=device)
+        checkpoint = torch.load(vae_pt_path, map_location=device)
         converted_vae_checkpoint = custom_convert_ldm_vae_checkpoint(checkpoint['state_dict'], vae_config)
 
     vae = AutoencoderKL(**vae_config)
     vae.load_state_dict(converted_vae_checkpoint)
-    vae.save_pretrained(args.dump_path)
+    vae.save_pretrained(dump_path)
 
 def convert_ckpt(checkpoint_path:str,original_config_file:str,dump_path:str,args:Sd2diffusers_convert_args|None=Sd2diffusers_convert_args()):
     pipe = load_sd_ckpt(
@@ -369,5 +369,5 @@ if __name__ == "__main__":
     if args.vae_pt_path is None:
         convert_ckpt(args.checkpoint_path,args.original_config_file,args.dump_path,config)
     else:
-        sd_vae_to_diffuser(args)
+        sd_vae_to_diffuser(args.vae_pt_path,args.dump_path,args.original_config_file,config)
     # python -m hcpdiff.tools.sd2diffusers --checkpoint_path test/control_sd15_canny.pth --original_config_file test/config.yaml --dump_path test/ckpt/control --controlnet
