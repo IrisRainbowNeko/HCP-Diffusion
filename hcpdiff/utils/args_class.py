@@ -18,39 +18,39 @@ class Sd2diffusers_convert_args:
     half:bool                   #导出半精度（fp16）
     upcast_attention:bool       #不认得
 
-    def __init__(self):
-        self.clip_stats_path=None
-        self.controlnet=None
-        self.device=None
-        self.image_size=None
-        self.num_in_channels=None
-        self.pipeline_type=None
-        self.prediction_type=None
-        self.pipeline_type=None
-        self.scheduler_type=None
-        self.stable_unclip=None
-        self.stable_unclip_prior=None
-        self.extract_ema=False
-        self.from_safetensors=False
-        self.to_safetensors=False
-        self.half=False
-        self.upcast_attention=False
-    
-    def __init__(self,args):
-        self.clip_stats_path=args.clip_stats_path
-        self.vae_pt_path=args.vae_pt_path
-        self.controlnet=args.controlnet
-        self.device=args.device
-        self.image_size=args.image_size
-        self.num_in_channels=args.num_in_channels
-        self.pipeline_type=args.pipeline_type
-        self.prediction_type=args.prediction_type
-        self.pipeline_type=args.pipeline_type
-        self.scheduler_type=args.scheduler_type
-        self.stable_unclip=args.stable_unclip
-        self.stable_unclip_prior=args.stable_unclip_prior
-        self.extract_ema=args.extract_ema
-        self.from_safetensors=args.from_safetensors
-        self.to_safetensors=args.to_safetensors
-        self.half=args.half
-        self.upcast_attention=args.upcast_attention
+    def __init__(self,args:dict|None=None):
+        if args:
+            self.clip_stats_path=args.clip_stats_path
+            self.vae_pt_path=args.vae_pt_path
+            self.controlnet=args.controlnet
+            self.device=args.device
+            self.image_size=args.image_size
+            self.num_in_channels=args.num_in_channels
+            self.pipeline_type=args.pipeline_type
+            self.prediction_type=args.prediction_type
+            self.pipeline_type=args.pipeline_type
+            self.scheduler_type=args.scheduler_type
+            self.stable_unclip=args.stable_unclip
+            self.stable_unclip_prior=args.stable_unclip_prior
+            self.extract_ema=args.extract_ema
+            self.from_safetensors=args.from_safetensors
+            self.to_safetensors=args.to_safetensors
+            self.half=args.half
+            self.upcast_attention=args.upcast_attention
+        else:
+            self.clip_stats_path=None
+            self.controlnet=None
+            self.device=None
+            self.image_size=None
+            self.num_in_channels=None
+            self.pipeline_type=None
+            self.prediction_type=None
+            self.pipeline_type=None
+            self.scheduler_type=None
+            self.stable_unclip=None
+            self.stable_unclip_prior=None
+            self.extract_ema=False
+            self.from_safetensors=False
+            self.to_safetensors=False
+            self.half=False
+            self.upcast_attention=False
