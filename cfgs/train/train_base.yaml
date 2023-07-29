@@ -1,5 +1,5 @@
 
-exp_dir: exps/{time}
+exp_dir: exps/${hcp.time:}
 mixed_precision: 'fp16'
 allow_tf32: False
 seed: 114514

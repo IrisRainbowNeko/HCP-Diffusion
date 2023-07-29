@@ -53,7 +53,7 @@ data:
           class: dog
     bucket:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-      target_area: ${times:512,512}
+      target_area: ${hcp.eval:"512*512"}
       num_bucket: 1
 
   dataset_class:
