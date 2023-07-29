@@ -7,8 +7,6 @@ import math
 from omegaconf import OmegaConf, ListConfig
 import hashlib
 
-OmegaConf.register_new_resolver("times", lambda a, b: a*b)
-
 size_mul = {'K': 1<<10, 'M':1<<20, 'G':1<<30, 'T':1<<40}
 size_key = 'TGMK'
 
