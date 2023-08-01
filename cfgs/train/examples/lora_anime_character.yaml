@@ -10,12 +10,29 @@ dataset_dir: '/root/autodl-tmp/dataset/surtr_3'
 # if exp_dir is not set, a random time-based directory will be used
 # exp_dir: 'exps/surtr'
 
+unet_rank: 8
+text_encoder_rank: 4
+
 tokenizer_pt:
   emb_dir: 'embs/' #自定义word目录
   replace: False #训练后是否替换原有word
   train: 
     - name: ${character_name}
       lr: 0.003
+
+lora_unet:
+  - lr: 1e-4
+    rank: ${unet_rank}
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff$'
+
+lora_text_encoder:
+  - lr: 1e-5
+    rank: ${text_encoder_rank}
+    layers:
+      - 're:.*self_attn$'
+      - 're:.*mlp$'
 
 data:
   dataset1:
