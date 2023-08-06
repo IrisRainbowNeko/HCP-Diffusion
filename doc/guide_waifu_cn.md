@@ -129,7 +129,7 @@ exps/2023-07-26-01-05-35
 
 ```shell
 python -m hcpdiff.visualizer \
-    --cfg cfgs/infer/text2img_anime_lora.yaml \
+    --cfg cfgs/infer/anime/text2img_anime_lora.yaml \
     exp_dir=exps/2023-07-26-01-05-35 \
     model_steps=1000 \
     prompt='masterpiece, best quality, 1girl, solo, {surtr_arknights-1000:1.2}'
