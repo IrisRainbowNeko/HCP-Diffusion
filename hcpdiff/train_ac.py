@@ -39,7 +39,7 @@ from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTC
 from hcpdiff.noise import NoiseBase
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.ema import ModelEMA
-from hcpdiff.utils.net_utils import get_scheduler, import_text_encoder_class, TEUnetWrapper, load_emb
+from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer, auto_text_encoder, TEUnetWrapper, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
 
@@ -189,7 +189,8 @@ class Trainer:
         if self.cfgs.model.tokenizer_name:
             self.tokenizer = AutoTokenizer.from_pretrained(self.cfgs.model.tokenizer_name, revision=self.cfgs.model.revision, use_fast=False)
         elif self.cfgs.model.pretrained_model_name_or_path:
-            self.tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_cls = auto_tokenizer(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
+            self.tokenizer = tokenizer_cls.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="tokenizer",
                 revision=self.cfgs.model.revision, use_fast=False,
             )
@@ -213,7 +214,7 @@ class Trainer:
             self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision
         )
         # import correct text encoder class
-        text_encoder_cls = import_text_encoder_class(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
+        text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
         self.text_encoder = text_encoder_cls.from_pretrained(
             self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
         )
@@ -348,10 +349,11 @@ class Trainer:
         self.train_pts = {}
         if self.cfgs.tokenizer_pt.train is not None:
             for v in self.cfgs.tokenizer_pt.train:
-                self.train_pts[v.name] = self.ex_words_emb[v.name]
-                self.ex_words_emb[v.name].requires_grad = True
-                self.embedding_hook.emb_train.append(self.ex_words_emb[v.name])
-                train_params_emb.append({'params':self.ex_words_emb[v.name], 'lr':v.lr})
+                word_emb = self.ex_words_emb[v.name]
+                self.train_pts[v.name] = word_emb
+                word_emb.requires_grad = True
+                self.embedding_hook.emb_train.append(word_emb)
+                train_params_emb.append({'params':word_emb, 'lr':v.lr})
 
         return train_params_unet+train_params_text_encoder, train_params_emb
 

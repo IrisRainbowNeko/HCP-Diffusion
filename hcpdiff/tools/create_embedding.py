@@ -7,7 +7,7 @@ import os.path
 
 import torch
 from hcpdiff.utils.utils import str2bool
-from hcpdiff.utils.net_utils import import_text_encoder_class, save_emb
+from hcpdiff.utils.net_utils import auto_text_encoder, save_emb
 from transformers import AutoTokenizer
 
 class PTCreator:
@@ -21,7 +21,7 @@ class PTCreator:
             use_fast=False,
         )
 
-        text_encoder_cls = import_text_encoder_class(pretrained_model_name_or_path, None)
+        text_encoder_cls = auto_text_encoder(pretrained_model_name_or_path, None)
         self.text_encoder = text_encoder_cls.from_pretrained(pretrained_model_name_or_path, subfolder="text_encoder", revision=None)
 
         self.embed_dim = self.text_encoder.text_model.embeddings.token_embedding.embedding_dim

@@ -1,36 +1,41 @@
 """
-plugin.py
+compose_textencoder.py
 ====================
-    :Name:        model plugin
+    :Name:        compose textencoder
     :Author:      Dong Ziyi
     :Affiliation: HCP Lab, SYSU
-    :Created:     10/03/2023
+    :Created:     07/08/2023
     :Licence:     Apache-2.0
 
 support for SDXL.
 """
 from typing import Dict, Optional, Union, Tuple, List
+
 import torch
 from torch import nn
 from transformers import CLIPTextModel
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 
-class MultiTextEncoder(nn.Module):
-    def __init__(self, model_dict:Dict[str, CLIPTextModel], cat_dim=-1):
+class ComposeTextEncoder(nn.Module):
+    def __init__(self, model_list: List[Tuple[str, CLIPTextModel]], cat_dim=-1):
         super().__init__()
         self.cat_dim = cat_dim
 
         self.model_names = []
-        for name, model in model_dict.items():
+        for name, model in model_list:
             setattr(self, name, model)
             self.model_names.append(name)
 
     def get_input_embeddings(self) -> nn.Module:
         return sum(getattr(self, name).embeddings.token_embedding for name in self.model_names)
 
-    def set_input_embeddings(self, value_dict:Dict[str, int]):
+    def set_input_embeddings(self, value_dict: Dict[str, int]):
         for name, value in value_dict.items():
             getattr(self, name).embeddings.token_embedding = value
+
+    def gradient_checkpointing_enable(self):
+        for name in self.model_names:
+            getattr(self, name).gradient_checkpointing_enable()
 
     def forward(
         self,
@@ -54,7 +59,7 @@ class MultiTextEncoder(nn.Module):
         >>> tokenizer_B = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
         >>> tokenizer_bigG = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k")
 
-        >>> clip_model = MultiTextEncoder({'clip_B':clip_B, 'clip_bigG':clip_bigG})
+        >>> clip_model = MultiTextEncoder([('clip_B', clip_B), ('clip_bigG', clip_bigG)])
 
         >>> inputs = {
         >>>     'clip_B':tokenizer_B(["a photo of a cat", "a photo of a dog"], padding=True, return_tensors="pt").input_ids
@@ -65,12 +70,15 @@ class MultiTextEncoder(nn.Module):
         >>> last_hidden_state = outputs.last_hidden_state  # [B,L,768]+[B,L,1280] -> [B,L,2048]
         >>> pooled_output = outputs.pooler_output  # pooled (EOS token) states
         ```"""
+
+        input_ids_list = input_ids.chunk(dim=1)
+
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        text_feat_list = {'last_hidden_state': [], 'pooler_output':[], 'hidden_states':[], 'attentions':[]}
-        for name in self.model_names:
+        text_feat_list = {'last_hidden_state':[], 'pooler_output':[], 'hidden_states':[], 'attentions':[]}
+        for name, input_ids in zip(self.model_names, input_ids_list):
             text_feat: BaseModelOutputWithPooling = getattr(self, name)(
-                input_ids=input_ids[name], # get token for model self.{name}
+                input_ids=input_ids,  # get token for model self.{name}
                 attention_mask=attention_mask,
                 position_ids=position_ids,
                 output_attentions=output_attentions,
@@ -98,3 +106,20 @@ class MultiTextEncoder(nn.Module):
             )
         else:
             return (last_hidden_state, pooler_output)+hidden_states
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path: List[Tuple[str, str]], *args,
+                        subfolder: Dict[str, str] = None, revision: str = None, **kwargs):
+        r"""
+            Examples: sdxl text encoder
+
+            ```python
+            >>> sdxl_clip_model = ComposeTextEncoder.from_pretrained([
+            >>>         ('clip_B',"openai/clip-vit-base-patch32"),
+            >>>         ('clip_bigG',"laion/CLIP-ViT-bigG-14-laion2B-39B-b160k")
+            >>>     ], subfolder={'clip_B':'text_encoder', 'clip_bigG':'text_encoder_2'})
+            ```
+        """
+        clip_list = [(name, CLIPTextModel.from_pretrained(path, subfolder=subfolder[name])) for name, path in pretrained_model_name_or_path]
+        compose_model = cls(clip_list)
+        return compose_model

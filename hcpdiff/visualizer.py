@@ -199,15 +199,15 @@ class Visualizer:
                 interrupt |= bool(feed_back)
         return interrupt
 
-    def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None):
+    def save_images(self, images, prompt, negative_prompt='', seeds: List[int] = None):
         for interface in self.cfgs.interface:
-            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw if save_cfg else None, seeds=seeds)
+            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw, seeds=seeds)
 
-    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None, **kwargs):
+    def vis_to_dir(self, prompt, negative_prompt='', seeds: List[int] = None, **kwargs):
         seeds = [s or random.randint(0, 1 << 30) for s in seeds]
 
         images = self.vis_images(prompt, negative_prompt, seeds=seeds, **kwargs)
-        self.save_images(images, prompt, negative_prompt, save_cfg=save_cfg, seeds=seeds)
+        self.save_images(images, prompt, negative_prompt, seeds=seeds)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')

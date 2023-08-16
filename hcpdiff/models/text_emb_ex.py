@@ -19,13 +19,14 @@ from ..utils.net_utils import load_emb
 from .plugin import SinglePluginBlock
 
 class EmbeddingPTHook(SinglePluginBlock):
-    def __init__(self, token_embedding:nn.Module, N_word=75, N_repeats=3):
+    def __init__(self, token_embedding:nn.Embedding, N_word=75, N_repeats=3):
         super().__init__('emb_ex', token_embedding)
         self.handle_pre = token_embedding.register_forward_pre_hook(self.pre_hook)
 
         self.N_word=N_word
         self.N_repeats=N_repeats
         self.num_embeddings=token_embedding.num_embeddings
+        self.embedding_dim=token_embedding.embedding_dim
         self.emb={}
         self.emb_train=nn.ParameterList()
 
@@ -89,3 +90,4 @@ class EmbeddingPTHook(SinglePluginBlock):
         ex_words_emb = {file[:-3]: nn.Parameter(load_emb(os.path.join(emb_dir, file)).to(device), requires_grad=False)
                         for file in os.listdir(emb_dir) if file.endswith('.pt')}
         return cls.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs), ex_words_emb
+

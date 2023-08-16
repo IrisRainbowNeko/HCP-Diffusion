@@ -8,16 +8,16 @@ textencoder_ex.py
     :Licence:     Apache-2.0
 """
 
+from typing import Tuple, Optional, List
+
 import torch
-from torch import nn
-from typing import Tuple, Optional
-from transformers.models.clip.modeling_clip import CLIPAttention
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
-from collections import deque
+from torch import nn
+from transformers.models.clip.modeling_clip import CLIPAttention
 
 class TEEXHook:
-    def __init__(self, text_enc:nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda'):
+    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda'):
         self.text_enc = text_enc
         self.tokenizer = tokenizer
 
@@ -33,7 +33,7 @@ class TEEXHook:
         text_inputs = self.tokenizer(
             prompt,
             padding="max_length",
-            max_length=self.tokenizer.model_max_length * self.N_repeats,
+            max_length=self.tokenizer.model_max_length*self.N_repeats,
             truncation=True,
             return_tensors="pt",
         )
@@ -52,15 +52,16 @@ class TEEXHook:
         return prompt_embeds
 
     def forward_hook_input(self, host, feat_in):
-        feat_re = rearrange(feat_in[0], 'b (r w) -> (b r) w', r=self.N_repeats) # 使Attention mask的尺寸为N_word+2
-        return (feat_re,) if len(feat_in)==1 else (feat_re, *feat_in[1:])
+        feat_re = rearrange(feat_in[0], 'b (r w) -> (b r) w', r=self.N_repeats)  # 使Attention mask的尺寸为N_word+2
+        return (feat_re,) if len(feat_in) == 1 else (feat_re, *feat_in[1:])
 
-    def forward_hook(self, host, feat_in:Tuple[torch.Tensor], feat_out):
+    def forward_hook(self, host, feat_in: Tuple[torch.Tensor], feat_out):
         if self.clip_skip>0:
             encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
             if self.text_enc.training:
-                encoder_hidden_states = encoder_hidden_states + 0*feat_out['last_hidden_state'] # avoid unused parameters, make gradient checkpointing happy
+                encoder_hidden_states = encoder_hidden_states+0*feat_out[
+                    'last_hidden_state']  # avoid unused parameters, make gradient checkpointing happy
         else:
             encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
 
@@ -72,25 +73,25 @@ class TEEXHook:
 
     @staticmethod
     def mult_attn(prompt_embeds, attn_mult):
-        if attn_mult!=None:
+        if attn_mult != None:
             for i, item in enumerate(attn_mult):
                 if len(item)>0:
                     original_mean = prompt_embeds[i, ...].mean()
-                    prompt_embeds[i, 1:len(item) + 1, :] *= item.view(-1, 1).to(prompt_embeds.device)
+                    prompt_embeds[i, 1:len(item)+1, :] *= item.view(-1, 1).to(prompt_embeds.device)
                     new_mean = prompt_embeds[i, ...].mean()
-                    prompt_embeds[i, ...] *= original_mean / new_mean
+                    prompt_embeds[i, ...] *= original_mean/new_mean
         return prompt_embeds
 
     def enable_xformers(self):
         try:
             from xformers.components import build_attention
             my_config = {
-                "name": 'scaled_dot_product',
-                "dropout": 0.0,
+                "name":'scaled_dot_product',
+                "dropout":0.0,
             }
             self.clip_attention = build_attention(my_config)
 
-            for k,v in self.text_enc.named_modules():
+            for k, v in self.text_enc.named_modules():
                 if isinstance(v, CLIPAttention):
                     self.apply_xformers_attention_clip(v)
         except:
@@ -107,11 +108,11 @@ class TEEXHook:
             """Input shape: Batch x Time x Channel"""
 
             # get query proj
-            query_states = re_qkv(layer.q_proj(hidden_states)) #* layer.scale
+            query_states = re_qkv(layer.q_proj(hidden_states))  # * layer.scale
             key_states = re_qkv(layer.k_proj(hidden_states))
             value_states = re_qkv(layer.v_proj(hidden_states))
 
-            att_mask=None
+            att_mask = None
             if attention_mask is not None:
                 att_mask = repeat(attention_mask, 'b 1 x y -> (b h) x y', h=layer.num_heads)
 
@@ -128,7 +129,12 @@ class TEEXHook:
             attn_output = layer.out_proj(attn_output)
 
             return attn_output, None
+
         layer.forward = forward
+
+    @classmethod
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda'):
+        return cls(text_enc, tokenizer, N_repeats, clip_skip, device)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0):
