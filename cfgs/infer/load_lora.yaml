@@ -1,0 +1,26 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+merge:
+  group1:
+    type: 'unet'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: 'lora1-unet.safetensors'
+        alpha: 0.8
+        layers: 'all'
+      - path: 'lora2-unet.safetensors'
+        alpha: 0.65
+        layers: 'all'
+    part: null
+
+  group2:
+    type: 'TE'
+    base_model_alpha: 1.0 # base model weight to infer with lora or part
+    lora:
+      - path: 'lora1-te.safetensors'
+        alpha: 0.8
+        layers: 'all'
+      - path: 'lora2-te.safetensors'
+        alpha: 0.65
+        layers: 'all'
+    part: null

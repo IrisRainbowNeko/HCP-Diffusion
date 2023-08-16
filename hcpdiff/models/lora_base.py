@@ -86,6 +86,7 @@ class LoraBlock(SinglePluginBlock):
         def __init__(self, host, rank, bias, dropout, block):
             super().__init__()
             self.rank=rank
+            self.bias = bias
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_features * self.rank), 1)
             self.dropout = nn.Dropout(dropout)
@@ -104,6 +105,7 @@ class LoraBlock(SinglePluginBlock):
         def __init__(self, host, rank, bias, dropout, block):
             super().__init__()
             self.rank = rank
+            self.bias = bias
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_channels * self.rank), 1)
             self.dropout = nn.Dropout(dropout)
