@@ -7,7 +7,6 @@ from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Op
 from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
-from hcpdiff.models.compose import SDXLTokenizer, SDXLTextEncoder
 
 class TEUnetWrapper(nn.Module):
     def __init__(self, unet, TE):
@@ -93,6 +92,7 @@ def get_scheduler(
     return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
 
 def auto_tokenizer(pretrained_model_name_or_path: str, revision: str):
+    from hcpdiff.models.compose import SDXLTokenizer
     try:
         tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name_or_path, subfolder="tokenizer_2",
@@ -104,6 +104,7 @@ def auto_tokenizer(pretrained_model_name_or_path: str, revision: str):
         return AutoTokenizer
 
 def auto_text_encoder(pretrained_model_name_or_path: str, revision: str):
+    from hcpdiff.models.compose import SDXLTextEncoder
     try:
         text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
