@@ -16,6 +16,15 @@ class ComposeEmbPTHook(nn.Module):
         self.hook_list = hook_list
         self.emb_train = nn.ParameterList()
 
+    @property
+    def N_repeats(self):
+        return self.hook_list[0][1].N_repeats
+
+    @N_repeats.setter
+    def N_repeats(self, value):
+        for name, hook in self.hook_list:
+            hook.N_repeats = value
+
     def add_emb(self, emb: nn.Parameter, token_id_list: List[int]):
         emb_len = 0
         # Same word in different tokenizer may have different token_id
@@ -59,6 +68,24 @@ class ComposeTEEXHook:
     def __init__(self, tehook_list: List[Tuple[str, TEEXHook]], cat_dim=-1):
         self.tehook_list = tehook_list
         self.cat_dim = cat_dim
+
+    @property
+    def N_repeats(self):
+        return self.tehook_list[0][1].N_repeats
+
+    @N_repeats.setter
+    def N_repeats(self, value):
+        for name, tehook in self.tehook_list:
+            tehook.N_repeats = value
+
+    @property
+    def clip_skip(self):
+        return self.tehook_list[0][1].clip_skip
+
+    @clip_skip.setter
+    def clip_skip(self, value):
+        for name, tehook in self.tehook_list:
+            tehook.clip_skip = value
 
     def encode_prompt_to_emb(self, prompt):
         emb_list = [tehook.encode_prompt_to_emb(prompt) for name, tehook in self.tehook_list]
