@@ -13,7 +13,7 @@ from torch.cuda.amp import autocast
 
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
-from hcpdiff.utils.net_utils import to_cpu, to_cuda
+from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
 
@@ -29,11 +29,7 @@ class Visualizer:
 
         self.need_inter_imgs = any(item.need_inter_imgs for item in self.cfgs.interface)
 
-        pipeline = self.get_pipeline()
-        comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
-                                        torch_dtype=self.dtype).components
-        comp.update(self.cfgs.new_components)
-        self.pipe = pipeline(**comp)
+        self.pipe = self.load_model(self.cfgs.pretrained_model)
 
         if self.cfg_merge:
             self.merge_model()
@@ -45,6 +41,15 @@ class Visualizer:
             os._exit(0)
 
         self.build_optimize()
+
+    def load_model(self, pretrained_model):
+        pipeline = self.get_pipeline()
+        te = auto_text_encoder(pretrained_model).from_pretrained(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype)
+        tokenizer = auto_tokenizer(pretrained_model).from_pretrained(pretrained_model, subfolder="tokenizer", use_fast=False)
+
+        return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
+                                        text_encoder=te, tokenizer=tokenizer,
+                                        torch_dtype=self.dtype, **self.cfgs.new_components)
 
     def build_optimize(self):
         if self.offload:

@@ -91,7 +91,7 @@ def get_scheduler(
 
     return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
 
-def auto_tokenizer(pretrained_model_name_or_path: str, revision: str):
+def auto_tokenizer(pretrained_model_name_or_path: str, revision: str=None):
     from hcpdiff.models.compose import SDXLTokenizer
     try:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -103,7 +103,7 @@ def auto_tokenizer(pretrained_model_name_or_path: str, revision: str):
         # not sdxl, only one tokenizer
         return AutoTokenizer
 
-def auto_text_encoder(pretrained_model_name_or_path: str, revision: str):
+def auto_text_encoder(pretrained_model_name_or_path: str, revision: str=None):
     from hcpdiff.models.compose import SDXLTextEncoder
     try:
         text_encoder_config = PretrainedConfig.from_pretrained(
