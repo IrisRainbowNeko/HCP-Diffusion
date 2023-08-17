@@ -95,6 +95,10 @@ class ComposeTEEXHook:
         for name, tehook in self.tehook_list:
             tehook.enable_xformers()
 
+    @staticmethod
+    def mult_attn(prompt_embeds, attn_mult):
+        return TEEXHook.mult_attn(prompt_embeds, attn_mult)
+
     @classmethod
     def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda') -> Union['ComposeTEEXHook', TEEXHook]:
         if isinstance(text_enc, ComposeTextEncoder):
@@ -105,3 +109,7 @@ class ComposeTEEXHook:
         else:
             # single text encoder
             return TEEXHook.hook(text_enc, tokenizer, N_repeats, clip_skip, device)
+
+    @classmethod
+    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0):
+        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip)

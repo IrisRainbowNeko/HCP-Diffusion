@@ -36,6 +36,7 @@ from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup
 from hcpdiff.loggers import LoggerGroup
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext
+from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
 from hcpdiff.noise import NoiseBase
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.ema import ModelEMA
@@ -291,12 +292,12 @@ class Trainer:
 
     def make_hooks(self):
         # Hook tokenizer and embedding to support pt
-        self.embedding_hook, self.ex_words_emb = EmbeddingPTHook.hook_from_dir(
+        self.embedding_hook, self.ex_words_emb = ComposeEmbPTHook.hook_from_dir(
             self.cfgs.tokenizer_pt.emb_dir, self.tokenizer, self.text_encoder, log=self.is_local_main_process,
             N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device)
 
-        self.text_enc_hook = TEEXHook(self.text_encoder, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device,
-                                      clip_skip=self.cfgs.model.clip_skip)
+        self.text_enc_hook = ComposeTEEXHook.hook(self.text_encoder, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats,
+                                                  device=self.device, clip_skip=self.cfgs.model.clip_skip)
 
     def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop('batch_size')

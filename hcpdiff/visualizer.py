@@ -12,6 +12,7 @@ from diffusers.utils.import_utils import is_xformers_available
 from torch.cuda.amp import autocast
 
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
+from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
@@ -64,9 +65,9 @@ class Visualizer:
             if self.cfgs.vae_optimize.slicing:
                 self.pipe.vae.enable_slicing()
 
-        self.emb_hook, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
+        self.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
                                                          N_repeats=self.cfgs.N_repeats)
-        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
+        self.te_hook = ComposeTEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():
