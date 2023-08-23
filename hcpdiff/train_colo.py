@@ -197,7 +197,7 @@ class TrainerColo(Trainer):
         return unet
 
     @property
-    def text_encoder_raw(self):
+    def TE_raw(self):
         if self.train_TE:
             TE = get_static_torch_model(self.TE_unet).TE
             req_grad_dict = {k: v.requires_grad for k, v in self.text_encoder.named_parameters()}

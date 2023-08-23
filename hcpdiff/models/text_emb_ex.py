@@ -37,9 +37,10 @@ class EmbeddingPTHook(SinglePluginBlock):
         self.input_ids = rearrange(input_ids[0], '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
         return self.input_ids.clip(0, self.num_embeddings-1)
 
-    def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor): # inputs_embeds:[B, N_word+2, N_emb]
+    def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor):
         '''
         :param input_ids: [B, N_ids]
+        :param inputs_embeds: [B, N_repeat*(N_word+2), N_emb]
         :return: [B, N_repeat, N_word+2, N_emb]
         '''
         rep_idxs_B = self.input_ids >= self.num_embeddings
@@ -61,6 +62,7 @@ class EmbeddingPTHook(SinglePluginBlock):
 
             # split to N_repeat sentence
             replaced_item = torch.cat(item_new, dim=0)[1:self.N_word*self.N_repeats+1, :]
+            print(self.N_repeats, self.N_word)
             replaced_item = rearrange(replaced_item, '(r w) e -> r w e', r=self.N_repeats, w=self.N_word)
             replaced_item = torch.cat([BOS, replaced_item, EOS], dim=1) # [N_repeat, N_word+2, N_emb]
 

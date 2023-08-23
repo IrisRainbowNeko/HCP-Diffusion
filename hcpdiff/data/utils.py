@@ -4,7 +4,7 @@ from PIL import Image
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
 
-class DualRandomCrop(object):
+class DualRandomCrop:
     def __init__(self, size):
         self.size = size
 
@@ -15,7 +15,7 @@ class DualRandomCrop(object):
             img['mask'] = self.crop(img['mask'], *crop_params)
         if "cond" in img:
             img['cond'] = F.crop(img['cond'], *crop_params)
-        return img
+        return img, crop_params[:2]
 
     @staticmethod
     def crop(img: np.ndarray, top: int, left: int, height: int, width: int) -> np.ndarray:
@@ -41,7 +41,8 @@ def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     if "cond" in img:
         img['cond'] = img['cond'].resize(new_size, interp_type)
 
-    return DualRandomCrop(target_size[::-1])(img)
+    img, crop_coord = DualRandomCrop(target_size[::-1])(img)
+    return img, crop_coord
 
 def pad_crop_fix(img, target_size):
     w, h = img['img'].size
@@ -57,9 +58,10 @@ def pad_crop_fix(img, target_size):
             img['cond'] = F.pad(img['cond'], pad_size)
 
     if pad_size[2]>0 and pad_size[3]>0:
-        return img  # No need to crop
+        return img, (0, 0)  # No need to crop
     else:
-        return DualRandomCrop(target_size[::-1])(img)
+        img, crop_coord = DualRandomCrop(target_size[::-1])(img)
+        return img, crop_coord
 
 class CycleData():
     def __init__(self, data_loader):

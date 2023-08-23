@@ -36,13 +36,13 @@ class TextImageCondPairDataset(TextImagePairDataset):
         img_cond = self.load_image(os.path.join(self.source_dict[img_root].cond_dir, img_name))
         att_mask = self.get_att_map(img_root, get_file_name(img_name))
         if att_mask is None:
-            data = self.bucket.crop_resize({"img": image, "cond":img_cond}, size)
+            data, crop_coord = self.bucket.crop_resize({"img": image, "cond":img_cond}, size)
             image = self.source_dict[img_root].image_transforms(data['img'])  # resize to bucket size
             img_cond = self.cond_transform(data['cond'])
             att_mask = torch.ones((size[1] // 8, size[0] // 8))
         else:
-            data = self.bucket.crop_resize({"img": image, "mask": att_mask, "cond":img_cond}, size)
+            data, crop_coord = self.bucket.crop_resize({"img": image, "mask": att_mask, "cond":img_cond}, size)
             image = self.source_dict[img_root].image_transforms(data['img'])
             img_cond = self.cond_transform(data['cond'])
-            att_mask = torch.tensor(cv2.resize(att_mask, (size[0] // 8, size[1] // 8), interpolation=cv2.INTER_LINEAR))
-        return {'img': image, 'mask': att_mask, "cond":img_cond}
+            att_mask = torch.tensor(cv2.resize(data['mask'], (size[0] // 8, size[1] // 8), interpolation=cv2.INTER_LINEAR))
+        return {'img': image, 'mask': att_mask, 'plugin_input':{"cond":img_cond}}

@@ -28,7 +28,7 @@ offload: null
 
 #vae_optimize: null
 vae_optimize:
-  tiling: True
+  tiling: False
   slicing: False
 
 interface:

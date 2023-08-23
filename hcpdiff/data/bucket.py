@@ -11,15 +11,15 @@ bucket.py
 import math
 import os.path
 import pickle
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Any
 
 import cv2
 import numpy as np
+from hcpdiff.utils.img_size_tool import types_support, get_image_size
+from hcpdiff.utils.utils import get_file_ext
 from loguru import logger
 from sklearn.cluster import KMeans
 
-from hcpdiff.utils.img_size_tool import types_support, get_image_size
-from hcpdiff.utils.utils import get_file_ext
 from .utils import resize_crop_fix, pad_crop_fix
 
 class BaseBucket:
@@ -38,8 +38,8 @@ class BaseBucket:
     def rest(self, epoch):
         pass
 
-    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
-        return image
+    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC) -> Tuple[Any, Tuple[int, int]]:
+        return image, (0, 0)
 
 class FixedBucket(BaseBucket):
     def __init__(self, target_size: Union[Tuple[int, int], int] = 512, **kwargs):
@@ -283,7 +283,7 @@ class LongEdgeBucket(RatioBucket):
         size_list = []
         for i, file in enumerate(self.file_names):
             w, h = get_image_size(file)
-            scale = self.target_edge / max(w,h)
+            scale = self.target_edge/max(w, h)
             size_list.append([round(w*scale), round(h*scale)])
         size_list = np.array(size_list)
 

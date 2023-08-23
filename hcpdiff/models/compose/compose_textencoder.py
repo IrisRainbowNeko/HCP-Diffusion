@@ -13,12 +13,12 @@ from typing import Dict, Optional, Union, Tuple, List
 
 import torch
 from torch import nn
-from transformers import CLIPTextModel
+from transformers import CLIPTextModel, PreTrainedModel, PretrainedConfig
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 
-class ComposeTextEncoder(nn.Module):
+class ComposeTextEncoder(PreTrainedModel):
     def __init__(self, model_list: List[Tuple[str, CLIPTextModel]], cat_dim=-1):
-        super().__init__()
+        super().__init__(PretrainedConfig(**{name:model.config for name, model in model_list}))
         self.cat_dim = cat_dim
 
         self.model_names = []
@@ -91,7 +91,8 @@ class ComposeTextEncoder(nn.Module):
             text_feat_list['attentions'].append(text_feat.attentions)
 
         last_hidden_state = torch.cat(text_feat_list['last_hidden_state'], dim=self.cat_dim)
-        pooler_output = torch.cat(text_feat_list['pooler_output'], dim=self.cat_dim)
+        #pooler_output = torch.cat(text_feat_list['pooler_output'], dim=self.cat_dim)
+        pooler_output = text_feat_list['pooler_output']
         if text_feat_list['hidden_states'][0] is None:
             hidden_states = None
         else:

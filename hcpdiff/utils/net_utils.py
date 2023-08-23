@@ -8,25 +8,6 @@ from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
 
-class TEUnetWrapper(nn.Module):
-    def __init__(self, unet, TE):
-        super().__init__()
-        self.unet = unet
-        self.TE = TE
-
-    def forward(self, prompt_ids, noisy_latents, timesteps, **kwargs):
-        input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, **kwargs)
-
-        if hasattr(self.TE, 'input_feeder'):
-            for feeder in self.TE.input_feeder:
-                feeder(input_all)
-        if hasattr(self.unet, 'input_feeder'):
-            for feeder in self.unet.input_feeder:
-                feeder(input_all)
-
-        encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
-        model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
-        return model_pred
 
 def get_scheduler(
     name: Union[str, SchedulerType],

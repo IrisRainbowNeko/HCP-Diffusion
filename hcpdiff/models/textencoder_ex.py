@@ -48,7 +48,7 @@ class TEEXHook:
             text_input_ids.to(self.device),
             attention_mask=attention_mask,
             output_hidden_states=True,
-        )
+        )[0]
         return prompt_embeds
 
     def forward_hook_input(self, host, feat_in):
@@ -66,10 +66,15 @@ class TEEXHook:
             encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
 
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
+        pooled_output = self.pool_hidden_states(encoder_hidden_states, feat_in[0])
         BOS, EOS = encoder_hidden_states[:, 0, :1, :], encoder_hidden_states[:, -1, -1:, :]
         encoder_hidden_states = torch.cat([BOS, encoder_hidden_states[:, :, 1:-1, :].flatten(1, 2), EOS], dim=1)  # [B, N_repeat*N_word+2, N_emb]
 
-        return encoder_hidden_states
+        return encoder_hidden_states, pooled_output
+
+    def pool_hidden_states(self, encoder_hidden_states, input_ids):
+        pooled_output = encoder_hidden_states[:, :, -1, :].mean(dim=1) # [B, N_emb]
+        return pooled_output
 
     @staticmethod
     def mult_attn(prompt_embeds, attn_mult):

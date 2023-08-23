@@ -24,11 +24,11 @@ class TrainerDeepSpeed(Trainer):
 
     @property
     def unet_raw(self):
-        return self.accelerator.unwrap_model(self.TE_unet).unet if self.train_TE else self.unet.module
+        return self.accelerator.unwrap_model(self.TE_unet).unet if self.train_TE else self.accelerator.unwrap_model(self.TE_unet.unet)
 
     @property
-    def text_encoder_raw(self):
-        return self.accelerator.unwrap_model(self.TE_unet).TE if self.train_TE else self.text_encoder
+    def TE_raw(self):
+        return self.accelerator.unwrap_model(self.TE_unet).TE if self.train_TE else self.TE_unet.TE
 
     def build_optimizer_scheduler(self):
         # set optimizer

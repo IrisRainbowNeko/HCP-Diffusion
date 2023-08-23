@@ -78,6 +78,21 @@ class TextImagePairDataset(Dataset):
         with open(template_file, 'r', encoding='utf-8') as f:
             return f.read().strip().split('\n')
 
+    def load_data(self, path, size):
+        img_root, img_name = os.path.split(path)
+        image = self.load_image(path)
+        im_w, im_h = image.size
+        att_mask = self.get_att_map(img_root, get_file_name(img_name))
+        if att_mask is None:
+            data, crop_coord = self.bucket.crop_resize({"img":image}, size)
+            image = self.source_dict[img_root].image_transforms(data['img'])  # resize to bucket size
+            att_mask = torch.ones((size[1]//8, size[0]//8))
+        else:
+            data, crop_coord = self.bucket.crop_resize({"img":image, "mask":att_mask}, size)
+            image = self.source_dict[img_root].image_transforms(data['img'])
+            att_mask = torch.tensor(cv2.resize(data['mask'], (size[0]//8, size[1]//8), interpolation=cv2.INTER_LINEAR))
+        return {'img':image, 'mask':att_mask}
+
     @torch.no_grad()
     def cache_latents(self, vae, weight_dtype, device, show_prog=True):
         self.latents = {}
@@ -101,20 +116,6 @@ class TextImagePairDataset(Dataset):
         np_mask[np_mask>127] = ((np_mask[np_mask>127]-127)/128.)*4+1
         return np_mask
 
-    def load_data(self, path, size):
-        img_root, img_name = os.path.split(path)
-        image = self.load_image(path)
-        att_mask = self.get_att_map(img_root, get_file_name(img_name))
-        if att_mask is None:
-            data = self.bucket.crop_resize({"img":image}, size)
-            image = self.source_dict[img_root].image_transforms(data['img'])  # resize to bucket size
-            att_mask = torch.ones((size[1]//8, size[0]//8))
-        else:
-            data = self.bucket.crop_resize({"img":image, "mask":att_mask}, size)
-            image = self.source_dict[img_root].image_transforms(data['img'])
-            att_mask = torch.tensor(cv2.resize(att_mask, (size[0]//8, size[1]//8), interpolation=cv2.INTER_LINEAR))
-        return {'img':image, 'mask':att_mask}
-
     def __len__(self):
         return len(self.bucket)
 
@@ -127,16 +128,13 @@ class TextImagePairDataset(Dataset):
         else:
             data = self.latents[img_name]
 
-        caption_ist = self.source_dict[img_root].caption_dict[img_name] if img_name in \
-                                                                           self.source_dict[img_root].caption_dict else None
-        prompt_ist = self.source_dict[img_root].tag_transforms(
-            {'prompt':random.choice(self.source_dict[img_root].prompt_template), 'caption':caption_ist})['prompt']
+        caption_ist = self.source_dict[img_root].caption_dict.get(img_name, None)
+        prompt_template = random.choice(self.source_dict[img_root].prompt_template)
+        prompt_ist = self.source_dict[img_root].tag_transforms({'prompt':prompt_template, 'caption':caption_ist})['prompt']
 
         # tokenize Sp or (Sn, Sp)
-        prompt_ids = self.tokenizer(
-            prompt_ist, truncation=True, padding="max_length", return_tensors="pt",
-            max_length=self.tokenizer.model_max_length*self.tokenizer_repeats).input_ids.squeeze()
-
+        prompt_ids = self.tokenizer(prompt_ist, truncation=True, padding="max_length", return_tensors="pt",
+                                    max_length=self.tokenizer.model_max_length*self.tokenizer_repeats).input_ids.squeeze()
         data['prompt'] = prompt_ids
 
         if self.return_path:
@@ -146,32 +144,37 @@ class TextImagePairDataset(Dataset):
 
     @staticmethod
     def collate_fn(batch):
-        datas, sn_list, sp_list = {'img':[]}, [], []
+        '''
+        batch: [{img:tensor, prompt:str, ..., plugin_input:{...}},{}]
+        '''
+        if 'plugin_input' in batch[0]:
+            plugin_input = {k:[] for k in batch[0]['plugin_input'].keys()}
 
-        data0 = batch[0]
-        if 'mask' in data0:
-            datas['mask'] = []
-        if 'cond' in data0:
-            datas['cond'] = []
+        datas = {k:[] for k in batch[0].keys() if k != 'plugin_input' and k != 'prompt'}
+        sn_list, sp_list = [], []
 
         for data in batch:
-            datas['img'].append(data['img'])
-            datas['mask'].append(data['mask'])
-            if 'cond' in data:
-                datas['cond'].append(data['cond'])
+            if 'plugin_input' in data:
+                for k, v in data.pop('plugin_input').items():
+                    plugin_input[k].append(v)
 
-            target = data['prompt']
-            if len(target.shape) == 2:
-                sn_list.append(target[0])
-                sp_list.append(target[1])
+            prompt = data.pop('prompt')
+            if len(prompt.shape) == 2:
+                sn_list.append(prompt[0])
+                sp_list.append(prompt[1])
             else:
-                sp_list.append(target)
-        sn_list += sp_list
+                sp_list.append(prompt)
 
-        datas['img'] = torch.stack(datas['img'])
-        datas['mask'] = torch.stack(datas['mask']).unsqueeze(1)
-        if 'cond' in data0:
-            datas['cond'] = torch.stack(datas['cond'])
+            for k, v in data.items():
+                datas[k].append(v)
+
+        for k, v in datas.items():
+            datas[k] = torch.stack(v)
+            if k == 'mask':
+                datas[k] = datas[k].unsqueeze(1)
+
+        sn_list += sp_list
         datas['prompt'] = torch.stack(sn_list)
+        datas['plugin_input'] = {k:torch.stack(v) for k, v in plugin_input.items()}
 
         return datas
