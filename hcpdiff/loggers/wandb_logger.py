@@ -21,9 +21,11 @@ class WanDBLogger(BaseLogger):
         pass
 
     def _log(self, datas: Dict[str, Any], step: int = 0):
+        log_dict = {'step': step}
         for k, v in datas.items():
             if len(v['data']) == 1:
-                wandb.log({k: v['data'][0]}, step=step)
+                log_dict[k] = v['data'][0]
+        wandb.log(log_dict)
 
     def _log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         wandb.log({next(iter(imgs.keys())): list(imgs.values())}, step=step)

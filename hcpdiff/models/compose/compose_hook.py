@@ -42,12 +42,13 @@ class ComposeEmbPTHook(nn.Module):
             hook_list = []
 
             emb_len = 0
-            for (name, tokenizer_i), (_, text_encoder_i) in zip(tokenizer, text_encoder):
+            for name, tokenizer_i in tokenizer.tokenizer_list:
+                text_encoder_i = getattr(text_encoder, name)
                 if log:
                     logger.info(f'compose hook: {name}')
                 embedding_dim = text_encoder_i.text_model.embeddings.token_embedding.embedding_dim
                 ex_words_emb_i = {k:v[emb_len:emb_len+embedding_dim] for k, v in ex_words_emb.items()}
-                hook_list.append(EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, log=log, **kwargs))
+                hook_list.append((name, EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, log=log, **kwargs)))
 
             return cls(hook_list)
         else:
@@ -103,8 +104,8 @@ class ComposeTEEXHook:
     def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda') -> Union['ComposeTEEXHook', TEEXHook]:
         if isinstance(text_enc, ComposeTextEncoder):
             # multi text encoder
-            tehook_list = [TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, device)
-                for name, (_, tokenizer_i) in zip(text_enc.model_names, tokenizer)]
+            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, device))
+                for name, tokenizer_i in tokenizer.tokenizer_list]
             return cls(tehook_list)
         else:
             # single text encoder
