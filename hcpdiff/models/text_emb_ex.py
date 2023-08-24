@@ -62,7 +62,6 @@ class EmbeddingPTHook(SinglePluginBlock):
 
             # split to N_repeat sentence
             replaced_item = torch.cat(item_new, dim=0)[1:self.N_word*self.N_repeats+1, :]
-            print(self.N_repeats, self.N_word)
             replaced_item = rearrange(replaced_item, '(r w) e -> r w e', r=self.N_repeats, w=self.N_word)
             replaced_item = torch.cat([BOS, replaced_item, EOS], dim=1) # [N_repeat, N_word+2, N_emb]
 

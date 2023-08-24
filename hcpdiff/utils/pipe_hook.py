@@ -110,11 +110,14 @@ class HookPipe_T2I(StableDiffusionPipeline):
         # SDXL inputs
         if pooled_output is not None:
             if crop_coord is None:
-                crop_info = torch.tensor([width, height, 0, 0, width, height], dtype=torch.float)
+                crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
             else:
-                crop_info = torch.tensor([width, height, *crop_coord], dtype=torch.float)
+                crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
             crop_info = crop_info.to(device).repeat(batch_size*num_images_per_prompt, 1)
             pooled_output = pooled_output.to(device)
+
+            if do_classifier_free_guidance:
+                crop_info = torch.cat([crop_info, crop_info], dim=0)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps)-num_inference_steps*self.scheduler.order
