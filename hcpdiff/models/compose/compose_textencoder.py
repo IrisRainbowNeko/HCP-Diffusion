@@ -17,9 +17,10 @@ from transformers import CLIPTextModel, PreTrainedModel, PretrainedConfig
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 
 class ComposeTextEncoder(PreTrainedModel):
-    def __init__(self, model_list: List[Tuple[str, CLIPTextModel]], cat_dim=-1):
+    def __init__(self, model_list: List[Tuple[str, CLIPTextModel]], cat_dim=-1, with_hook=True):
         super().__init__(PretrainedConfig(**{name:model.config for name, model in model_list}))
         self.cat_dim = cat_dim
+        self.with_hook = with_hook
 
         self.model_names = []
         for name, model in model_list:
@@ -73,40 +74,56 @@ class ComposeTextEncoder(PreTrainedModel):
 
         input_ids_list = input_ids.chunk(dim=1)
 
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        text_feat_list = {'last_hidden_state':[], 'pooler_output':[], 'hidden_states':[], 'attentions':[]}
-        for name, input_ids in zip(self.model_names, input_ids_list):
-            text_feat: BaseModelOutputWithPooling = getattr(self, name)(
-                input_ids=input_ids,  # get token for model self.{name}
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=True,
-            )
-            text_feat_list['last_hidden_state'].append(text_feat.last_hidden_state)
-            text_feat_list['pooler_output'].append(text_feat.pooler_output)
-            text_feat_list['hidden_states'].append(text_feat.hidden_states)
-            text_feat_list['attentions'].append(text_feat.attentions)
-
-        last_hidden_state = torch.cat(text_feat_list['last_hidden_state'], dim=self.cat_dim)
-        #pooler_output = torch.cat(text_feat_list['pooler_output'], dim=self.cat_dim)
-        pooler_output = text_feat_list['pooler_output']
-        if text_feat_list['hidden_states'][0] is None:
-            hidden_states = None
+        if self.with_hook:
+            encoder_hidden_states_list, pooled_output_list = [], []
+            for name, input_ids in zip(self.model_names, input_ids_list):
+                encoder_hidden_states, pooled_output = getattr(self, name)(
+                    input_ids=input_ids,  # get token for model self.{name}
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=True,
+                )
+                encoder_hidden_states_list.append(encoder_hidden_states)
+                pooled_output_list.append(pooled_output)
+            encoder_hidden_states = torch.cat(encoder_hidden_states_list, dim=self.cat_dim)
+            return encoder_hidden_states, pooled_output_list
         else:
-            hidden_states = [torch.cat(states, dim=self.cat_dim) for states in zip(*text_feat_list['hidden_states'])]
+            return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        if return_dict:
-            return BaseModelOutputWithPooling(
-                last_hidden_state=last_hidden_state,
-                pooler_output=pooler_output,
-                hidden_states=hidden_states,
-                attentions=text_feat_list['attentions'],
-            )
-        else:
-            return (last_hidden_state, pooler_output)+hidden_states
+            text_feat_list = {'last_hidden_state':[], 'pooler_output':[], 'hidden_states':[], 'attentions':[]}
+            for name, input_ids in zip(self.model_names, input_ids_list):
+                text_feat: BaseModelOutputWithPooling = getattr(self, name)(
+                    input_ids=input_ids,  # get token for model self.{name}
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=True,
+                )
+                text_feat_list['last_hidden_state'].append(text_feat.last_hidden_state)
+                text_feat_list['pooler_output'].append(text_feat.pooler_output)
+                text_feat_list['hidden_states'].append(text_feat.hidden_states)
+                text_feat_list['attentions'].append(text_feat.attentions)
+
+            last_hidden_state = torch.cat(text_feat_list['last_hidden_state'], dim=self.cat_dim)
+            # pooler_output = torch.cat(text_feat_list['pooler_output'], dim=self.cat_dim)
+            pooler_output = text_feat_list['pooler_output']
+            if text_feat_list['hidden_states'][0] is None:
+                hidden_states = None
+            else:
+                hidden_states = [torch.cat(states, dim=self.cat_dim) for states in zip(*text_feat_list['hidden_states'])]
+
+            if return_dict:
+                return BaseModelOutputWithPooling(
+                    last_hidden_state=last_hidden_state,
+                    pooler_output=pooler_output,
+                    hidden_states=hidden_states,
+                    attentions=text_feat_list['attentions'],
+                )
+            else:
+                return (last_hidden_state, pooler_output)+hidden_states
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: List[Tuple[str, str]], *args,

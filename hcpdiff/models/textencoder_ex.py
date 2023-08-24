@@ -44,12 +44,12 @@ class TEEXHook:
         else:
             attention_mask = None
 
-        prompt_embeds = self.text_enc(
+        prompt_embeds, pooled_output = self.text_enc(
             text_input_ids.to(self.device),
             attention_mask=attention_mask,
             output_hidden_states=True,
-        )[0]
-        return prompt_embeds
+        )
+        return prompt_embeds, pooled_output
 
     def forward_hook_input(self, host, feat_in):
         feat_re = rearrange(feat_in[0], 'b (r w) -> (b r) w', r=self.N_repeats)  # 使Attention mask的尺寸为N_word+2
@@ -66,7 +66,7 @@ class TEEXHook:
             encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
 
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
-        pooled_output = self.pool_hidden_states(encoder_hidden_states, feat_in[0])
+        pooled_output = feat_out.pooled_output
         BOS, EOS = encoder_hidden_states[:, 0, :1, :], encoder_hidden_states[:, -1, -1:, :]
         encoder_hidden_states = torch.cat([BOS, encoder_hidden_states[:, :, 1:-1, :].flatten(1, 2), EOS], dim=1)  # [B, N_repeat*N_word+2, N_emb]
 
