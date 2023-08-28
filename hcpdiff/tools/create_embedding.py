@@ -7,24 +7,38 @@ import os.path
 
 import torch
 from hcpdiff.utils.utils import str2bool
-from hcpdiff.utils.net_utils import auto_text_encoder, save_emb
-from transformers import AutoTokenizer
+from hcpdiff.utils.net_utils import auto_text_encoder, save_emb, auto_tokenizer
+from hcpdiff.models.compose import ComposeTextEncoder
 
 class PTCreator:
     def __init__(self, pretrained_model_name_or_path, root='embs/'):
         self.root=root
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_cls = auto_tokenizer(pretrained_model_name_or_path)
+        self.tokenizer = tokenizer_cls.from_pretrained(
             pretrained_model_name_or_path,
             subfolder="tokenizer",
             revision=None,
             use_fast=False,
         )
 
-        text_encoder_cls = auto_text_encoder(pretrained_model_name_or_path, None)
+        text_encoder_cls = auto_text_encoder(pretrained_model_name_or_path)
         self.text_encoder = text_encoder_cls.from_pretrained(pretrained_model_name_or_path, subfolder="text_encoder", revision=None)
 
-        self.embed_dim = self.text_encoder.text_model.embeddings.token_embedding.embedding_dim
+        emb_layer = self.text_encoder.get_input_embeddings()
+        if isinstance(emb_layer, list):
+            self.embed_dim = sum(layer.embedding_dim for layer in emb_layer)
+        else:
+            self.embed_dim = self.text_encoder.get_input_embeddings().embedding_dim
+
+    def get_embs(self, prompt_ids):
+        emb_pt = self.text_encoder.get_input_embeddings()
+        if isinstance(self.text_encoder, ComposeTextEncoder):
+            prompt_ids_list = prompt_ids.chunk(len(self.text_encoder.model_names),dim=-1)
+            emb_list = [layer(ids) for layer, ids in zip(emb_pt, prompt_ids_list)]
+            return torch.cat(emb_list, dim=-1)
+        else:
+            return emb_pt(prompt_ids)
 
     def creat_word_pt(self, name, n_word, init_text, replace=False):
         if init_text.startswith('*'):
@@ -32,11 +46,10 @@ class PTCreator:
             if len(init_text)>1:
                 init_embs *= float(init_text[1:])
         else:
-            emb_pt = self.text_encoder.text_model.embeddings.token_embedding
             prompt_ids = self.tokenizer(
                 init_text, truncation=True, padding="max_length", return_tensors="pt",
                 max_length=self.tokenizer.model_max_length).input_ids[0, 1:n_word+1]
-            init_embs = emb_pt(prompt_ids)
+            init_embs = self.get_embs(prompt_ids)
         print(init_embs.shape)
         save_emb(os.path.join(self.root, name+'.pt'), init_embs, replace)
         print(f'embedding {name} is create.')

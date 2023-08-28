@@ -46,8 +46,9 @@ class ComposeEmbPTHook(nn.Module):
                 text_encoder_i = getattr(text_encoder, name)
                 if log:
                     logger.info(f'compose hook: {name}')
-                embedding_dim = text_encoder_i.text_model.embeddings.token_embedding.embedding_dim
+                embedding_dim = text_encoder_i.get_input_embeddings().embedding_dim
                 ex_words_emb_i = {k:v[emb_len:emb_len+embedding_dim] for k, v in ex_words_emb.items()}
+                emb_len += embedding_dim
                 hook_list.append((name, EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, log=log, **kwargs)))
 
             return cls(hook_list)
