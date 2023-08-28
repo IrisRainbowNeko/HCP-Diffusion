@@ -71,9 +71,9 @@ class LoraConverter:
     def alpha_scale_to_webui(state):
         for k, v in state.items():
             if 'lora_up' in k:
-                state[k] = v/math.sqrt(v.shape[1])
+                state[k] = v*math.sqrt(v.shape[1])
             elif 'lora_down' in k:
-                state[k] = v/math.sqrt(v.shape[0])
+                state[k] = v*math.sqrt(v.shape[0])
         return state
 
 if __name__ == '__main__':
