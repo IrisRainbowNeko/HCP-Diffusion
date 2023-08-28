@@ -17,12 +17,13 @@ from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
 
 class TEEXHook:
-    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda'):
+    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
         self.text_enc = text_enc
         self.tokenizer = tokenizer
 
         self.N_repeats = N_repeats
         self.clip_skip = clip_skip
+        self.clip_final_norm = clip_final_norm
         self.device = device
         self.attn_mult = None
 
@@ -56,14 +57,11 @@ class TEEXHook:
         return (feat_re,) if len(feat_in) == 1 else (feat_re, *feat_in[1:])
 
     def forward_hook(self, host, feat_in: Tuple[torch.Tensor], feat_out):
-        if self.clip_skip>0:
-            encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
+        encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
+        if self.clip_final_norm:
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
-            if self.text_enc.training:
-                encoder_hidden_states = encoder_hidden_states+0*feat_out[
-                    'last_hidden_state']  # avoid unused parameters, make gradient checkpointing happy
-        else:
-            encoder_hidden_states = feat_out['last_hidden_state']  # Get the text embedding for conditioning
+        if self.text_enc.training and self.clip_skip>0:
+            encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state']  # avoid unused parameters, make gradient checkpointing happy
 
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
         pooled_output = feat_out.pooler_output
@@ -138,9 +136,9 @@ class TEEXHook:
         layer.forward = forward
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda'):
-        return cls(text_enc, tokenizer, N_repeats, clip_skip, device)
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
+        return cls(text_enc, tokenizer, N_repeats, clip_skip, clip_final_norm, device)
 
     @classmethod
-    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip)
+    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True):
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm)

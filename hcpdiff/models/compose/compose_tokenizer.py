@@ -39,14 +39,14 @@ class ComposeTokenizer(PreTrainedTokenizer):
 
 
     def __call__(self, text, *args, **kwargs):
-        token_list: List[BatchEncoding] = [tokenizer(text) for name, tokenizer in self.tokenizer_list]
-        input_ids = torch.stack([token.input_ids for token in token_list], dim=1)  # [N_tokenizer, N_token]
-        attention_mask = torch.stack([token.attention_mask for token in token_list], dim=1)
+        token_list: List[BatchEncoding] = [tokenizer(text, *args, **kwargs) for name, tokenizer in self.tokenizer_list]
+        input_ids = torch.cat([token.input_ids for token in token_list], dim=-1)  # [N_tokenizer, N_token]
+        attention_mask = [token.attention_mask for token in token_list]
         return BatchEncoding({'input_ids':input_ids, 'attention_mask':attention_mask})
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: List[Tuple[str, str]], *args,
                         subfolder: Dict[str, str] = None, revision: str = None, **kwargs):
-        tokenizer_list = [(name, AutoTokenizer.from_pretrained(path, subfolder=subfolder[name])) for name, path in pretrained_model_name_or_path]
+        tokenizer_list = [(name, AutoTokenizer.from_pretrained(path, subfolder=subfolder[name], **kwargs)) for name, path in pretrained_model_name_or_path]
         compose_tokenizer = cls(tokenizer_list)
         return compose_tokenizer

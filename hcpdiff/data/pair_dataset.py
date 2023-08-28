@@ -104,7 +104,7 @@ class TextImagePairDataset(Dataset):
                 data = self.load_data(path, size)
                 image = data['img'].unsqueeze(0).to(device, dtype=weight_dtype)
                 latents = vae.encode(image).latent_dist.sample().squeeze(0)
-                data['img'] = (latents*0.18215).cpu()
+                data['img'] = (latents*vae.scaling_factor).cpu()
                 self.latents[img_name] = data
 
     def get_att_map(self, img_root, img_name):
@@ -126,7 +126,7 @@ class TextImagePairDataset(Dataset):
         if self.latents is None:
             data = self.load_data(path, size)
         else:
-            data = self.latents[img_name]
+            data = self.latents[img_name].copy()
 
         caption_ist = self.source_dict[img_root].caption_dict.get(img_name, None)
         prompt_template = random.choice(self.source_dict[img_root].prompt_template)
@@ -175,6 +175,7 @@ class TextImagePairDataset(Dataset):
 
         sn_list += sp_list
         datas['prompt'] = torch.stack(sn_list)
-        datas['plugin_input'] = {k:torch.stack(v) for k, v in plugin_input.items()}
+        if 'plugin_input' in batch[0]:
+            datas['plugin_input'] = {k:torch.stack(v) for k, v in plugin_input.items()}
 
         return datas

@@ -19,7 +19,7 @@ from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
 
 class Visualizer:
-    dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16}
+    dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
     def __init__(self, cfgs):
         self.cfgs_raw = cfgs
@@ -67,7 +67,8 @@ class Visualizer:
 
         self.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
                                                          N_repeats=self.cfgs.N_repeats)
-        self.te_hook = ComposeTEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
+        self.te_hook = ComposeTEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip,
+                                                 clip_final_norm=self.cfgs.clip_final_norm)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():

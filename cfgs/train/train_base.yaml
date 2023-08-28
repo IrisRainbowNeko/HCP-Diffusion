@@ -71,6 +71,7 @@ model:
   ema_unet: 0 # 0 to disable
   ema_text_encoder: 0 # 0 to disable
   clip_skip: 0
+  clip_final_norm: True
   noise_scheduler:
     _target_: diffusers.DDPMScheduler.from_pretrained
     _partial_: True

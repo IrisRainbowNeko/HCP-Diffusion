@@ -42,7 +42,7 @@ def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
         img['cond'] = img['cond'].resize(new_size, interp_type)
 
     img, crop_coord = DualRandomCrop(target_size[::-1])(img)
-    return img, crop_coord
+    return img, [*new_size, *crop_coord[::-1], *target_size]
 
 def pad_crop_fix(img, target_size):
     w, h = img['img'].size

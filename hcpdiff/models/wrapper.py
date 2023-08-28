@@ -25,10 +25,10 @@ class TEUnetWrapper(nn.Module):
 
     def prepare(self, accelerator):
         if self.train_TE:
-            self.TE = accelerator.prepare(self.TE)
-            return self
-        else:
             return accelerator.prepare(self)
+        else:
+            self.unet = accelerator.prepare(self.unet)
+            return self
 
     def freeze_model(self):
         if self.train_TE:
@@ -49,7 +49,7 @@ class TEUnetWrapper(nn.Module):
 
     def trainable_parameters(self):
         if self.train_TE:
-            return itertools.chain(self.unet.parameters(), self.text_encoder.parameters())
+            return itertools.chain(self.unet.parameters(), self.TE.parameters())
         else:
             self.unet.parameters()
 

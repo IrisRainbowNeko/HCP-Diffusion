@@ -50,7 +50,7 @@ def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw=
 torch.utils.checkpoint.checkpoint = checkpoint_fix
 
 class Trainer:
-    weight_dtype_map = {'fp16':torch.float16, 'bf16':torch.bfloat16}
+    weight_dtype_map = {'fp32':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
     ckpt_manager_map = {'torch':CkptManagerPKL, 'safetensors':CkptManagerSafe}
 
     def __init__(self, cfgs_raw):
@@ -234,7 +234,7 @@ class Trainer:
     def config_model(self):
         if self.cfgs.model.enable_xformers:
             if is_xformers_available():
-                self.unet.enable_xformers_memory_efficient_attention()
+                self.TE_unet.unet.enable_xformers_memory_efficient_attention()
                 # self.text_enc_hook.enable_xformers()
             else:
                 raise ValueError("xformers is not available. Make sure it is installed correctly")
@@ -248,8 +248,9 @@ class Trainer:
             self.TE_unet.enable_gradient_checkpointing()
 
         self.weight_dtype = self.weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
+        self.vae_dtype = torch.float32
         # Move vae and text_encoder to device and cast to weight_dtype
-        self.vae = self.vae.to(self.device, dtype=self.weight_dtype)
+        self.vae = self.vae.to(self.device, dtype=self.vae_dtype)
         if not self.train_TE:
             self.TE_unet.TE = self.TE_unet.TE.to(self.device, dtype=self.weight_dtype)
 
@@ -270,7 +271,8 @@ class Trainer:
             N_repeats=self.cfgs.model.tokenizer_repeats, device=self.device)
 
         self.text_enc_hook = ComposeTEEXHook.hook(self.TE_unet.TE, self.tokenizer, N_repeats=self.cfgs.model.tokenizer_repeats,
-                                                  device=self.device, clip_skip=self.cfgs.model.clip_skip)
+                                                  device=self.device, clip_skip=self.cfgs.model.clip_skip,
+                                                  clip_final_norm=self.cfgs.model.clip_final_norm)
 
     def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop('batch_size')
@@ -285,7 +287,7 @@ class Trainer:
 
         if cache_latents:
             self.cache_latents = True
-            train_dataset.cache_latents(self.vae, self.weight_dtype, self.device, show_prog=self.is_local_main_process)
+            train_dataset.cache_latents(self.vae, self.vae_dtype, self.device, show_prog=self.is_local_main_process)
         return train_dataset, batch_size, arb
 
     def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
@@ -424,7 +426,7 @@ class Trainer:
     def get_latents(self, image, dataset):
         if dataset.latents is None:
             latents = self.vae.encode(image).latent_dist.sample()
-            latents = latents*0.18215
+            latents = latents*self.vae.scaling_factor
         else:
             latents = image  # Cached latents
         return latents
@@ -441,13 +443,13 @@ class Trainer:
         # (this is the forward diffusion process)
         return self.noise_scheduler.add_noise(latents, noise, timesteps), noise, timesteps
 
-    def forward(self, latents, prompt_ids, plugin_input={}, **kwargs):
+    def forward(self, latents, prompt_ids, **kwargs):
         noisy_latents, noise, timesteps = self.make_noise(latents)
 
         # CFG context for DreamArtist
         noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)
         #model_pred = self.encode_decode(prompt_ids, noisy_latents, timesteps, plugin_input=plugin_input, **kwargs)
-        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, plugin_input=plugin_input, **kwargs)
+        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
         # Get the target for loss depending on the prediction type
@@ -466,11 +468,12 @@ class Trainer:
                 image = data.pop('img').to(self.device, dtype=self.weight_dtype)
                 att_mask = data.pop('mask').to(self.device) if 'mask' in data else None
                 prompt_ids = data.pop('prompt').to(self.device)
-                plugin_input = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.pop('plugin_input').items()}
                 other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items()}
+                if 'plugin_input' in data:
+                    other_datas['plugin_input'] = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data['plugin_input'].items()}
 
                 latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
-                model_pred, target, timesteps = self.forward(latents, prompt_ids, plugin_input, **other_datas)
+                model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
                 loss = self.get_loss(model_pred, target, timesteps, att_mask)*self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 

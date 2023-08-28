@@ -102,10 +102,10 @@ class ComposeTEEXHook:
         return TEEXHook.mult_attn(prompt_embeds, attn_mult)
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, device='cuda') -> Union['ComposeTEEXHook', TEEXHook]:
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda') -> Union['ComposeTEEXHook', TEEXHook]:
         if isinstance(text_enc, ComposeTextEncoder):
             # multi text encoder
-            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, device))
+            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, clip_final_norm, device))
                 for name, tokenizer_i in tokenizer.tokenizer_list]
             return cls(tehook_list)
         else:
@@ -113,5 +113,5 @@ class ComposeTEEXHook:
             return TEEXHook.hook(text_enc, tokenizer, N_repeats, clip_skip, device)
 
     @classmethod
-    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0):
-        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip)
+    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True):
+        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm)

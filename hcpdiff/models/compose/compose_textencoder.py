@@ -72,13 +72,13 @@ class ComposeTextEncoder(PreTrainedModel):
         >>> pooled_output = outputs.pooler_output  # pooled (EOS token) states
         ```"""
 
-        input_ids_list = input_ids.chunk(dim=1)
+        input_ids_list = input_ids.chunk(len(self.model_names),dim=-1)
 
         if self.with_hook:
             encoder_hidden_states_list, pooled_output_list = [], []
             for name, input_ids in zip(self.model_names, input_ids_list):
                 encoder_hidden_states, pooled_output = getattr(self, name)(
-                    input_ids=input_ids,  # get token for model self.{name}
+                    input_ids,  # get token for model self.{name}
                     attention_mask=attention_mask,
                     position_ids=position_ids,
                     output_attentions=output_attentions,
@@ -95,7 +95,7 @@ class ComposeTextEncoder(PreTrainedModel):
             text_feat_list = {'last_hidden_state':[], 'pooler_output':[], 'hidden_states':[], 'attentions':[]}
             for name, input_ids in zip(self.model_names, input_ids_list):
                 text_feat: BaseModelOutputWithPooling = getattr(self, name)(
-                    input_ids=input_ids,  # get token for model self.{name}
+                    input_ids,  # get token for model self.{name}
                     attention_mask=attention_mask,
                     position_ids=position_ids,
                     output_attentions=output_attentions,
@@ -138,6 +138,6 @@ class ComposeTextEncoder(PreTrainedModel):
             >>>     ], subfolder={'clip_B':'text_encoder', 'clip_bigG':'text_encoder_2'})
             ```
         """
-        clip_list = [(name, CLIPTextModel.from_pretrained(path, subfolder=subfolder[name])) for name, path in pretrained_model_name_or_path]
+        clip_list = [(name, CLIPTextModel.from_pretrained(path, subfolder=subfolder[name], **kwargs)) for name, path in pretrained_model_name_or_path]
         compose_model = cls(clip_list)
         return compose_model

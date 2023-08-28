@@ -37,5 +37,6 @@ class CropInfoPairDataset(TextImagePairDataset):
             data, crop_coord = self.bucket.crop_resize({"img":image, "mask":att_mask}, size)
             image = self.source_dict[img_root].image_transforms(data['img'])
             att_mask = torch.tensor(cv2.resize(data['mask'], (size[0]//8, size[1]//8), interpolation=cv2.INTER_LINEAR))
-        crop_info = torch.tensor([im_h, im_w, *crop_coord, size[1], size[0]], dtype=torch.float)  # for sdxl
+        #crop_info = torch.tensor([im_h, im_w, *crop_coord, size[1], size[0]], dtype=torch.float)  # for sdxl
+        crop_info = torch.tensor(crop_coord, dtype=torch.float)  # for sdxl
         return {'img':image, 'mask':att_mask, 'crop_info':crop_info}
