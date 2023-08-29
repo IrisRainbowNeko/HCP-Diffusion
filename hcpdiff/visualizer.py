@@ -12,7 +12,7 @@ from diffusers.utils.import_utils import is_xformers_available
 from torch.cuda.amp import autocast
 
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
-from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
+from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTextEncoder
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
@@ -36,7 +36,9 @@ class Visualizer:
             self.merge_model()
 
         self.pipe = self.pipe.to(torch_dtype=self.dtype)
-        self.pipe.vae = self.pipe.vae.to(dtype=torch.float32)
+
+        if isinstance(self.pipe.text_encoder, ComposeTextEncoder):
+            self.pipe.vae = self.pipe.vae.to(dtype=torch.float32)
 
         if 'save_model' in self.cfgs and self.cfgs.save_model is not None:
             self.save_model(self.cfgs.save_model)

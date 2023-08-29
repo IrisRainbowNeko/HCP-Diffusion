@@ -35,6 +35,7 @@ HCP-Diffusion可以通过一个```.yaml```配置文件统一现有大多数训�
 * Min-SNR loss
 * 自定义优化器 (Lion, DAdaptation, pytorch-optimizer, ...)
 * 自定义学习率调整器
+* SDXL 支持
 
 ## 安装
 通过pip安装:

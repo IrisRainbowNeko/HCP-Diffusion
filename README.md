@@ -42,6 +42,7 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 * Min-SNR loss
 * Custom optimizer (Lion, DAdaptation, pytorch-optimizer, ...)
 * Custom lr scheduler
+* SDXL support
 
 ## Install
 
