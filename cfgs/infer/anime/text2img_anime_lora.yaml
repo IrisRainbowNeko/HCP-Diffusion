@@ -1,0 +1,58 @@
+_base_: 
+  - cfgs/infer/text2img_anime.yaml
+
+pretrained_model: 'stablediffusionapi/anything-v5'  # better generic anime model
+
+# safe prompt
+prompt: 'masterpiece, best quality, highres, game cg, 1girl, solo, {night}, {starry sky}, beach, beautiful detailed sky, {extremely detailed background:1.2}, mature, {surtr_arknights-${model_steps}:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, {standing}, looking at viewer, {bikini:1.3}, light smile'
+
+# r18 prompt
+# prompt: 'nsfw, masterpiece, best quality, highres, 1girl, solo, {lyging on bed}, {extremely detailed background:1.2}, {nude:1.4}, {spread legs}, {arms up}, mature, {surtr_arknights-1000:1.2}, red_hair, horns, long_hair, purple_eyes, bangs, looking_at_viewer, bare_shoulders, hair_between_eyes, cleavage, nipples, {pussy:1.15}, {pussy juice:1.3}, looking at viewer, {embarrassed}, endured face, feet out of frame'
+
+# negative prompt
+neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border'
+N_repeats: 2  # if prompt or neg_prompt is too long, increase this number
+
+bs: 1
+num: 1
+
+# when seed is not set, random seed will be used
+# seed: 758691538  # seed for safe
+# seed: 465191133  # seed for r18
+
+infer_args:
+  width: 512
+  height: 768  # image size
+  guidance_scale: 7.5  # scale, when higher, the images will tend to be more similar
+  num_inference_steps: 30  # how many steps
+
+exp_dir: 'exps/2023-07-26-01-05-35'  # experiment directory
+model_steps: 1000  # steps of selected model
+emb_dir: '${exp_dir}/ckpts/'
+output_dir: 'output/'
+
+merge:
+  alpha: 0.85 # lora权重, default: 0.85
+
+  group1:
+    type: 'unet'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: '${.....exp_dir}/ckpts/unet-${.....model_steps}.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+    part: null
+
+  group2:
+    type: 'TE'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: '${.....exp_dir}/ckpts/text_encoder-${.....model_steps}.safetensors'
+        alpha: ${....alpha}
+        layers: 'all'
+    part: null
+
+interface:
+  - _target_: hcpdiff.vis.DiskInterface
+    show_steps: 0
+    save_root: '${output_dir}'
