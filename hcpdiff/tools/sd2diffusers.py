@@ -78,6 +78,8 @@ def convert_ldm_clip_checkpoint_0_18(checkpoint, local_files_only=False, text_en
     for key in keys:
         if key.startswith("cond_stage_model.transformer"):
             t_key = key[len("cond_stage_model.transformer."):]
+            if t_key == 'embeddings.position_ids': # fix clip version bugs
+                continue
             if add_prefix:
                 t_key = 'text_model.'+t_key
             text_model_dict[t_key] = checkpoint[key]
