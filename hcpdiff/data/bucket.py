@@ -38,8 +38,8 @@ class BaseBucket:
     def rest(self, epoch):
         pass
 
-    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC) -> Tuple[Any, Tuple[int, int]]:
-        return image, (0, 0)
+    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC) -> Tuple[Any, Tuple]:
+        return image, (*size, 0, 0, *size)
 
 class FixedBucket(BaseBucket):
     def __init__(self, target_size: Union[Tuple[int, int], int] = 512, **kwargs):

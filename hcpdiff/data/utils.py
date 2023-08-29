@@ -26,7 +26,7 @@ class DualRandomCrop:
 def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     w, h = img['img'].size
     if w == target_size[0] and h == target_size[1]:
-        return img
+        return img, [h,w,0,0,h,w]
 
     ratio_img = w/h
     if ratio_img>target_size[0]/target_size[1]:
@@ -47,7 +47,7 @@ def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
 def pad_crop_fix(img, target_size):
     w, h = img['img'].size
     if w == target_size[0] and h == target_size[1]:
-        return img
+        return img, (h,w,0,0,h,w)
 
     pad_size = [0, 0, max(target_size[0]-w, 0), max(target_size[1]-h, 0)]
     if pad_size[2]>0 or pad_size[3]>0:
@@ -58,7 +58,7 @@ def pad_crop_fix(img, target_size):
             img['cond'] = F.pad(img['cond'], pad_size)
 
     if pad_size[2]>0 and pad_size[3]>0:
-        return img, (0, 0)  # No need to crop
+        return img, (h,w,0,0,h,w)  # No need to crop
     else:
         img, crop_coord = DualRandomCrop(target_size[::-1])(img)
         return img, crop_coord

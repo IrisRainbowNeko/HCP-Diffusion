@@ -31,14 +31,14 @@ class PTCreator:
         else:
             self.embed_dim = self.text_encoder.get_input_embeddings().embedding_dim
 
-    def get_embs(self, prompt_ids):
+    def get_embs(self, prompt_ids, n_word):
         emb_pt = self.text_encoder.get_input_embeddings()
         if isinstance(self.text_encoder, ComposeTextEncoder):
             prompt_ids_list = prompt_ids.chunk(len(self.text_encoder.model_names),dim=-1)
-            emb_list = [layer(ids) for layer, ids in zip(emb_pt, prompt_ids_list)]
+            emb_list = [layer(ids[0, 1:n_word+1]) for layer, ids in zip(emb_pt, prompt_ids_list)]
             return torch.cat(emb_list, dim=-1)
         else:
-            return emb_pt(prompt_ids)
+            return emb_pt(prompt_ids[0, 1:n_word+1])
 
     def creat_word_pt(self, name, n_word, init_text, replace=False):
         if init_text.startswith('*'):
@@ -48,8 +48,8 @@ class PTCreator:
         else:
             prompt_ids = self.tokenizer(
                 init_text, truncation=True, padding="max_length", return_tensors="pt",
-                max_length=self.tokenizer.model_max_length).input_ids[0, 1:n_word+1]
-            init_embs = self.get_embs(prompt_ids)
+                max_length=self.tokenizer.model_max_length).input_ids#[0, 1:n_word+1]
+            init_embs = self.get_embs(prompt_ids, n_word)
         print(init_embs.shape)
         save_emb(os.path.join(self.root, name+'.pt'), init_embs, replace)
         print(f'embedding {name} is create.')

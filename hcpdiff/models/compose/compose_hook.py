@@ -9,6 +9,7 @@ from .compose_textencoder import ComposeTextEncoder
 from ..text_emb_ex import EmbeddingPTHook
 from ..textencoder_ex import TEEXHook
 from ...utils.net_utils import load_emb
+from ..container import ParameterGroup
 
 class ComposeEmbPTHook(nn.Module):
     def __init__(self, hook_list: List[Tuple[str, EmbeddingPTHook]]):
@@ -37,17 +38,17 @@ class ComposeEmbPTHook(nn.Module):
             hook.remove()
 
     @classmethod
-    def hook(cls, ex_words_emb: Dict[str, nn.Parameter], tokenizer, text_encoder, log=False, **kwargs):
+    def hook(cls, ex_words_emb: Dict[str, ParameterGroup], tokenizer, text_encoder, log=False, **kwargs):
         if isinstance(text_encoder, ComposeTextEncoder):
             hook_list = []
 
             emb_len = 0
-            for name, tokenizer_i in tokenizer.tokenizer_list:
+            for i, (name, tokenizer_i) in enumerate(tokenizer.tokenizer_list):
                 text_encoder_i = getattr(text_encoder, name)
                 if log:
                     logger.info(f'compose hook: {name}')
                 embedding_dim = text_encoder_i.get_input_embeddings().embedding_dim
-                ex_words_emb_i = {k:v[emb_len:emb_len+embedding_dim] for k, v in ex_words_emb.items()}
+                ex_words_emb_i = {k:v[i] for k, v in ex_words_emb.items()}
                 emb_len += embedding_dim
                 hook_list.append((name, EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, log=log, **kwargs)))
 
@@ -60,8 +61,16 @@ class ComposeEmbPTHook(nn.Module):
         Tuple['ComposeEmbPTHook', Dict], Tuple[EmbeddingPTHook, Dict]]:
         if isinstance(text_encoder, ComposeTextEncoder):
             # multi text encoder
-            ex_words_emb = {file[:-3]:nn.Parameter(load_emb(os.path.join(emb_dir, file)).to(device), requires_grad=False)
-                for file in os.listdir(emb_dir) if file.endswith('.pt')}
+            #ex_words_emb = {file[:-3]:load_emb(os.path.join(emb_dir, file)).to(device) for file in os.listdir(emb_dir) if file.endswith('.pt')}
+
+            # slice of nn.Parameter cannot return grad. Split the tensor
+            ex_words_emb = {}
+            emb_dims = [x.embedding_dim for x in text_encoder.get_input_embeddings()]
+            for file in os.listdir(emb_dir):
+                if file.endswith('.pt'):
+                    emb = load_emb(os.path.join(emb_dir, file)).to(device)
+                    emb = ParameterGroup([nn.Parameter(item, requires_grad=False) for item in emb.split(emb_dims, dim=1)])
+                    ex_words_emb[file[:-3]] = emb
             return cls.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs), ex_words_emb
         else:
             return EmbeddingPTHook.hook_from_dir(emb_dir, tokenizer, text_encoder, log, device, **kwargs)

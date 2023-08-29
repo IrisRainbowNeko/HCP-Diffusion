@@ -36,6 +36,7 @@ class Visualizer:
             self.merge_model()
 
         self.pipe = self.pipe.to(torch_dtype=self.dtype)
+        self.pipe.vae = self.pipe.vae.to(dtype=torch.float32)
 
         if 'save_model' in self.cfgs and self.cfgs.save_model is not None:
             self.save_model(self.cfgs.save_model)
@@ -121,7 +122,7 @@ class Visualizer:
                     res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
                 else:
                     to_cuda(self.pipe.vae)
-                    res = decode_raw(latents, return_dict=return_dict)
+                    res = decode_raw(latents.to(dtype=torch.float32), return_dict=return_dict)
 
                 to_cpu(self.pipe.vae)
                 to_cuda(self.pipe.unet)

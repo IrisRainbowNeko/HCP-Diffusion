@@ -28,11 +28,12 @@ class ComposeTextEncoder(PreTrainedModel):
             self.model_names.append(name)
 
     def get_input_embeddings(self) -> List[nn.Module]:
-        return [getattr(self, name).embeddings.token_embedding for name in self.model_names]
+        nn.ParameterDict
+        return [getattr(self, name).get_input_embeddings() for name in self.model_names]
 
     def set_input_embeddings(self, value_dict: Dict[str, int]):
         for name, value in value_dict.items():
-            getattr(self, name).embeddings.token_embedding = value
+            getattr(self, name).set_input_embeddings(value)
 
     def gradient_checkpointing_enable(self):
         for name in self.model_names:
