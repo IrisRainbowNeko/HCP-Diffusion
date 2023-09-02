@@ -304,10 +304,10 @@ class LongEdgeBucket(RatioBucket):
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     def crop_resize(self, image, size):
-        return pad_crop_fix(image, size)
+        return resize_crop_fix(image, size)
 
     @classmethod
-    def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
-        arb = cls(step_size, num_bucket, pre_build_bucket=pre_build_bucket)
+    def from_files(cls, target_edge, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
+        arb = cls(target_edge, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb
