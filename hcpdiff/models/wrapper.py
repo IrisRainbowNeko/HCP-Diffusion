@@ -51,7 +51,7 @@ class TEUnetWrapper(nn.Module):
         if self.train_TE:
             return itertools.chain(self.unet.parameters(), self.TE.parameters())
         else:
-            self.unet.parameters()
+            return self.unet.parameters()
 
 class SDXLTEUnetWrapper(TEUnetWrapper):
     def forward(self, prompt_ids, noisy_latents, timesteps, crop_info=None, plugin_input={}, **kwargs):
