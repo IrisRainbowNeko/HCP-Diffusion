@@ -341,21 +341,8 @@ class Trainer:
             cfg_opt = self.cfgs.train.optimizer
             if self.cfgs.train.scale_lr:
                 self.scale_lr(parameters)
-
-            if isinstance(cfg_opt, partial):
-                if 'type' in cfg_opt.keywords:
-                    del cfg_opt.keywords['type']
-                self.optimizer = cfg_opt(params=parameters, lr=self.lr)
-            elif cfg_opt.type == 'adamw_8bit':
-                import bitsandbytes as bnb
-                self.optimizer = bnb.optim.AdamW8bit(params=parameters, lr=self.lr, weight_decay=cfg_opt.weight_decay)
-            elif cfg_opt.type == 'deepspeed' and self.accelerator.state.deepspeed_plugin is not None:
-                from deepspeed.ops.adam import FusedAdam
-                self.optimizer = FusedAdam(params=parameters, lr=self.lr, weight_decay=cfg_opt.weight_decay)
-            elif cfg_opt.type == 'adamw':
-                self.optimizer = torch.optim.AdamW(params=parameters, lr=self.lr, weight_decay=cfg_opt.weight_decay)
-            else:
-                raise NotImplementedError(f'Unknown optimizer {cfg_opt.type}')
+            assert isinstance(cfg_opt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
+            self.optimizer = cfg_opt(params=parameters, lr=self.lr)
 
             if isinstance(self.cfgs.train.scheduler, partial):
                 self.lr_scheduler = self.cfgs.train.scheduler(optimizer=self.optimizer)
@@ -366,12 +353,8 @@ class Trainer:
             cfg_opt_pt = self.cfgs.train.optimizer_pt
             if self.cfgs.train.scale_lr_pt:
                 self.scale_lr(parameters_pt)
-            if isinstance(cfg_opt_pt, partial):
-                if 'type' in cfg_opt_pt.keywords:
-                    del cfg_opt_pt.keywords['type']
-                self.optimizer_pt = cfg_opt_pt(params=parameters_pt, lr=self.lr)
-            else:
-                self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt_pt.weight_decay)
+            assert isinstance(cfg_opt_pt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
+            self.optimizer_pt = cfg_opt_pt(params=parameters_pt, lr=self.lr)
 
             if isinstance(self.cfgs.train.scheduler_pt, partial):
                 self.lr_scheduler_pt = self.cfgs.train.scheduler_pt(optimizer=self.optimizer_pt)

@@ -188,59 +188,30 @@ class MultiPluginBlock(BasePluginBlock):
         for handle_to in self.hook_handle_to:
             handle_to.remove()
 
-class WrapPluginContainer(nn.Module):
-    def __init__(self, plugin, name, host):
-        super().__init__()
-        self.name = name
+class PatchPluginContainer(BasePluginBlock):
+    def __init__(self, host_name, host, parent_block):
+        super().__init__('patch')
         self._host = host
-        super(WrapPluginContainer, self).__setattr__(name, plugin)
+
+        delattr(parent_block, host_name)
+        setattr(parent_block, host_name, self)
 
     def forward(self, *args, **kwargs):
-        return getattr(self, self.name)(*args, **kwargs)
+        output = self._host(*args, **kwargs)
+        return output
 
     def __getattr__(self, item):
         try:
-            return super(WrapPluginContainer, self).__getattr__(item)
+            return super(PatchPluginContainer, self).__getattr__(item)
         except:
             return getattr(self._host, item)
 
     def __setattr__(self, key, value):
-        if key == '_host' or key == 'name' or key == self.name:
-            super(WrapPluginContainer, self).__setattr__(key, value)
+        if key == '_host' or key == 'name':
+            super(PatchPluginContainer, self).__setattr__(key, value)
         else:
             setattr(self._host, key, value)
 
-
-class WrapPluginBlock(BasePluginBlock):
-    def __init__(self, name:str, host:nn.Module, host_model=None, parent_block:nn.Module=None, host_name:str=None):
-        super().__init__(name)
-        self.host = weakref.ref(host)
-        self.parent_block = weakref.ref(parent_block)
-        self.host_name = host_name
-
-        container = WrapPluginContainer(self, name, host)
-
-        delattr(parent_block, host_name)
-        #setattr(parent_block, f'{host_name}_origin_block', host)
-        setattr(parent_block, host_name, container)
-
-    def forward(self, *args, **kwargs):
-        args, kwargs = self.pre_forward(*args, **kwargs)
-        output = self.host()(*args, **kwargs)
-        output = self.post_forward(output, *args, **kwargs)
-        return output
-
-    def pre_forward(self, *args, **kwargs):
-        return args, kwargs
-
-    def post_forward(self, output, *args, **kwargs):
-        return output
-
-    def remove(self):
-        parent_block = self.parent_block()
-        delattr(parent_block, self.host_name)
-        #delattr(parent_block, f'{self.host_name}_origin_block')
-        setattr(parent_block, self.host_name, self.host())
 
 class PluginGroup:
     def __init__(self, plugin_dict:Dict[str, BasePluginBlock]):
