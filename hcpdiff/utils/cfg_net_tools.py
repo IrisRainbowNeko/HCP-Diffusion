@@ -18,7 +18,7 @@ from torch import nn
 from .utils import net_path_join
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
-from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, WrapPluginBlock
+from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginContainer
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 
 def get_class_match_layer(class_name, block:nn.Module):
@@ -200,7 +200,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                     layer.requires_grad_(False)
                     layer.eval()
                 all_plugin_blocks[from_layer_name] = layer
-        elif issubclass(plugin_class, WrapPluginBlock):
+        elif issubclass(plugin_class, PatchPluginContainer):
             layers_name = builder.keywords.pop('layers')
             for layer_name in get_match_layers(layers_name, named_modules):
                 name_split = layer_name.rsplit('.', 1)

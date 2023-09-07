@@ -189,8 +189,8 @@ class MultiPluginBlock(BasePluginBlock):
             handle_to.remove()
 
 class PatchPluginContainer(BasePluginBlock):
-    def __init__(self, host_name, host, parent_block):
-        super().__init__('patch')
+    def __init__(self, name, host_name, host, parent_block, host_model=None):
+        super().__init__(name)
         self._host = host
 
         delattr(parent_block, host_name)
