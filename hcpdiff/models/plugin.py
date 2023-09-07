@@ -188,30 +188,66 @@ class MultiPluginBlock(BasePluginBlock):
         for handle_to in self.hook_handle_to:
             handle_to.remove()
 
-class PatchPluginContainer(BasePluginBlock):
-    def __init__(self, name, host_name, host, parent_block, host_model=None):
-        super().__init__(name)
+class PatchPluginContainer(nn.Module):
+    def __init__(self, host_name, host, parent_block):
+        super().__init__()
         self._host = host
+        self.host_name=host_name
+        self.parent_block = weakref.ref(parent_block)
+        self.plugin_names = []
 
         delattr(parent_block, host_name)
         setattr(parent_block, host_name, self)
 
+    def add_plugin(self, name:str, plugin:'PatchPluginBlock'):
+        setattr(self, name, plugin)
+        self.plugin_names.append(name)
+
+    def remove_plugin(self, name:str):
+        delattr(self, name)
+        self.plugin_names.remove(name)
+        if len(self.plugin_names)==0:
+            self.remove()
+
     def forward(self, *args, **kwargs):
+        for name in self.plugin_names:
+            args, kwargs = getattr(self, name).pre_forward(*args, **kwargs)
         output = self._host(*args, **kwargs)
+        for name in self.plugin_names:
+            output = getattr(self, name).post_forward(output, *args, **kwargs)
         return output
 
-    def __getattr__(self, item):
-        try:
-            return super(PatchPluginContainer, self).__getattr__(item)
-        except:
-            return getattr(self._host, item)
+    def remove(self):
+        parent_block = self.parent_block()
+        delattr(parent_block, self.host_name)
+        setattr(parent_block, self.host_name, self._host)
 
-    def __setattr__(self, key, value):
-        if key == '_host' or key == 'name':
-            super(PatchPluginContainer, self).__setattr__(key, value)
+class PatchPluginBlock(BasePluginBlock):
+    def __init__(self, name:str, host:nn.Module, host_model=None, parent_block:nn.Module=None, host_name:str=None):
+        super().__init__(name)
+        self.host = weakref.ref(host)
+        self.parent_block = weakref.ref(parent_block)
+        self.host_name = host_name
+
+        container = self.get_container(host, host_name, parent_block)
+        container.add_plugin(name, self)
+        self.container = weakref.ref(container)
+
+    def pre_forward(self, *args, **kwargs):
+        return args, kwargs
+
+    def post_forward(self, output, *args, **kwargs):
+        return output
+
+    def remove(self):
+        container = self.container()
+        container.remove_plugin(self.name)
+
+    def get_container(self, host, host_name, parent_block):
+        if isinstance(host, PatchPluginContainer):
+            return host
         else:
-            setattr(self._host, key, value)
-
+            return PatchPluginContainer(host_name, host, parent_block)
 
 class PluginGroup:
     def __init__(self, plugin_dict:Dict[str, BasePluginBlock]):
