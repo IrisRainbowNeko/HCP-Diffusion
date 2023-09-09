@@ -23,9 +23,12 @@ class LoraConverter:
             sd_TE = self.alpha_scale_from_webui(sd_TE)
         return {'lora': sd_TE},  {'lora': sd_unet}
 
-    def convert_to_webui(self, sd_unet, sd_TE, auto_scale_alpha=False):
+    def convert_to_webui(self, sd_unet, sd_TE, auto_scale_alpha=False, sdxl=False):
         sd_unet = self.convert_to_webui_(sd_unet, prefix=self.prefix_unet)
-        sd_TE = self.convert_to_webui_(sd_TE, prefix=self.prefix_TE)
+        if sdxl:
+            sd_TE = self.convert_to_webui_xl_(sd_TE, prefix=self.prefix_TE)
+        else:
+            sd_TE = self.convert_to_webui_(sd_TE, prefix=self.prefix_TE)
         sd_unet.update(sd_TE)
         if auto_scale_alpha:
             sd_unet = self.alpha_scale_to_webui(sd_unet)
@@ -50,6 +53,16 @@ class LoraConverter:
             model_k, lora_k = k.split('.___.' if ('alpha' in k or 'scale' in k) else '.___.layer.', 1)
             sd_covert[f"{prefix}{model_k.replace('.', '_')}.{lora_k}"] = v
         return sd_covert
+    
+    def convert_to_webui_xl_(self, state, prefix):
+        sd_convert = {}
+        for k, v in state.items():
+            model_k, lora_k = k.split('.___.' if ('alpha' in k or 'scale' in k) else '.___.layer.', 1)
+            new_k = f"{prefix}{model_k.replace('.', '_')}.{lora_k}"
+            if 'clip' in new_k:
+                new_k = new_k.replace('_clip_B', '1') if 'clip_B' in new_k else new_k.replace('_clip_bigG', '2')
+            sd_convert[new_k] = v
+        return sd_convert
 
     @staticmethod
     def replace_all(data: str, srcs: List[str], dsts: List[str]):
@@ -84,14 +97,28 @@ if __name__ == '__main__':
     parser.add_argument("--from_webui", default=None, action="store_true")
     parser.add_argument("--to_webui", default=None, action="store_true")
     parser.add_argument("--auto_scale_alpha", default=None, action="store_true")
+    parser.add_argument("--sdxl", default=None, action="store_true")
+    parser.add_argument("--embedding_path", default=None, type=str)
     args = parser.parse_args()
-
+    
     converter = LoraConverter()
     lora_name = os.path.basename(args.lora_path)
 
     # load lora model
     print('convert lora model')
     ckpt_manager = auto_manager(args.lora_path)()
+
+    if args.sdxl:
+        embedding_ckpt_manager = auto_manager(args.embedding_path)()
+        sdxl_embedding = embedding_ckpt_manager.load_ckpt(args.embedding_path)
+        sdxl_embedding = sdxl_embedding['string_to_param']['*']
+        sdxl_embedding = {'clip_l':sdxl_embedding[:, :768], 'clip_g':sdxl_embedding[:, 768:]}
+        
+        path = os.path.dirname(os.path.abspath(args.dump_path))
+        path = os.path.join(path, os.path.basename(args.embedding_path))
+
+        embedding_ckpt_manager._save_ckpt(sdxl_embedding, save_path=path)
+        print('save xl embedding to:', path)
 
     if args.from_webui:
         state = ckpt_manager.load_ckpt(args.lora_path)
@@ -108,6 +135,6 @@ if __name__ == '__main__':
     elif args.to_webui:
         sd_unet = ckpt_manager.load_ckpt(args.lora_path)
         sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE)
-        state = converter.convert_to_webui(sd_unet['lora'], sd_TE['lora'], auto_scale_alpha=args.auto_scale_alpha)
+        state = converter.convert_to_webui(sd_unet['lora'], sd_TE['lora'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
         ckpt_manager._save_ckpt(state, save_path=args.dump_path)
         print('save lora to:', args.dump_path)
