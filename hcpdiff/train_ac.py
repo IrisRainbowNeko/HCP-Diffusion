@@ -166,6 +166,9 @@ class Trainer:
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
 
+        if self.cfgs.model.force_cast_precision:
+            self.TE_unet.to(dtype=self.weight_dtype)
+
     def scale_lr(self, parameters):
         bs = sum(self.batch_size_list)
         scale_factor = bs*self.world_size*self.cfgs.train.gradient_accumulation_steps

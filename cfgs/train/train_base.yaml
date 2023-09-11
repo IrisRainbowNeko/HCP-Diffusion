@@ -68,6 +68,7 @@ model:
   tokenizer_repeats: 2
   enable_xformers: True
   gradient_checkpointing: True
+  force_cast_precision: False
   ema_unet: 0 # 0 to disable
   ema_text_encoder: 0 # 0 to disable
   clip_skip: 0
