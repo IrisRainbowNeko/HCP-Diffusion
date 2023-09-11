@@ -20,7 +20,7 @@ accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/cfg_file.yaml data.datase
 
 You can define multiple parallel datasets, each of which can have multiple data sources. During each training step, a batch is taken from each dataset and trained together.
 All data sources from each dataset will be processed by the dataset's bucket, and will be iterated in order.
-[Detailed explaintion](guide_cfg.md#dataset-configurations)
+[Detailed explaintion](cfg.md#dataset-configurations)
 
 If there is already have ```.txt``` caption file for each image, 
 you can convert it to ```.json``` caption file with the following command:

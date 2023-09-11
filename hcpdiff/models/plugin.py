@@ -223,6 +223,8 @@ class PatchPluginContainer(nn.Module):
         setattr(parent_block, self.host_name, self._host)
 
 class PatchPluginBlock(BasePluginBlock):
+    container_cls = PatchPluginContainer
+
     def __init__(self, name:str, host:nn.Module, host_model=None, parent_block:nn.Module=None, host_name:str=None):
         super().__init__(name)
         self.host = weakref.ref(host)
@@ -247,7 +249,7 @@ class PatchPluginBlock(BasePluginBlock):
         if isinstance(host, PatchPluginContainer):
             return host
         else:
-            return PatchPluginContainer(host_name, host, parent_block)
+            return container_cls(host_name, host, parent_block)
 
 class PluginGroup:
     def __init__(self, plugin_dict:Dict[str, BasePluginBlock]):

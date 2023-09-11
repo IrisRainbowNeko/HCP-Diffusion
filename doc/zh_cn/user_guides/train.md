@@ -1,4 +1,4 @@
-# 使用教程
+# 模型训练
 
 HCP-Diffusion可以通过```.yaml```配置文件，配置各种训练阶段可能会用到的组件。
 包括模型结构，训练参数和方式，数据集配置等。
@@ -17,7 +17,7 @@ accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/配置文件.yaml data.da
 # 数据集配置
 
 可以定义多个并行数据集，每个数据集都可以有多个数据源。每步训练会从所有数据集中各抽取一个batch一起训练。
-每个数据集中所有数据源会有该数据集的bucket统一处理，并按顺序迭代。 [详细说明](guide_cfg_cn.md#%E6%95%B0%E6%8D%AE%E9%9B%86%E8%AE%BE%E7%BD%AE)
+每个数据集中所有数据源会有该数据集的bucket统一处理，并按顺序迭代。 [详细说明](cfg.md#%E6%95%B0%E6%8D%AE%E9%9B%86%E8%AE%BE%E7%BD%AE)
 
 如果已有针对每个图片的```.txt```标注，可以通过下面的命令转换成```.json```标注:
 ```yaml

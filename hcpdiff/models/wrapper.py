@@ -15,11 +15,12 @@ class TEUnetWrapper(nn.Module):
         if hasattr(self.TE, 'input_feeder'):
             for feeder in self.TE.input_feeder:
                 feeder(input_all)
+        encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)[0]  # Get the text embedding for conditioning
+
+        input_all['encoder_hidden_states'] = encoder_hidden_states
         if hasattr(self.unet, 'input_feeder'):
             for feeder in self.unet.input_feeder:
                 feeder(input_all)
-
-        encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)[0]  # Get the text embedding for conditioning
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
         return model_pred
 
@@ -60,13 +61,13 @@ class SDXLTEUnetWrapper(TEUnetWrapper):
         if hasattr(self.TE, 'input_feeder'):
             for feeder in self.TE.input_feeder:
                 feeder(input_all)
-        if hasattr(self.unet, 'input_feeder'):
-            for feeder in self.unet.input_feeder:
-                feeder(input_all)
-
         encoder_hidden_states, pooled_output = self.TE(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
 
         added_cond_kwargs = {"text_embeds":pooled_output[-1], "time_ids":crop_info}
 
+        input_all['encoder_hidden_states'] = encoder_hidden_states
+        if hasattr(self.unet, 'input_feeder'):
+            for feeder in self.unet.input_feeder:
+                feeder(input_all)
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs=added_cond_kwargs).sample  # Predict the noise residual
         return model_pred
