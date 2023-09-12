@@ -13,7 +13,6 @@ Welcome to HCP-Diffusion documentation!
 
    user_guides/train.md
    user_guides/infer.md
-   user_guides/DA.md
    user_guides/cfg.md
    user_guides/model_convert.md
 
@@ -22,6 +21,7 @@ Welcome to HCP-Diffusion documentation!
    :caption: 系列教程
 
    tutorial/lora_anime.md
+   tutorial/DA.md
 
 .. toctree::
    :maxdepth: 1
