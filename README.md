@@ -9,7 +9,7 @@
 [📘中文说明](./README_cn.md)
 
 [📘English document](https://hcpdiff.readthedocs.io/en/latest/)
-[📘中文文档](https://hcpdiff.readthedocs.io/en/latest/)
+[📘中文文档](https://hcpdiff.readthedocs.io/zh_CN/latest/)
 
 ## Introduction
 HCP-Diffusion is a toolbox for Stable Diffusion models based on [🤗 Diffusers](https://github.com/huggingface/diffusers).
