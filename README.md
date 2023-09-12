@@ -8,6 +8,9 @@
 
 [📘中文说明](./README_cn.md)
 
+[📘English document](https://hcpdiff.readthedocs.io/en/latest/)
+[📘中文文档](https://hcpdiff.readthedocs.io/en/latest/)
+
 ## Introduction
 HCP-Diffusion is a toolbox for Stable Diffusion models based on [🤗 Diffusers](https://github.com/huggingface/diffusers).
 It facilitates flexiable configurations and component support for training, in comparison with [webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
