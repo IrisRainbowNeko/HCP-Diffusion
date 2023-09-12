@@ -1,4 +1,4 @@
-# DreamArtist++ Tutorial
+# Training and Inference with DreamArtist++
 
 DreamArtist can perform one-shot prompt-tuning training that use only one image. 
 DreamArtist++, on the other hand, adds the Lora module to improve the stability of training and controllability of the model.
