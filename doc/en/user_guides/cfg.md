@@ -33,7 +33,7 @@ train:
     criterion:
       # Here using the syntax of hydra.utils.installate
       # All modules with the _target_ attribute will be instantiated as the corresponding python object
-      _target_: hcpdiff.loss.MSELoss # Loss function class
+      _target_: torch.nn.MSELoss # Loss function class
       _partial_: True
       reduction: 'none' # support for attention mask
     # The weight of the loss of the data from data_class
@@ -42,9 +42,14 @@ train:
     type: 'eps'
 
   optimizer: # Optimizer for model parameters 
-    type: adamw # optimizer type: [adamw, adamw_8bit, deepspeed]
+    _target_: torch.optim.AdamW # class path to optimizer
+    _partial_: True
     weight_decay: 1e-3
-    weight_decay_pt: 5e-4 # for word embeddings
+    
+  optimizer_pt:
+    _target_: torch.optim.AdamW
+    _partial_: True
+    weight_decay: 5e-4
 
   scale_lr: True # Whether to automatically scale the learning rate by total batch size
   scheduler: # Learning rate adjustment strategies, see next section for options
@@ -81,6 +86,7 @@ model:
   ema_unet: 0 # The hyperparameter of the unet ema model, 0 to disable. Usually set to 0.9995
   ema_text_encoder: 0 # Hyperparameters of the text-encoder ema model
   clip_skip: 0 # Skip the last N layers of text-encoder, the value of 0 is consistent with webui's clip_skip=1
+  clip_final_norm: True # Using the last normalization layer of CLIP
 ```
 
 ## Dataset configurations
@@ -174,10 +180,10 @@ data:
 Min-SNR loss:
 ```yaml
 loss:
-    criterion:
-      # The other properties are inherited from train_base
-      _target_: hcpdiff.loss.MinSNRLoss # Loss function class
-      gamma: 2.0
+  criterion:
+    # The other properties are inherited from train_base
+    _target_: hcpdiff.loss.MinSNRLoss # Loss function class
+    gamma: 2.0
 ```
 
 ## Other configurations

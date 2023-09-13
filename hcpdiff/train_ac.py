@@ -481,7 +481,10 @@ class Trainer:
     def get_loss(self, model_pred, target, timesteps, att_mask):
         if att_mask is None:
             att_mask = 1.0
-        loss = (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
+        if getattr(self.criterion, 'need_timesteps', False):
+            loss = (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
+        else:
+            loss = (self.criterion(model_pred.float(), target.float())*att_mask).mean()
         if len(self.embedding_hook.emb_train)>0:
             loss = loss + 0*sum(self.embedding_hook.emb_train).mean()
         return loss

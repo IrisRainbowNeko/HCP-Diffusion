@@ -33,18 +33,22 @@ train:
     criterion:
       # 这里使用 hydra.utils.instantiate 的语法定义
       # 所有具有 _target_ 属性的模块都会被实例化为对应的python对象
-      _target_: hcpdiff.loss.MSELoss # 损失函数对应的类别
+      _target_: torch.nn.MSELoss # 损失函数对应的类别
       _partial_: True
       reduction: 'none' # 不在内部做平均，以支持attention mask
     # data_class部分数据对应的loss的权重
     # 保持 data.batch_size/(data_class.batch_size*prior_loss_weight) = 4/1可以得到较好的效果
-    prior_loss_weight: 1.0 
     type: 'eps'
 
   optimizer: # 模型参数部分优化器
-    type: adamw # 优化器的类型，支持 [adamw, adamw_8bit, deepspeed]
+    _target_: torch.optim.AdamW # 优化器的类路径
+    _partial_: True
     weight_decay: 1e-3 # weight_decay用于正则化，提升效果
-    weight_decay_pt: 5e-4 # 单词学习的weight_decay
+    
+  optimizer_pt: # 单词参数优化器
+    _target_: torch.optim.AdamW
+    _partial_: True
+    weight_decay: 5e-4
 
   scale_lr: True # 是否按总batch size自动缩放学习率
   scheduler: # 学习率调整方案，各种方案见下一节
@@ -81,6 +85,7 @@ model:
   ema_unet: 0 # unet部分ema模型的超参数，0为关闭。通常设置为0.9995
   ema_text_encoder: 0 # text-encoder部分ema模型的超参数
   clip_skip: 0 # 跳过text-encoder最后N层，值为0与webui的clip_skip=1一致
+  clip_final_norm: True # 使用CLIP的最后一个正则化层
 ```
 
 ### 自定义插件
@@ -218,10 +223,10 @@ data:
 Min-SNR loss:
 ```yaml
 loss:
-    criterion:
-      # 其余属性会继承 train_base
-      _target_: hcpdiff.loss.MinSNRLoss # 损失函数对应的类别
-      gamma: 2.0
+  criterion:
+    # 其余属性会继承 train_base
+    _target_: hcpdiff.loss.MinSNRLoss # 损失函数对应的类别
+    gamma: 2.0
 ```
 
 ## 其他参数
