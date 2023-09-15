@@ -102,7 +102,7 @@ class Trainer:
         try:
             self.criterion = cfgs.train.loss.criterion(noise_scheduler=self.noise_scheduler, device=self.device)
         except:
-            self.criterion = cfgs.train.loss.criterion(device=self.device)
+            self.criterion = cfgs.train.loss.criterion()
 
         self.cfg_scale = get_cfg_range(cfgs.train.cfg_scale)
         if self.cfg_scale[1] == 1.0:
