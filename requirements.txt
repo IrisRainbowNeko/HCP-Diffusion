@@ -1,7 +1,6 @@
 torch>=1.12.0
 torchvision>=0.13.0
 accelerate>=0.15.0
-colossalai>=0.2.5
 diffusers>=0.17.1
 safetensors
 einops>=0.6.0

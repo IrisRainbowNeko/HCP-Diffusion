@@ -88,6 +88,7 @@ accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/cfg_file.yaml
 # with Accelerate and only one GPU
 accelerate launch -m hcpdiff.train_ac_single --cfg cfgs/train/cfg_file.yaml
 # with Colossal-AI
+# pip install colossalai
 torchrun --nproc_per_node 1 -m hcpdiff.train_colo --cfg cfgs/train/cfg_file.yaml
 ```
 
