@@ -414,7 +414,7 @@ class Trainer:
     @torch.no_grad()
     def get_latents(self, image, dataset):
         if dataset.latents is None:
-            latents = self.vae.encode(image).latent_dist.sample()
+            latents = self.vae.encode(image.to(dtype=self.vae.dtype)).latent_dist.sample()
             latents = latents*self.vae.scaling_factor
         else:
             latents = image  # Cached latents
@@ -468,7 +468,8 @@ class Trainer:
 
             if hasattr(self, 'optimizer'):
                 if self.accelerator.sync_gradients:  # fine-tuning
-                    self.accelerator.clip_grad_norm_(self.TE_unet.trainable_parameters(), self.cfgs.train.max_grad_norm)
+                    clip_param = getattr(self.TE_unet, 'trainable_parameters', self.TE_unet.module.trainable_parameters)()
+                    self.accelerator.clip_grad_norm_(clip_param, self.cfgs.train.max_grad_norm)
                 self.optimizer.step()
                 self.lr_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
