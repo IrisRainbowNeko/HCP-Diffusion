@@ -468,7 +468,10 @@ class Trainer:
 
             if hasattr(self, 'optimizer'):
                 if self.accelerator.sync_gradients:  # fine-tuning
-                    clip_param = getattr(self.TE_unet, 'trainable_parameters', self.TE_unet.module.trainable_parameters)()
+                    if hasattr(self.TE_unet, 'trainable_parameters'):
+                        clip_param = self.TE_unet.trainable_parameters()
+                    else:
+                        clip_param = self.TE_unet.module.trainable_parameters()
                     self.accelerator.clip_grad_norm_(clip_param, self.cfgs.train.max_grad_norm)
                 self.optimizer.step()
                 self.lr_scheduler.step()
