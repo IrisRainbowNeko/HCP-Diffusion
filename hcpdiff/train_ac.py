@@ -80,7 +80,6 @@ class Trainer:
             transformers.utils.logging.set_verbosity_error()
             diffusers.utils.logging.set_verbosity_error()
 
-        self.lr = 1e-5  # no usage, place set lr in cfgs
         self.train_TE = (cfgs.text_encoder is not None) or (cfgs.lora_text_encoder is not None) or (cfgs.plugin_TE is not None)
 
         self.build_ckpt_manager()
@@ -347,7 +346,7 @@ class Trainer:
             if self.cfgs.train.scale_lr:
                 self.scale_lr(parameters)
             assert isinstance(cfg_opt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
-            self.optimizer = cfg_opt(params=parameters, lr=self.lr)
+            self.optimizer = cfg_opt(params=parameters)
 
             if isinstance(self.cfgs.train.scheduler, partial):
                 self.lr_scheduler = self.cfgs.train.scheduler(optimizer=self.optimizer)
@@ -359,7 +358,7 @@ class Trainer:
             if self.cfgs.train.scale_lr_pt:
                 self.scale_lr(parameters_pt)
             assert isinstance(cfg_opt_pt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
-            self.optimizer_pt = cfg_opt_pt(params=parameters_pt, lr=self.lr)
+            self.optimizer_pt = cfg_opt_pt(params=parameters_pt)
 
             if isinstance(self.cfgs.train.scheduler_pt, partial):
                 self.lr_scheduler_pt = self.cfgs.train.scheduler_pt(optimizer=self.optimizer_pt)
