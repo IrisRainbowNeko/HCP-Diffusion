@@ -32,7 +32,7 @@ from torch import nn
 from transformers import AutoTokenizer
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
-from hcpdiff.data import RatioBucket, DataGroup
+from hcpdiff.data import RatioBucket, DataGroup, get_sampler
 from hcpdiff.loggers import LoggerGroup
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper
 from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
@@ -300,8 +300,7 @@ class Trainer:
         train_dataset, batch_size, arb = self.build_dataset(data_builder)
 
         # Pytorch Data loader
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,
-                                                                        rank=self.local_rank, shuffle=not arb)
+        train_sampler = get_sampler()(train_dataset, num_replicas=self.world_size, rank=self.local_rank, shuffle=not arb)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=self.cfgs.train.workers,
                                                    sampler=train_sampler, collate_fn=train_dataset.collate_fn)
         return train_loader
