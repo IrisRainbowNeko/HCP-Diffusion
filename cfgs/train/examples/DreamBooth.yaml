@@ -9,14 +9,6 @@ unet:
     layers:
       - ''
 
-text_encoder: null
-
-lora_unet: null
-lora_text_encoder: null
-
-tokenizer_pt:
-  train: null
-
 train:
   gradient_accumulation_steps: 1
   save_step: 100
@@ -29,8 +21,6 @@ train:
 model:
   pretrained_model_name_or_path: 'runwayml/stable-diffusion-v1-5'
   tokenizer_repeats: 1
-  ema_unet: 0
-  ema_text_encoder: 0
 
 # The dataset configuration inherits regularization_dataset.yaml
 # 数据集配置继承自 regularization_dataset.yaml， 只需修改部分参数

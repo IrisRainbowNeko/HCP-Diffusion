@@ -75,4 +75,5 @@ model:
   clip_final_norm: True
   noise_scheduler:
     _target_: diffusers.DDPMScheduler.from_pretrained
-    _partial_: True
+    pretrained_model_name_or_path: ${model.pretrained_model_name_or_path}
+    subfolder: scheduler

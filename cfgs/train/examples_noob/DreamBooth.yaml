@@ -1,0 +1,70 @@
+_base_:
+  - cfgs/train/dataset/regularization_dataset.yaml
+  - cfgs/train/train_base.yaml
+  - cfgs/train/tuning_base.yaml
+
+# 这部分根据需要改
+
+train:
+  save_step: 100
+
+model:
+  pretrained_model_name_or_path: 'runwayml/stable-diffusion-v1-5'
+  lr: 1e-6
+
+data_cfg:
+  batch_size: 4
+  img_root: 'imgs/' # 数据集路径
+  caption_file: 'imgs/' # 标注文件或文件夹
+  regularization_img_root: 'imgs/' # 正则化数据集
+  regularization_caption_file: 'imgs/' # 正则化数据集标注文件
+  target_area: 512*512 # 训练预期分辨率
+
+object_name: pt-cat1 # 训练物体名称
+class_name: cat # 训练类别名称
+
+
+
+# 这部分不用动
+
+unet:
+  -
+    lr: ${model.lr}
+    layers:
+      - ''
+
+data:
+  dataset1:
+    batch_size: ${data_cfg.batch_size}
+    cache_latents: True
+
+    source:
+      data_source1:
+        img_root: ${data_cfg.img_root}
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: ${data_cfg.caption_file}
+
+        word_names:
+          pt1: ${object_name}
+          class: ${class_name}
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"${data_cfg.target_area}"}
+      num_bucket: 1
+
+  dataset_class:
+    batch_size: 1
+    cache_latents: True
+    loss_weight: 1.0
+
+    source:
+      data_source1:
+        img_root: ${data_cfg.regularization_img_root}
+        prompt_template: 'prompt_tuning_template/object.txt'
+        caption_file: ${data_cfg.regularization_caption_file}
+
+        word_names:
+          class: ${class_name}
+    bucket:
+      _target_: hcpdiff.data.bucket.FixedBucket
+      target_size: [512, 512]

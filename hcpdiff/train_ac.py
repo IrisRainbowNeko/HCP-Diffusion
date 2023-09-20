@@ -193,6 +193,7 @@ class Trainer:
         noise_scheduler = self.cfgs.model.noise_scheduler
         noise_class = getattr(noise_scheduler.func, '__self__', noise_scheduler.func)  # support static or class method
         if issubclass(noise_class, NoiseBase):
+            diffusers.DDPMScheduler.from_pretrained()
             base_scheduler = noise_scheduler.keywords.pop('base_scheduler')(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
             self.noise_scheduler = noise_scheduler(base_scheduler)
         else:
