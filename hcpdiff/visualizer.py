@@ -124,7 +124,7 @@ class Visualizer:
                     res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
                 else:
                     to_cuda(self.pipe.vae)
-                    res = decode_raw(latents.to(dtype=torch.float32), return_dict=return_dict)
+                    res = decode_raw(latents.to(dtype=self.pipe.vae.dtype), return_dict=return_dict)
 
                 to_cpu(self.pipe.vae)
                 to_cuda(self.pipe.unet)
