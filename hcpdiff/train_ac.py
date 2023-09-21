@@ -403,8 +403,7 @@ class Trainer:
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum.mean()]},
                     }, step=self.global_step)
-
-                self.previewer.preview(self.global_step)
+                    self.loggers.log_preview(self.global_step)
 
             if self.global_step>=self.cfgs.train.train_steps:
                 break
