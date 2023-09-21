@@ -124,8 +124,9 @@ class Trainer:
             self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps/self.steps_per_epoch)
 
         if self.is_local_main_process:
-            self.previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
+            previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
                                                  TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
+            self.loggers.add_previewer(previewer)
 
         self.prepare()
 
@@ -195,13 +196,7 @@ class Trainer:
             )
 
         # Load scheduler and models
-        noise_scheduler = self.cfgs.model.noise_scheduler
-        noise_class = getattr(noise_scheduler.func, '__self__', noise_scheduler.func)  # support static or class method
-        if issubclass(noise_class, NoiseBase):
-            base_scheduler = noise_scheduler.keywords.pop('base_scheduler')(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
-            self.noise_scheduler = noise_scheduler(base_scheduler)
-        else:
-            self.noise_scheduler = noise_scheduler(self.cfgs.model.pretrained_model_name_or_path, subfolder="scheduler")
+        self.noise_scheduler = self.cfgs.model.noise_scheduler
 
         self.num_train_timesteps = len(self.noise_scheduler.timesteps)
         self.vae: AutoencoderKL = AutoencoderKL.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder="vae",
