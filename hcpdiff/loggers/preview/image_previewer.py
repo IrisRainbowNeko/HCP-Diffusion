@@ -7,7 +7,7 @@ import torch
 from diffusers import PNDMScheduler
 from torch.cuda.amp import autocast
 
-from hcpdiff import Visualizer
+from hcpdiff.visualizer import Visualizer
 from hcpdiff.models import TokenizerHook
 from hcpdiff.utils.utils import prepare_seed, load_config
 
@@ -36,8 +36,8 @@ class ImagePreviewer(Visualizer):
         else:
             self.seeds = [None]*(self.cfgs.num*self.cfgs.bs)
 
-        self.preview_dir = os.path.join(exp_dir, preview_dir)
-        os.makedirs(self.preview_dir, exist_ok=True)
+        self.preview_dir = preview_dir
+        os.makedirs(os.path.join(exp_dir, preview_dir), exist_ok=True)
 
     @contextmanager
     def infer_optimize(self):
@@ -46,7 +46,10 @@ class ImagePreviewer(Visualizer):
                 self.pipe.vae.enable_tiling()
             if self.cfgs.vae_optimize.slicing:
                 self.pipe.vae.enable_slicing()
+        vae_device = self.pipe.vae.device
+        self.pipe.vae.to(self.pipe.unet.device)
         yield
+        self.pipe.vae.to(vae_device)
         self.pipe.vae.disable_tiling()
         self.pipe.vae.disable_slicing()
 
