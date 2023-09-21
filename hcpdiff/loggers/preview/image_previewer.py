@@ -9,7 +9,10 @@ from torch.cuda.amp import autocast
 
 from hcpdiff.visualizer import Visualizer
 from hcpdiff.models import TokenizerHook
-from hcpdiff.utils.utils import prepare_seed, load_config
+from hcpdiff.utils.utils import prepare_seed, load_config, size_to_int, int_to_size
+from hcpdiff.utils.net_utils import to_cpu
+from accelerate import infer_auto_device_map, dispatch_model
+from accelerate.hooks import remove_hook_from_module
 
 class ImagePreviewer(Visualizer):
     def __init__(self, infer_cfg, exp_dir, te_hook,
@@ -18,6 +21,7 @@ class ImagePreviewer(Visualizer):
         self.cfgs_raw = load_config(infer_cfg)
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.save_cfg = save_cfg
+        self.offload = 'offload' in self.cfgs and self.cfgs.offload is not None
 
         if getattr(self.cfgs.new_components, 'scheduler', None) is None:
             scheduler = PNDMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule='scaled_linear')
@@ -39,6 +43,36 @@ class ImagePreviewer(Visualizer):
         self.preview_dir = preview_dir
         os.makedirs(os.path.join(exp_dir, preview_dir), exist_ok=True)
 
+    def build_vae_offload(self, offload_cfg):
+        vram = size_to_int(offload_cfg.max_VRAM)
+        if not offload_cfg.vae_cpu:
+            device_map = infer_auto_device_map(self.pipe.vae, max_memory={0:int_to_size(vram >> 5), "cpu":offload_cfg.max_RAM}, dtype=self.dtype)
+            self.pipe.vae = dispatch_model(self.pipe.vae, device_map)
+        else:
+            to_cpu(self.pipe.vae)
+            self.vae_decode_raw = self.pipe.vae.decode
+            def vae_decode_offload(latents, return_dict=True, decode_raw=self.pipe.vae.decode):
+                self.pipe.vae.to(dtype=torch.float32)
+                res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
+                return res
+
+            self.pipe.vae.decode = vae_decode_offload
+
+            self.vae_encode_raw = self.pipe.vae.encode
+            def vae_encode_offload(x, return_dict=True, encode_raw=self.pipe.vae.encode):
+                self.pipe.vae.to(dtype=torch.float32)
+                res = encode_raw(x.cpu().to(dtype=torch.float32), return_dict=return_dict)
+                return res
+
+            self.pipe.vae.encode = vae_encode_offload
+
+    def remove_vae_offload(self, offload_cfg):
+        if not offload_cfg.vae_cpu:
+            remove_hook_from_module(self.pipe.vae, recurse=True)
+        else:
+            self.pipe.vae.encode = self.vae_encode_raw
+            self.pipe.vae.decode = self.vae_decode_raw
+
     @contextmanager
     def infer_optimize(self):
         if getattr(self.cfgs, 'vae_optimize', None) is not None:
@@ -47,8 +81,15 @@ class ImagePreviewer(Visualizer):
             if self.cfgs.vae_optimize.slicing:
                 self.pipe.vae.enable_slicing()
         vae_device = self.pipe.vae.device
-        self.pipe.vae.to(self.pipe.unet.device)
+        if self.offload:
+            self.build_vae_offload(self.cfgs.offload)
+        else:
+            self.pipe.vae.to(self.pipe.unet.device)
+
         yield
+
+        if self.offload:
+            self.remove_vae_offload(self.cfgs.offload)
         self.pipe.vae.to(vae_device)
         self.pipe.vae.disable_tiling()
         self.pipe.vae.disable_slicing()
