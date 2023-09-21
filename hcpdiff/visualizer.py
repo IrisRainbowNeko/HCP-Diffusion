@@ -233,5 +233,7 @@ if __name__ == '__main__':
 
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
-        viser.vis_to_dir(prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
+        prompt = cfgs.prompt[i*cfgs.bs:(i+1)*cfgs.bs] if isinstance(cfgs.prompt, list) else [cfgs.prompt]*cfgs.bs
+        negative_prompt = cfgs.neg_prompt[i*cfgs.bs:(i+1)*cfgs.bs] if isinstance(cfgs.neg_prompt, list) else [cfgs.neg_prompt]*cfgs.bs
+        viser.vis_to_dir(prompt=prompt, negative_prompt=negative_prompt,
                          seeds=seeds[i*cfgs.bs:(i+1)*cfgs.bs], save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)

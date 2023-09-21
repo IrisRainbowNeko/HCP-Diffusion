@@ -116,11 +116,16 @@ class Trainer:
 
         torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
 
+        # calculate steps and epochs
         self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
         if self.cfgs.train.train_epochs is not None:
             self.cfgs.train.train_steps = self.cfgs.train.train_epochs*self.steps_per_epoch
         else:
             self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps/self.steps_per_epoch)
+
+        if self.is_local_main_process:
+            self.previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
+                                                 TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
 
         self.prepare()
 
@@ -398,6 +403,8 @@ class Trainer:
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum.mean()]},
                     }, step=self.global_step)
+
+                self.previewer.preview(self.global_step)
 
             if self.global_step>=self.cfgs.train.train_steps:
                 break
