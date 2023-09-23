@@ -46,7 +46,7 @@ class ImagePreviewer(Visualizer):
     def build_vae_offload(self, offload_cfg):
         vram = size_to_int(offload_cfg.max_VRAM)
         if not offload_cfg.vae_cpu:
-            device_map = infer_auto_device_map(self.pipe.vae, max_memory={0:int_to_size(vram >> 5), "cpu":offload_cfg.max_RAM}, dtype=self.dtype)
+            device_map = infer_auto_device_map(self.pipe.vae, max_memory={0:int_to_size(vram >> 5), "cpu":offload_cfg.max_RAM}, dtype=torch.float32)
             self.pipe.vae = dispatch_model(self.pipe.vae, device_map)
         else:
             to_cpu(self.pipe.vae)
