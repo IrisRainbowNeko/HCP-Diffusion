@@ -68,7 +68,7 @@ class Trainer:
         else:
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
 
-        self.min_log_step = mgcd(*[item.log_step for item in self.loggers.logger_list])
+        self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]+[item.image_log_step for item in self.loggers.logger_list]))
 
         self.loggers.info(f'world_size: {self.world_size}')
         self.loggers.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
