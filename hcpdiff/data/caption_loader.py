@@ -34,7 +34,7 @@ class TXTCaptionLoader(BaseCaptionLoader):
         captions = {}
         for file in txt_files:
             with open(file, 'r', encoding='utf-8') as f:
-                captions[os.path.basename(file)] = f.read().strip()
+                captions[os.path.basename(file).split('.')[0]] = f.read().strip()
         return captions
 
 def auto_caption_loader(path):

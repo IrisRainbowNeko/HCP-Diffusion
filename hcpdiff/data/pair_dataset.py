@@ -128,7 +128,7 @@ class TextImagePairDataset(Dataset):
         else:
             data = self.latents[img_name].copy()
 
-        caption_ist = self.source_dict[img_root].caption_dict.get(img_name, None)
+        caption_ist = self.source_dict[img_root].caption_dict.get(img_name.split('.')[0], None)
         prompt_template = random.choice(self.source_dict[img_root].prompt_template)
         prompt_ist = self.source_dict[img_root].tag_transforms({'prompt':prompt_template, 'caption':caption_ist})['prompt']
 
