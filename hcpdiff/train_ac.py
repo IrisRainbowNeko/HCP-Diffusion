@@ -28,21 +28,19 @@ from accelerate.utils import set_seed
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
-from torch import nn
 from transformers import AutoTokenizer
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
 from hcpdiff.loggers import LoggerGroup
-from hcpdiff.models import EmbeddingPTHook, TEEXHook, CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper
+from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper
 from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
-from hcpdiff.noise import NoiseBase
+from hcpdiff.models.compose import SDXLTextEncoder
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer, auto_text_encoder, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
-from hcpdiff.models.compose import SDXLTextEncoder
 
 def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw=torch.utils.checkpoint.checkpoint, **kwargs):
     return checkpoint_raw(function, *args, use_reentrant=use_reentrant, **kwargs)
@@ -125,7 +123,7 @@ class Trainer:
 
         if self.is_local_main_process:
             previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
-                                                 TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
+                                            TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
             self.loggers.add_previewer(previewer)
 
         self.prepare()
@@ -215,7 +213,7 @@ class Trainer:
         )
 
         # Wrap unet and text_encoder to make DDP happy. Multiple DDP has soooooo many fxxking bugs!
-        wrapper_cls = SDXLTEUnetWrapper if text_encoder_cls==SDXLTextEncoder else TEUnetWrapper
+        wrapper_cls = SDXLTEUnetWrapper if text_encoder_cls == SDXLTextEncoder else TEUnetWrapper
         self.TE_unet = wrapper_cls(unet, text_encoder, train_TE=self.train_TE)
 
     def build_ema(self):
@@ -437,7 +435,6 @@ class Trainer:
 
         # CFG context for DreamArtist
         noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)
-        #model_pred = self.encode_decode(prompt_ids, noisy_latents, timesteps, plugin_input=plugin_input, **kwargs)
         model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
@@ -493,7 +490,7 @@ class Trainer:
         else:
             loss = (self.criterion(model_pred.float(), target.float())*att_mask).mean()
         if len(self.embedding_hook.emb_train)>0:
-            loss = loss + 0*sum(self.embedding_hook.emb_train).mean()
+            loss = loss+0*sum(self.embedding_hook.emb_train).mean()
         return loss
 
     def update_ema(self):
