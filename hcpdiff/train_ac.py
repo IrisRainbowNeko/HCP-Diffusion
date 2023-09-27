@@ -25,7 +25,7 @@ import torch.utils.data
 import transformers
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from accelerate.utils import set_seed
-from diffusers import AutoencoderKL, UNet2DConditionModel
+from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
 from torch import nn
@@ -196,7 +196,8 @@ class Trainer:
             )
 
         # Load scheduler and models
-        self.noise_scheduler = self.cfgs.model.noise_scheduler
+        self.noise_scheduler = self.cfgs.model.noise_scheduler or \
+                               DDPMScheduler.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder='scheduler')
 
         self.num_train_timesteps = len(self.noise_scheduler.timesteps)
         self.vae: AutoencoderKL = AutoencoderKL.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder="vae",
