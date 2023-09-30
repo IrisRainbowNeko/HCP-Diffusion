@@ -1,11 +1,8 @@
-import random
-
 import torch
-from torch.nn import functional as F
-
+from diffusers import SchedulerMixin
 from .noise_base import NoiseBase
 
-class ZeroTerminalScheduler(NoiseBase):
+class ZeroTerminalScheduler(NoiseBase, SchedulerMixin):
     def __init__(self, base_scheduler):
         super().__init__(base_scheduler)
         base_scheduler.betas = self.rescale_zero_terminal_snr(base_scheduler.betas)
