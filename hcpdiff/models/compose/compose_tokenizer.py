@@ -17,9 +17,9 @@ from transformers.tokenization_utils_base import BatchEncoding
 
 class ComposeTokenizer(PreTrainedTokenizer):
     def __init__(self, tokenizer_list: List[Tuple[str, CLIPTokenizer]], cat_dim=-1):
-        super().__init__()
         self.cat_dim = cat_dim
         self.tokenizer_list = tokenizer_list
+        super().__init__()
 
         self.model_max_length = self.first_tokenizer.model_max_length
 

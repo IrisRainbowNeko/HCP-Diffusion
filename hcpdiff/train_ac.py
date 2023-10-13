@@ -364,7 +364,7 @@ class Trainer:
             else:
                 self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
 
-    def train(self):
+    def train(self, loss_ema=0.93):
         total_batch_size = sum(self.batch_size_list)*self.world_size*self.cfgs.train.gradient_accumulation_steps
 
         self.loggers.info("***** Running training *****")
@@ -377,10 +377,10 @@ class Trainer:
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step
 
-        loss_sum = np.ones(30)
+        loss_sum = None
         for data_list in self.train_loader_group:
             loss = self.train_one_step(data_list)
-            loss_sum[self.global_step%len(loss_sum)] = loss
+            loss_sum = loss if loss_sum is None else (loss_ema*loss_sum + (1-loss_ema)*loss)
 
             self.global_step += 1
             if self.is_local_main_process:
@@ -395,7 +395,7 @@ class Trainer:
                             self.global_step%self.steps_per_epoch, self.steps_per_epoch]},
                         'LR_model':{'format':'{:.2e}', 'data':[lr_model]},
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
-                        'Loss':{'format':'{:.5f}', 'data':[loss_sum.mean()]},
+                        'Loss':{'format':'{:.5f}', 'data':[loss_sum]},
                     }, step=self.global_step)
                     self.loggers.log_preview(self.global_step)
 
