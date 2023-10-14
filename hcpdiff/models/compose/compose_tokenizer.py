@@ -37,6 +37,8 @@ class ComposeTokenizer(PreTrainedTokenizer):
     def tokenize(self, text, **kwargs) -> List[str]:
         return self.first_tokenizer.tokenize(text, **kwargs)
 
+    def add_tokens( self, new_tokens, special_tokens: bool = False) -> List[int]:
+        return [tokenizer.add_tokens(new_tokens, special_tokens) for name, tokenizer in self.tokenizer_list]
 
     def __call__(self, text, *args, **kwargs):
         token_list: List[BatchEncoding] = [tokenizer(text, *args, **kwargs) for name, tokenizer in self.tokenizer_list]
