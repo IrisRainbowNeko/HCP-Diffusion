@@ -1,5 +1,5 @@
 import os
-import time
+from copy import deepcopy
 from typing import Optional, Union
 
 import torch
@@ -7,7 +7,6 @@ from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Op
 from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
-
 
 def get_scheduler(
     name: Union[str, SchedulerType],
@@ -72,7 +71,7 @@ def get_scheduler(
 
     return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
 
-def auto_tokenizer(pretrained_model_name_or_path: str, revision: str=None):
+def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None):
     from hcpdiff.models.compose import SDXLTokenizer
     try:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -84,7 +83,7 @@ def auto_tokenizer(pretrained_model_name_or_path: str, revision: str=None):
         # not sdxl, only one tokenizer
         return AutoTokenizer
 
-def auto_text_encoder(pretrained_model_name_or_path: str, revision: str=None):
+def auto_text_encoder(pretrained_model_name_or_path: str, revision: str = None):
     from hcpdiff.models.compose import SDXLTextEncoder
     try:
         text_encoder_config = PretrainedConfig.from_pretrained(
@@ -140,8 +139,18 @@ def save_emb(path, emb: torch.Tensor, replace=False):
     if os.path.exists(path) and not replace:
         raise FileExistsError(f'embedding "{name}" already exist.')
     name = name[:name.rfind('.')]
-    #torch.save({'emb_params':emb, 'name':name}, path)
+    # torch.save({'emb_params':emb, 'name':name}, path)
     torch.save({'string_to_param':{'*':emb}, 'name':name}, path)
+
+class WordExistsError(AssertionError):
+    pass
+
+def check_word_name(tokenizer, name):
+    tokenizer = deepcopy(tokenizer)
+    tokenizer.add_tokens(name)
+    name_id = tokenizer(name).input_ids[1]
+    if name_id<=tokenizer.eos_token_id:
+        raise WordExistsError(f"{name} is already in the word list, please use another word name.")
 
 def hook_compile(model):
     named_modules = {k:v for k, v in model.named_modules()}

@@ -7,12 +7,12 @@ import os.path
 
 import torch
 from hcpdiff.utils.utils import str2bool
-from hcpdiff.utils.net_utils import auto_text_encoder, save_emb, auto_tokenizer
+from hcpdiff.utils.net_utils import auto_text_encoder, save_emb, auto_tokenizer, check_word_name
 from hcpdiff.models.compose import ComposeTextEncoder
 
 class PTCreator:
     def __init__(self, pretrained_model_name_or_path, root='embs/'):
-        self.root=root
+        self.root = root
 
         tokenizer_cls = auto_tokenizer(pretrained_model_name_or_path)
         self.tokenizer = tokenizer_cls.from_pretrained(
@@ -34,10 +34,10 @@ class PTCreator:
             self.embed_dim = self.text_encoder.get_input_embeddings().embedding_dim
 
     def get_embs(self, prompt_ids):
-        prompt_ids[prompt_ids==self.rand_holder_id]=0
+        prompt_ids[prompt_ids == self.rand_holder_id] = 0
         emb_pt = self.text_encoder.get_input_embeddings()
         if isinstance(self.text_encoder, ComposeTextEncoder):
-            prompt_ids_list = prompt_ids.chunk(len(self.text_encoder.model_names),dim=-1)
+            prompt_ids_list = prompt_ids.chunk(len(self.text_encoder.model_names), dim=-1)
             emb_list = [layer(ids[1:-1]) for layer, ids in zip(emb_pt, prompt_ids_list)]
             return torch.cat(emb_list, dim=-1)
         else:
@@ -45,18 +45,18 @@ class PTCreator:
 
     @staticmethod
     def find_random_holder(text, holder='_pt_random_word'):
-        rand_list=[]
+        rand_list = []
         text_clean = ''
 
         sidx = text.find('*')
-        eidx_last=0
-        while sidx!=-1:
+        eidx_last = 0
+        while sidx != -1:
             eidx = text.find(']', sidx+2)
-            rand_info = text[sidx+2:eidx].split(',') # [std, len]
-            if len(rand_info)==1:
-                rand_info=[rand_info[0], 1]
+            rand_info = text[sidx+2:eidx].split(',')  # [std, len]
+            if len(rand_info) == 1:
+                rand_info = [rand_info[0], 1]
             rand_list.append([float(rand_info[0].strip()), int(rand_info[1].strip())])
-            text_clean += text[eidx_last:sidx] + holder
+            text_clean += text[eidx_last:sidx]+holder
 
             eidx_last = eidx+1
             sidx = text.find('*', eidx_last)
@@ -70,19 +70,19 @@ class PTCreator:
         else:
             prompt_ids = prompt_ids[1:-1]
 
-        idx = [-1]+torch.where(prompt_ids==self.rand_holder_id)[0].tolist()
+        idx = [-1]+torch.where(prompt_ids == self.rand_holder_id)[0].tolist()
         if len(idx) == 1:
             return embs
 
-        emb_list=[]
+        emb_list = []
         for i in range(len(idx)-1):
             emb_list.append(embs[idx[i]+1:idx[i+1]])
             emb_list.append(torch.randn((rand_list[i][1], self.embed_dim))*rand_list[i][0])
         emb_list.append(embs[idx[-1]+1:])
         return torch.cat(emb_list, dim=0)
 
-
     def creat_word_pt(self, name, n_word, init_text, replace=False):
+        check_word_name(self.tokenizer, name)
         text_clean, rand_list = self.find_random_holder(init_text)
         prompt_ids = self.tokenizer(
             text_clean, truncation=True, padding="max_length", return_tensors="pt",
