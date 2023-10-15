@@ -246,15 +246,15 @@ plugin_unet:
       - ''
 ```
 
-```{note}
-如果你的Plugin中定义的子模块，有`wrapable_classes`中的类别，则需要为`wrap_model`添加`exclude_key`，避免挂载多个模块时出错。
-    比如lora模块的层名称固定有`lora_block_`:
-    ```
-    @classmethod
-    def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
-        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
-    ```
-```
+> 如果你的Plugin中定义的子模块，有`wrapable_classes`中的类别，则需要为`wrap_model`添加`exclude_key`，避免挂载多个模块时出错。
+> 
+> 比如lora模块的层名称固定有`lora_block_`:
+> ```
+> @classmethod
+> def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
+>     return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
+> ```
+
 
 ## 获取额外输入(额外控制条件，timesteps等)
 
