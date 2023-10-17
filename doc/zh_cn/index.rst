@@ -12,6 +12,7 @@ Welcome to HCP-Diffusion documentation!
    :caption: 使用指南
 
    user_guides/train.md
+   user_guides/train_optimize.md
    user_guides/infer.md
    user_guides/cfg.md
    user_guides/model_convert.md
