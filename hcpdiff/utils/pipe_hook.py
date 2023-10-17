@@ -157,6 +157,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
                         if callback(i, t, num_inference_steps, latents_x0):
                             return None
 
+        latents = latents.to(dtype=self.vae.dtype)
         if not output_type == "latent":
             image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
         else:
@@ -285,6 +286,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
                         if callback(i, t, num_inference_steps, latents_x0):
                             return None
 
+        latents = latents.to(dtype=self.vae.dtype)
         if not output_type == "latent":
             image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
         else:
@@ -433,7 +435,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
 
         # use original latents corresponding to unmasked portions of the image
         latents = (init_latents_orig*mask)+(latents*(1-mask))
-
+        latents = latents.to(dtype=self.vae.dtype)
         if not output_type == "latent":
             image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
         else:
