@@ -214,17 +214,24 @@ class PatchPluginContainer(nn.Module):
             self.remove()
 
     def forward(self, *args, **kwargs):
-        for name in self.plugin_names:
-            args, kwargs = getattr(self, name).pre_forward(*args, **kwargs)
+        for name, plugin in self:
+            args, kwargs = plugin.pre_forward(*args, **kwargs)
         output = self._host(*args, **kwargs)
-        for name in self.plugin_names:
-            output = getattr(self, name).post_forward(output, *args, **kwargs)
+        for name, plugin in self:
+            output = plugin.post_forward(output, *args, **kwargs)
         return output
 
     def remove(self):
         parent_block = self.parent_block()
         delattr(parent_block, self.host_name)
         setattr(parent_block, self.host_name, self._host)
+
+    def __iter__(self):
+        for name in self.plugin_names:
+            yield name, self[name]
+
+    def __getitem__(self, name):
+        return getattr(self, name)
 
 class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
     container_cls = PatchPluginContainer
