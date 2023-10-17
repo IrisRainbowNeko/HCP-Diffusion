@@ -92,7 +92,8 @@ prompt-tuning训练word embedding，一个word embedding可以占多个词的位
 首先需要创建自定义word：
 ```bash
 python -m hcpdiff.tools.create_embedding 预训练模型路径 word名称 一个word占几个词 [--init_text 初始化单词]
-# 随机初始化 --init_text *标准差
+# 随机初始化 --init_text *[标准差, word长度]
+# 部分随机 --init_text cat, *[标准差, word长度], tail
 ```
 
 训练哪些词在tokenizer_pt中配置：

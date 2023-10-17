@@ -227,6 +227,35 @@ plugin_unet:
       - 're:.*nonlinearity$'
 ```
 
+### 自动挂载到支持的子模块上
+定义`wrapable_classes`，指定可以挂载的模块:
+```python
+class PReLUPatch(PatchPluginBlock):
+    wrapable_classes = nn.SiLU
+    ...
+```
+
+在配置文件中调用对应的`wrap_model`方法，自动挂载到子模块上:
+```yaml
+plugin_unet:
+  prelu:
+    _target_: model_plugin.PReLUPatch.wrap_model
+    _partial_: True
+    lr: 1e-4
+    layers:
+      - ''
+```
+
+> 如果你的Plugin中定义的子模块，有`wrapable_classes`中的类别，则需要为`wrap_model`添加`exclude_key`，避免挂载多个模块时出错。
+> 
+> 比如lora模块的层名称固定有`lora_block_`:
+> ```
+> @classmethod
+> def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
+>     return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
+> ```
+
+
 ## 获取额外输入(额外控制条件，timesteps等)
 
 在`Dataset`的`load_data`中返回的`plugin_input`中的所有内容都会被输入到`plugin`的`input_feeder`中。`plugin`可以通过这种方式获取额外输入。

@@ -2,7 +2,6 @@
 class NoiseBase:
     def __init__(self, base_scheduler):
         self.base_scheduler = base_scheduler
-        self.level =3
 
     def __getattr__(self, item):
         try:

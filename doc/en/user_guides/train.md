@@ -99,7 +99,8 @@ prompt-tuning trains word embedding, and a word embedding can occupy multiple wo
 First create custom words:
 ```bash
 python -m hcpdiff.tools.create_embedding pretrained_model word_name length_of_word [--init_text initial_text]
-# Random initialization: --init_text *std
+# Random initialization: --init_text *[std, word length]
+# Partial random: --init_text cat, *[std, word length], tail
 ```
 
 Configure which words need to be trained in ```tokenizer_pt```:
