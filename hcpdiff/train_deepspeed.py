@@ -40,8 +40,8 @@ class TrainerDeepSpeed(Trainer):
 
         if len(parameters_pt)>0:  # do prompt-tuning
             cfg_opt_pt = self.cfgs.train.optimizer_pt
-            if self.cfgs.train.scale_lr_pt:
-                self.scale_lr(parameters_pt)
+            # if self.cfgs.train.scale_lr_pt:
+            #     self.scale_lr(parameters_pt)
             assert isinstance(cfg_opt_pt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
             weight_decay = cfg_opt_pt.keywords.get('weight_decay', None)
             if weight_decay is not None:
