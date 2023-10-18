@@ -12,11 +12,11 @@ import argparse
 import math
 import os
 import time
+import warnings
 from functools import partial
 
 import diffusers
 import hydra
-import numpy as np
 import torch
 import torch.utils.checkpoint
 # fix checkpoint bug for train part of model
@@ -27,9 +27,6 @@ from accelerate import Accelerator, DistributedDataParallelKwargs
 from accelerate.utils import set_seed
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from diffusers.utils.import_utils import is_xformers_available
-from omegaconf import OmegaConf
-from transformers import AutoTokenizer
-
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
 from hcpdiff.loggers import LoggerGroup
@@ -41,6 +38,8 @@ from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer, auto_text_encoder, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
+from omegaconf import OmegaConf
+from transformers import AutoTokenizer
 
 def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw=torch.utils.checkpoint.checkpoint, **kwargs):
     return checkpoint_raw(function, *args, use_reentrant=use_reentrant, **kwargs)
@@ -250,7 +249,7 @@ class Trainer:
                 self.TE_unet.unet.enable_xformers_memory_efficient_attention()
                 # self.text_enc_hook.enable_xformers()
             else:
-                raise ValueError("xformers is not available. Make sure it is installed correctly")
+                warnings.warn("xformers is not available. Make sure it is installed correctly")
 
         self.vae.requires_grad_(False)
         self.TE_unet.requires_grad_(False)
@@ -389,7 +388,7 @@ class Trainer:
         loss_sum = None
         for data_list in self.train_loader_group:
             loss = self.train_one_step(data_list)
-            loss_sum = loss if loss_sum is None else (loss_ema*loss_sum + (1-loss_ema)*loss)
+            loss_sum = loss if loss_sum is None else (loss_ema*loss_sum+(1-loss_ema)*loss)
 
             self.global_step += 1
             if self.is_local_main_process:
