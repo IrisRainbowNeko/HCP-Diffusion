@@ -31,12 +31,6 @@ class TrainerSingleCard(Trainer):
                                                    sampler=train_sampler, collate_fn=train_dataset.collate_fn)
         return train_loader
 
-    def get_loss(self, model_pred, target, timesteps, att_mask):
-        if getattr(self.criterion, 'need_timesteps', False):
-            return (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
-        else:
-            return (self.criterion(model_pred.float(), target.float())*att_mask).mean()
-
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
             self.ema_unet.step(self.unet_raw.named_parameters())
