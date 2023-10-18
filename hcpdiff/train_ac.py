@@ -154,10 +154,10 @@ class Trainer:
         prepare_name_list, prepare_obj_list = [], []
         if self.TE_unet.train_TE:
             prepare_obj_list.append(self.TE_unet)
-            prepare_name_list.extend('TE_unet')
+            prepare_name_list.append('TE_unet')
         else:
             prepare_obj_list.append(self.TE_unet.unet)
-            prepare_name_list.extend('TE_unet.unet')
+            prepare_name_list.append('TE_unet.unet')
 
         if hasattr(self, 'optimizer'):
             prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
@@ -172,6 +172,7 @@ class Trainer:
         if not self.TE_unet.train_TE:
             self.TE_unet.unet = prepared_obj[0]
             prepared_obj = prepared_obj[1:]
+            prepare_name_list = prepare_name_list[1:]
 
         ds_num = len(self.train_loader_group.loader_list)
         self.train_loader_group.loader_list = list(prepared_obj[-ds_num:])

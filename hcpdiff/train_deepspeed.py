@@ -25,6 +25,15 @@ class TrainerDeepSpeed(Trainer):
     def TE_raw(self):
         return self.accelerator.unwrap_model(self.TE_unet).TE if self.train_TE else self.TE_unet.TE
 
+    def get_loss(self, model_pred, target, timesteps, att_mask):
+        if att_mask is None:
+            att_mask = 1.0
+        if getattr(self.criterion, 'need_timesteps', False):
+            loss = (self.criterion(model_pred.float(), target.float(), timesteps)*att_mask).mean()
+        else:
+            loss = (self.criterion(model_pred.float(), target.float())*att_mask).mean()
+        return loss
+
     def build_optimizer_scheduler(self):
         # set optimizer
         parameters, parameters_pt = self.get_param_group_train()
