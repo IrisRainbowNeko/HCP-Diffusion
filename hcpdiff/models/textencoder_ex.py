@@ -137,7 +137,7 @@ class TEEXHook:
 
     @classmethod
     def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
-        return cls(text_enc, tokenizer, N_repeats, clip_skip, clip_final_norm, device)
+        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True):
