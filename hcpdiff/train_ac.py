@@ -422,7 +422,7 @@ class Trainer:
     def get_latents(self, image, dataset):
         if dataset.latents is None:
             latents = self.vae.encode(image.to(dtype=self.vae.dtype)).latent_dist.sample()
-            latents = latents*self.vae.scaling_factor
+            latents = latents*self.vae.config.scaling_factor
         else:
             latents = image  # Cached latents
         return latents

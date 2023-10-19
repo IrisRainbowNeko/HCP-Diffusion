@@ -104,7 +104,7 @@ class TextImagePairDataset(Dataset):
                 data = self.load_data(path, size)
                 image = data['img'].unsqueeze(0).to(device, dtype=weight_dtype)
                 latents = vae.encode(image).latent_dist.sample().squeeze(0)
-                data['img'] = (latents*vae.scaling_factor).cpu()
+                data['img'] = (latents*vae.config.scaling_factor).cpu()
                 self.latents[img_name] = data
 
     def get_att_map(self, img_root, img_name):
