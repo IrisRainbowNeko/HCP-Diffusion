@@ -31,6 +31,14 @@ class ComposeTokenizer(PreTrainedTokenizer):
     def vocab_size(self):
         return len(self.first_tokenizer.encoder)
 
+    @property
+    def eos_token_id(self):
+        return self.first_tokenizer.eos_token_id
+
+    @property
+    def bos_token_id(self):
+        return self.first_tokenizer.bos_token_id
+
     def get_vocab(self):
         return dict(self.first_tokenizer.encoder, **self.first_tokenizer.added_tokens_encoder)
 

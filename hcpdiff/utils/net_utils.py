@@ -148,7 +148,7 @@ class WordExistsError(AssertionError):
 def check_word_name(tokenizer, name):
     tokenizer = deepcopy(tokenizer)
     tokenizer.add_tokens(name)
-    name_id = tokenizer(name).input_ids[1]
+    name_id = tokenizer(name, return_tensors="pt").input_ids.view(-1)[1].item()
     if name_id<=tokenizer.eos_token_id:
         raise WordExistsError(f"{name} is already in the word list, please use another word name.")
 

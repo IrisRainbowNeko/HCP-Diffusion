@@ -22,7 +22,7 @@ class PTCreator:
             use_fast=False,
         )
         self.tokenizer.add_tokens('_pt_random_word')
-        self.rand_holder_id = self.tokenizer('_pt_random_word').input_ids[1]
+        self.rand_holder_id = self.tokenizer('_pt_random_word', return_tensors="pt").input_ids.view(-1)[1].item()
 
         text_encoder_cls = auto_text_encoder(pretrained_model_name_or_path)
         self.text_encoder = text_encoder_cls.from_pretrained(pretrained_model_name_or_path, subfolder="text_encoder", revision=None)
