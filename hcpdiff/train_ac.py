@@ -120,7 +120,7 @@ class Trainer:
         else:
             self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps/self.steps_per_epoch)
 
-        if self.is_local_main_process:
+        if self.is_local_main_process and self.cfgs.previewer is not None:
             previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
                                             TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
             self.loggers.add_previewer(previewer)

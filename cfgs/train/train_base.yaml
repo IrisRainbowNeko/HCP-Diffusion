@@ -78,7 +78,4 @@ model:
     pretrained_model_name_or_path: ${model.pretrained_model_name_or_path}
     subfolder: scheduler
 
-previewer:
-  _target_: hcpdiff.loggers.preview.ImagePreviewer
-  _partial_: True
-  infer_cfg: cfgs/infer/text2img.yaml
+previewer: null
