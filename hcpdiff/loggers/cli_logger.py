@@ -8,7 +8,7 @@ from .base_logger import BaseLogger
 
 
 class CLILogger(BaseLogger):
-    def __init__(self, exp_dir, out_path, enable_log_image=True, log_step=10, image_log_step=200, img_ext='png', img_quality=95):
+    def __init__(self, exp_dir, out_path, enable_log_image=False, log_step=10, image_log_step=200, img_ext='png', img_quality=95):
         super().__init__(exp_dir, out_path, enable_log_image, log_step, image_log_step)
         if exp_dir is not None:  # exp_dir is only available in local main process
             logger.add(os.path.join(exp_dir, out_path))

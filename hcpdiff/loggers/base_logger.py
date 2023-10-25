@@ -8,7 +8,7 @@ from hcpdiff.utils.utils import to_validate_file
 from .preview import ImagePreviewer
 
 class BaseLogger:
-    def __init__(self, exp_dir, out_path, enable_log_image=True, log_step=10, image_log_step=200):
+    def __init__(self, exp_dir, out_path, enable_log_image=False, log_step=10, image_log_step=200):
         self.exp_dir = exp_dir
         self.out_path = out_path
         self.enable_log_image = enable_log_image
