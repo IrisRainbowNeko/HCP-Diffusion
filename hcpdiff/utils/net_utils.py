@@ -198,3 +198,11 @@ def to_cpu(model):
 
 def to_cuda(model):
     model._apply(_convert_cuda)
+
+def split_module_name(layer_name):
+    name_split = layer_name.rsplit('.', 1)
+    if len(name_split) == 1:
+        parent_name, host_name = '', name_split[0]
+    else:
+        parent_name, host_name = name_split
+    return parent_name, host_name

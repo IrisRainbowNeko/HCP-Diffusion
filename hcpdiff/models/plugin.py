@@ -15,7 +15,7 @@ import torch
 from torch import nn
 
 from hcpdiff.utils.utils import isinstance_list
-from hcpdiff.utils.cfg_net_tools import split_module_name
+from hcpdiff.utils.net_utils import split_module_name
 
 class BasePluginBlock(nn.Module):
     def __init__(self, name: str):

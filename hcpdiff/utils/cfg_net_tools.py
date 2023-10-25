@@ -20,6 +20,7 @@ from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginBlock
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from .net_utils import split_module_name
 
 def get_class_match_layer(class_name, block:nn.Module):
     if type(block).__name__==class_name:
@@ -135,14 +136,6 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
         return train_params, (LoraGroup(all_lora_blocks), LoraGroup(all_lora_blocks_neg))
     else:
         return train_params, LoraGroup(all_lora_blocks)
-
-def split_module_name(layer_name):
-    name_split = layer_name.rsplit('.', 1)
-    if len(name_split) == 1:
-        parent_name, host_name = '', name_split[0]
-    else:
-        parent_name, host_name = name_split
-    return parent_name, host_name
 
 def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
     train_params=[]
