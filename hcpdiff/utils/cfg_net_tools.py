@@ -136,6 +136,14 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
     else:
         return train_params, LoraGroup(all_lora_blocks)
 
+def split_module_name(layer_name):
+    name_split = layer_name.rsplit('.', 1)
+    if len(name_split) == 1:
+        parent_name, host_name = '', name_split[0]
+    else:
+        parent_name, host_name = name_split
+    return parent_name, host_name
+
 def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
     train_params=[]
     all_plugin_group={}
@@ -203,11 +211,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
         elif issubclass(plugin_class, PatchPluginBlock):
             layers_name = builder.keywords.pop('layers')
             for layer_name in get_match_layers(layers_name, named_modules):
-                name_split = layer_name.rsplit('.', 1)
-                if len(name_split)==1:
-                    parent_name, host_name = '', name_split[0]
-                else:
-                    parent_name, host_name = name_split
+                parent_name, host_name = split_module_name(layer_name)
                 layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
                                 parent_block=named_modules[parent_name], host_name=host_name)
                 if train_plugin:

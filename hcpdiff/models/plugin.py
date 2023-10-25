@@ -15,6 +15,7 @@ import torch
 from torch import nn
 
 from hcpdiff.utils.utils import isinstance_list
+from hcpdiff.utils.cfg_net_tools import split_module_name
 
 class BasePluginBlock(nn.Module):
     def __init__(self, name: str):
@@ -57,8 +58,9 @@ class WrapablePlugin:
     wrapable_classes = []
 
     @classmethod
-    def wrap_layer(cls, name: str, layer: nn.Module, **kwargs):  # -> SinglePluginBlock:
-        raise NotImplementedError(f'wrap_layer of {cls} is not implemented.')
+    def wrap_layer(cls, name: str, layer: nn.Module, **kwargs):
+        plugin = cls(name, layer, **kwargs)
+        return plugin
 
     @classmethod
     def wrap_model(cls, name: str, model: nn.Module, exclude_key=None, **kwargs):  # -> Dict[str, SinglePluginBlock]:
@@ -76,6 +78,11 @@ class WrapablePlugin:
                 named_modules = {layer_name:layer for layer_name, layer in model.named_modules()}
             for layer_name, layer in named_modules.items():
                 if isinstance_list(layer, cls.wrapable_classes):
+                    # For plugins that need parent_block
+                    if 'parent_block' in kwargs:
+                        parent_name, host_name = split_module_name(layer_name)
+                        kwargs['parent_block'] = named_modules[parent_name]
+                        kwargs['host_name'] = named_modules[host_name]
                     plugin_block_dict[layer_name] = cls.wrap_layer(name, layer, **kwargs)
         return plugin_block_dict
 
