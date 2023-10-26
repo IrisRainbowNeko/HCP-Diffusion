@@ -1,22 +1,22 @@
-import os
 from contextlib import contextmanager
 from typing import List
 
 import hydra
 import torch
+from accelerate import infer_auto_device_map, dispatch_model
+from accelerate.hooks import remove_hook_from_module
 from diffusers import PNDMScheduler
 from torch.cuda.amp import autocast
 
-from hcpdiff.visualizer import Visualizer
 from hcpdiff.models import TokenizerHook
-from hcpdiff.utils.utils import prepare_seed, load_config, size_to_int, int_to_size
 from hcpdiff.utils.net_utils import to_cpu
-from accelerate import infer_auto_device_map, dispatch_model
-from accelerate.hooks import remove_hook_from_module
+from hcpdiff.utils.utils import prepare_seed, load_config, size_to_int, int_to_size
+from hcpdiff.utils.utils import to_validate_file
+from hcpdiff.visualizer import Visualizer
 
 class ImagePreviewer(Visualizer):
     def __init__(self, infer_cfg, exp_dir, te_hook,
-                 unet, TE, tokenizer, vae, save_cfg=False, preview_dir='preview'):
+                 unet, TE, tokenizer, vae, save_cfg=False):
         self.exp_dir = exp_dir
         self.cfgs_raw = load_config(infer_cfg)
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
@@ -40,9 +40,6 @@ class ImagePreviewer(Visualizer):
         else:
             self.seeds = [None]*(self.cfgs.num*self.cfgs.bs)
 
-        self.preview_dir = preview_dir
-        os.makedirs(os.path.join(exp_dir, preview_dir), exist_ok=True)
-
     def build_vae_offload(self, offload_cfg):
         vram = size_to_int(offload_cfg.max_VRAM)
         if not offload_cfg.vae_cpu:
@@ -51,6 +48,7 @@ class ImagePreviewer(Visualizer):
         else:
             to_cpu(self.pipe.vae)
             self.vae_decode_raw = self.pipe.vae.decode
+
             def vae_decode_offload(latents, return_dict=True, decode_raw=self.pipe.vae.decode):
                 self.pipe.vae.to(dtype=torch.float32)
                 res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
@@ -59,6 +57,7 @@ class ImagePreviewer(Visualizer):
             self.pipe.vae.decode = vae_decode_offload
 
             self.vae_encode_raw = self.pipe.vae.encode
+
             def vae_encode_offload(x, return_dict=True, encode_raw=self.pipe.vae.encode):
                 self.pipe.vae.to(dtype=torch.float32)
                 res = encode_raw(x.cpu().to(dtype=torch.float32), return_dict=return_dict)
@@ -95,7 +94,7 @@ class ImagePreviewer(Visualizer):
         self.pipe.vae.disable_slicing()
 
     def preview(self):
-        prompt_all, negative_prompt_all, seeds_all, images_all = [], [], [], []
+        image_list, info_list = [], []
         with self.infer_optimize():
             for i in range(self.cfgs.num):
                 prompt = self.cfgs.prompt[i*self.cfgs.bs:(i+1)*self.cfgs.bs] if isinstance(self.cfgs.prompt, list) \
@@ -105,13 +104,20 @@ class ImagePreviewer(Visualizer):
                 seeds = self.seeds[i*self.cfgs.bs:(i+1)*self.cfgs.bs]
                 images = self.vis_images(prompt=prompt, negative_prompt=negative_prompt, seeds=seeds,
                                          **self.cfgs.infer_args)
+                for prompt_i, negative_prompt_i, seed in zip(prompt, negative_prompt, seeds):
+                    info_list.append({
+                        'prompt':prompt,
+                        'negative_prompt':negative_prompt,
+                        'seed':seed,
+                    })
+                image_list += images
 
-                prompt_all += prompt
-                negative_prompt_all += negative_prompt
-                seeds_all += seeds
-                images_all += images
+        return image_list, info_list
 
-        return prompt_all, negative_prompt_all, seeds_all, images_all, self.cfgs_raw if self.save_cfg else None
+    def preview_dict(self):
+        image_list, info_list = self.preview()
+        imgs = {f'{info["seed"]}-{to_validate_file(info["prompt"])}':img for img, info in zip(image_list, info_list)}
+        return imgs
 
     @torch.no_grad()
     def vis_images(self, prompt, negative_prompt='', seeds: List[int] = None, **kwargs):

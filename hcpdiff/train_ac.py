@@ -27,6 +27,9 @@ from accelerate import Accelerator, DistributedDataParallelKwargs
 from accelerate.utils import set_seed
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from diffusers.utils.import_utils import is_xformers_available
+from omegaconf import OmegaConf
+from transformers import AutoTokenizer
+
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
 from hcpdiff.loggers import LoggerGroup
@@ -38,8 +41,6 @@ from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer, auto_text_encoder, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
 from hcpdiff.visualizer import Visualizer
-from omegaconf import OmegaConf
-from transformers import AutoTokenizer
 
 def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw=torch.utils.checkpoint.checkpoint, **kwargs):
     return checkpoint_raw(function, *args, use_reentrant=use_reentrant, **kwargs)
@@ -55,29 +56,9 @@ class Trainer:
         self.cfgs = cfgs
 
         self.init_context(cfgs_raw)
+        self.build_loggers(cfgs_raw)
 
-        if self.is_local_main_process:
-            self.exp_dir = self.cfgs.exp_dir.format(time=time.strftime("%Y-%m-%d-%H-%M-%S"))
-            os.makedirs(os.path.join(self.exp_dir, 'ckpts/'), exist_ok=True)
-            with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
-                f.write(OmegaConf.to_yaml(cfgs_raw))
-            self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
-        else:
-            self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
-
-        self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]+[item.image_log_step for item in self.loggers.logger_list]))
-
-        self.loggers.info(f'world_size: {self.world_size}')
-        self.loggers.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
-
-        if self.is_local_main_process:
-            transformers.utils.logging.set_verbosity_warning()
-            diffusers.utils.logging.set_verbosity_warning()
-        else:
-            transformers.utils.logging.set_verbosity_error()
-            diffusers.utils.logging.set_verbosity_error()
-
-        self.train_TE = (cfgs.text_encoder is not None) or (cfgs.lora_text_encoder is not None) or (cfgs.plugin_TE is not None)
+        self.train_TE = any(cfgs.text_encoder, cfgs.lora_text_encoder, cfgs.plugin_TE)
 
         self.build_ckpt_manager()
         self.build_model()
@@ -86,7 +67,7 @@ class Trainer:
         self.cache_latents = False
 
         self.batch_size_list = []
-        assert len(cfgs.data)>0
+        assert len(cfgs.data)>0, "At least one dataset is need."
         loss_weights = [dataset.keywords['loss_weight'] for name, dataset in cfgs.data.items()]
         self.train_loader_group = DataGroup([self.build_data(dataset) for name, dataset in cfgs.data.items()], loss_weights)
 
@@ -121,9 +102,8 @@ class Trainer:
             self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps/self.steps_per_epoch)
 
         if self.is_local_main_process and self.cfgs.previewer is not None:
-            previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
-                                            TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
-            self.loggers.add_previewer(previewer)
+            self.previewer = self.cfgs.previewer(exp_dir=self.exp_dir, te_hook=self.text_enc_hook, unet=self.TE_unet.unet,
+                                                 TE=self.TE_unet.TE, tokenizer=self.tokenizer, vae=self.vae)
 
         self.prepare()
 
@@ -148,6 +128,28 @@ class Trainer:
         self.world_size = self.accelerator.num_processes
 
         set_seed(self.cfgs.seed+self.local_rank)
+
+    def build_loggers(self, cfgs_raw):
+        if self.is_local_main_process:
+            self.exp_dir = self.cfgs.exp_dir.format(time=time.strftime("%Y-%m-%d-%H-%M-%S"))
+            os.makedirs(os.path.join(self.exp_dir, 'ckpts/'), exist_ok=True)
+            with open(os.path.join(self.exp_dir, 'cfg.yaml'), 'w', encoding='utf-8') as f:
+                f.write(OmegaConf.to_yaml(cfgs_raw))
+            self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
+        else:
+            self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
+
+        self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]+[item.image_log_step for item in self.loggers.logger_list]))
+
+        self.loggers.info(f'world_size: {self.world_size}')
+        self.loggers.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
+
+        if self.is_local_main_process:
+            transformers.utils.logging.set_verbosity_warning()
+            diffusers.utils.logging.set_verbosity_warning()
+        else:
+            transformers.utils.logging.set_verbosity_error()
+            diffusers.utils.logging.set_verbosity_error()
 
     def prepare(self):
         # Prepare everything with accelerator.
@@ -406,7 +408,7 @@ class Trainer:
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum]},
                     }, step=self.global_step)
-                    self.loggers.log_preview(self.global_step)
+                    self.loggers.log_image(self.previewer.preview_dict(), self.global_step)
 
             if self.global_step>=self.cfgs.train.train_steps:
                 break
