@@ -12,8 +12,9 @@ class CLILogger(BaseLogger):
         super().__init__(exp_dir, out_path, enable_log_image, log_step, image_log_step)
         if exp_dir is not None:  # exp_dir is only available in local main process
             logger.add(os.path.join(exp_dir, out_path))
-            self.img_log_dir = os.path.join(exp_dir, os.path.basename(out_path), img_log_dir)
-            os.makedirs(self.img_log_dir, exist_ok=True)
+            if enable_log_image:
+                self.img_log_dir = os.path.join(exp_dir, img_log_dir)
+                os.makedirs(self.img_log_dir, exist_ok=True)
             self.img_ext = img_ext
             self.img_quality = img_quality
         else:
@@ -36,4 +37,4 @@ class CLILogger(BaseLogger):
     def _log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         logger.info(f'log {len(imgs)} images')
         for name, img in imgs.items():
-            img.save(os.path.join(self.exp_dir, f'{step}-{name}.{self.img_ext}'), quality=self.img_quality)
+            img.save(os.path.join(self.img_log_dir, f'{step}-{name}.{self.img_ext}'), quality=self.img_quality)
