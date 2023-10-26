@@ -58,7 +58,7 @@ class Trainer:
         self.init_context(cfgs_raw)
         self.build_loggers(cfgs_raw)
 
-        self.train_TE = any(cfgs.text_encoder, cfgs.lora_text_encoder, cfgs.plugin_TE)
+        self.train_TE = any([cfgs.text_encoder, cfgs.lora_text_encoder, cfgs.plugin_TE])
 
         self.build_ckpt_manager()
         self.build_model()
