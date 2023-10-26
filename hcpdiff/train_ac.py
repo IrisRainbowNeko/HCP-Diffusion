@@ -139,7 +139,10 @@ class Trainer:
         else:
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
 
-        self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]+[item.image_log_step for item in self.loggers.logger_list]))
+        self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]))
+        image_log_steps = [item.image_log_step for item in self.loggers.logger_list if item.enable_log_image]
+        if len(image_log_steps)>0:
+            self.min_img_log_step = mgcd(*image_log_steps)
 
         self.loggers.info(f'world_size: {self.world_size}')
         self.loggers.info(f'accumulation: {self.cfgs.train.gradient_accumulation_steps}')
@@ -408,6 +411,7 @@ class Trainer:
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum]},
                     }, step=self.global_step)
+                if self.global_step%self.min_img_log_step == 0:
                     self.loggers.log_image(self.previewer.preview_dict(), self.global_step)
 
             if self.global_step>=self.cfgs.train.train_steps:

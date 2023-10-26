@@ -106,8 +106,8 @@ class ImagePreviewer(Visualizer):
                                          **self.cfgs.infer_args)
                 for prompt_i, negative_prompt_i, seed in zip(prompt, negative_prompt, seeds):
                     info_list.append({
-                        'prompt':prompt,
-                        'negative_prompt':negative_prompt,
+                        'prompt':prompt_i,
+                        'negative_prompt':negative_prompt_i,
                         'seed':seed,
                     })
                 image_list += images
