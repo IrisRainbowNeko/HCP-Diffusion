@@ -16,12 +16,12 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
+from typing import Tuple
 
 from hcpdiff.utils.caption_tools import *
-from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.utils import get_file_name, get_file_ext
 from .bucket import BaseBucket
-from .caption_loader import BaseCaptionLoader, auto_caption_loader
+from .source import DataSource, ComposeDataSource
 
 class TextImagePairDataset(Dataset):
     """
@@ -30,107 +30,65 @@ class TextImagePairDataset(Dataset):
     """
 
     def __init__(self, tokenizer, tokenizer_repeats: int = 1, att_mask_encode: bool = False,
-                 bucket: BaseBucket = None, source: Dict = None, return_path: bool = False, **kwargs):
+                 bucket: BaseBucket = None, source: Dict[str, DataSource] = None, return_path: bool = False,
+                 cache_path:str=None, **kwargs):
         self.return_path = return_path
 
         self.tokenizer = tokenizer
         self.tokenizer_repeats = tokenizer_repeats
         self.bucket: BaseBucket = bucket
         self.att_mask_encode = att_mask_encode
-        self.load_source(source)
+        self.source = ComposeDataSource(source)
         self.latents = None  # Cache latents for faster training. Works only without image argumentations.
+        self.cache_path = cache_path
 
-    def load_source(self, source: Dict):
-        self.source_dict = {}
-        for data_source in source.values():
-            source_metas = Namespace()
-            source_metas.caption_dict = self.load_captions(data_source.caption_file)
-            source_metas.att_mask_path = {} if data_source.att_mask is None else \
-                {get_file_name(file):os.path.join(data_source.att_mask, file)
-                    for file in os.listdir(data_source.att_mask) if get_file_ext(file) in types_support}
-            source_metas.prompt_template = self.load_template(data_source.prompt_template)
-            source_metas.image_transforms = data_source.image_transforms
-            source_metas.tag_transforms = data_source.tag_transforms
-            source_metas.bg_color = tuple(data_source.bg_color)
-            source_metas.repeat = getattr(data_source, 'repeat', 1)
-
-            self.source_dict[os.path.dirname(data_source.img_root+'/')] = source_metas
-
-    def load_image(self, path):
-        image = Image.open(path)
-        if image.mode == 'RGBA':
-            img_root = os.path.dirname(path)
-            x, y = image.size
-            canvas = Image.new('RGBA', image.size, self.source_dict[img_root].bg_color)
-            canvas.paste(image, (0, 0, x, y), image)
-            image = canvas
-        return image.convert("RGB")
-
-    def load_captions(self, caption_file: Union[str, BaseCaptionLoader]):
-        if caption_file is None:
-            return {}
-        elif isinstance(caption_file, str):
-            return auto_caption_loader(caption_file).load()
-        else:
-            return caption_file.load()
-
-    def load_template(self, template_file):
-        with open(template_file, 'r', encoding='utf-8') as f:
-            return f.read().strip().split('\n')
-
-    def load_data(self, path, size):
-        img_root, img_name = os.path.split(path)
-        image = self.load_image(path)
-        im_w, im_h = image.size
-        att_mask = self.get_att_map(img_root, get_file_name(img_name))
+    def load_data(self, path:str, data_source:DataSource, size:Tuple[int]):
+        image_dict = data_source.load_image(path)
+        image = image_dict['image']
+        att_mask = image_dict.get('att_mask', None)
         if att_mask is None:
             data, crop_coord = self.bucket.crop_resize({"img":image}, size)
-            image = self.source_dict[img_root].image_transforms(data['img'])  # resize to bucket size
-            att_mask = torch.ones((size[1]//8, size[0]//8))
+            image = data_source.procees_image(data['img'])  # resize to bucket size
         else:
             data, crop_coord = self.bucket.crop_resize({"img":image, "mask":att_mask}, size)
-            image = self.source_dict[img_root].image_transforms(data['img'])
+            image = data_source.procees_image(data['img'])
             att_mask = torch.tensor(cv2.resize(data['mask'], (size[0]//8, size[1]//8), interpolation=cv2.INTER_LINEAR))
         return {'img':image, 'mask':att_mask}
 
     @torch.no_grad()
     def cache_latents(self, vae, weight_dtype, device, show_prog=True):
+        if self.cache_path and os.path.exists(self.cache_path):
+            self.latents = torch.load(self.cache_path)
+            return
+
         self.latents = {}
         self.bucket.rest(0)
 
-        for path, size in tqdm(self.bucket, disable=not show_prog):
-            img_name = os.path.basename(path)
+        for (path, data_source), size in tqdm(self.bucket, disable=not show_prog):
+            img_name = data_source.get_image_name(path)
             if img_name not in self.latents:
-                data = self.load_data(path, size)
+                data = self.load_data(path, data_source, size)
                 image = data['img'].unsqueeze(0).to(device, dtype=weight_dtype)
                 latents = vae.encode(image).latent_dist.sample().squeeze(0)
                 data['img'] = (latents*vae.config.scaling_factor).cpu()
                 self.latents[img_name] = data
 
-    def get_att_map(self, img_root, img_name):
-        if img_name not in self.source_dict[img_root].att_mask_path:
-            return None
-        att_mask = Image.open(self.source_dict[img_root].att_mask_path[img_name]).convert("L")
-        np_mask = np.array(att_mask).astype(float)
-        np_mask[np_mask<=127+0.1] = (np_mask[np_mask<=127+0.1]/127.)
-        np_mask[np_mask>127] = ((np_mask[np_mask>127]-127)/128.)*4+1
-        return np_mask
+        if self.cache_path:
+            torch.save(self.latents, self.cache_path)
 
     def __len__(self):
         return len(self.bucket)
 
     def __getitem__(self, index):
-        path, size = self.bucket[index]
-        img_root, img_name = os.path.split(path)
+        (path, data_source), size = self.bucket[index]
+        img_name = data_source.get_image_name(path)
 
         if self.latents is None:
-            data = self.load_data(path, size)
+            data = self.load_data(path, data_source, size)
         else:
             data = self.latents[img_name].copy()
 
-        caption_ist = self.source_dict[img_root].caption_dict.get(img_name.split('.')[0], None)
-        prompt_template = random.choice(self.source_dict[img_root].prompt_template)
-        prompt_ist = self.source_dict[img_root].tag_transforms({'prompt':prompt_template, 'caption':caption_ist})['prompt']
+        prompt_ist = data_source.load_caption(img_name)
 
         # tokenize Sp or (Sn, Sp)
         prompt_ids = self.tokenizer(prompt_ist, truncation=True, padding="max_length", return_tensors="pt",
