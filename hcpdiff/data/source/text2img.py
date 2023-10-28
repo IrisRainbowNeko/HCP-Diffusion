@@ -66,7 +66,8 @@ class Text2ImageSource(DataSource):
 class Text2ImageAttMapSource(Text2ImageSource):
     def __init__(self, img_root, caption_file, prompt_template, text_transforms, image_transforms=default_image_transforms, att_mask=None,
                  bg_color=(255, 255, 255), repeat=1, **kwargs):
-        super().__init__(img_root, caption_file, prompt_template, image_transforms, text_transforms, bg_color, repeat)
+        super().__init__(img_root, caption_file, prompt_template, image_transforms=image_transforms, text_transforms=text_transforms,
+                         bg_color=bg_color, repeat=repeat)
 
         if att_mask is None:
             self.att_mask = {}

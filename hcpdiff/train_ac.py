@@ -300,7 +300,7 @@ class Trainer:
         self.batch_size_list.append(batch_size)
 
         train_dataset = data_builder(tokenizer=self.tokenizer, tokenizer_repeats=self.cfgs.model.tokenizer_repeats)
-        train_dataset.bucket.build(batch_size*self.world_size, img_root_list=train_dataset.source.get_image_list())
+        train_dataset.bucket.build(batch_size*self.world_size, file_names=train_dataset.source.get_image_list())
         arb = isinstance(train_dataset.bucket, RatioBucket)
         self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
 
@@ -506,7 +506,7 @@ class Trainer:
         else:
             loss = (self.criterion(model_pred.float(), target.float())*att_mask).mean()
         if len(self.embedding_hook.emb_train)>0:
-            loss = loss+0*sum(self.embedding_hook.emb_train).mean()
+            loss = loss+0*sum([emb.mean() for emb in self.embedding_hook.emb_train])
         return loss
 
     def update_ema(self):

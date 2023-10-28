@@ -49,6 +49,7 @@ class TextImagePairDataset(Dataset):
         if att_mask is None:
             data, crop_coord = self.bucket.crop_resize({"img":image}, size)
             image = data_source.procees_image(data['img'])  # resize to bucket size
+            att_mask = torch.ones((size[1]//8, size[0]//8))
         else:
             data, crop_coord = self.bucket.crop_resize({"img":image, "mask":att_mask}, size)
             image = data_source.procees_image(data['img'])

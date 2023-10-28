@@ -130,7 +130,7 @@ class RatioBucket(BaseBucket):
     def build_buckets_from_images(self):
         logger.info('build buckets from images')
         ratio_list = []
-        for i, file in enumerate(self.file_names):
+        for i, (file, source) in enumerate(self.file_names):
             w, h = get_image_size(file)
             ratio = np.log2(w/h)
             ratio_list.append(ratio)
@@ -233,7 +233,7 @@ class SizeBucket(RatioBucket):
         '''
         logger.info('build buckets from images size')
         size_list = []
-        for i, file in enumerate(self.file_names):
+        for i, (file, source) in enumerate(self.file_names):
             w, h = get_image_size(file)
             size_list.append([w, h])
         size_list = np.array(size_list)
@@ -274,7 +274,7 @@ class LongEdgeBucket(RatioBucket):
         '''
         logger.info('build buckets from images size')
         size_list = []
-        for i, file in enumerate(self.file_names):
+        for i, (file, source) in enumerate(self.file_names):
             w, h = get_image_size(file)
             scale = self.target_edge/max(w, h)
             size_list.append([round(w*scale), round(h*scale)])
