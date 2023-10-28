@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 from hcpdiff.utils.img_size_tool import types_support, get_image_size
 from hcpdiff.utils.utils import get_file_ext
+from .source import DataSource
 from loguru import logger
 from sklearn.cluster import KMeans
 
@@ -45,17 +46,13 @@ class FixedBucket(BaseBucket):
     def __init__(self, target_size: Union[Tuple[int, int], int] = 512, **kwargs):
         self.target_size = (target_size, target_size) if isinstance(target_size, int) else target_size
 
-    def build(self, bs: int, img_root_list: List[str]):
-        self.img_root_list = img_root_list
-        self.file_names = []
-        for img_root, repeat in img_root_list:
-            imgs = [os.path.join(img_root, x) for x in os.listdir(img_root) if get_file_ext(x) in types_support]
-            self.file_names.extend(imgs*repeat)
+    def build(self, bs: int, file_names: List[Tuple[str, DataSource]]):
+        self.file_names = file_names
 
     def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
         return resize_crop_fix(image, size, mask_interp=mask_interp)
 
-    def __getitem__(self, idx) -> Tuple[str, Tuple[int, int]]:
+    def __getitem__(self, idx) -> Tuple[Tuple[str, DataSource], Tuple[int, int]]:
         return self.file_names[idx], self.target_size
 
     def __len__(self):
@@ -162,20 +159,16 @@ class RatioBucket(BaseBucket):
             self.idx_bucket_map[bnow] = bidx
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
-    def build(self, bs: int, img_root_list: List[str]):
+    def build(self, bs: int, file_names: List[Tuple[str, DataSource]]):
         '''
         :param bs: batch_size * n_gpus * accumulation_step
         :param img_root_list:
         '''
-        self.img_root_list = img_root_list
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
         else:
-            self.file_names = []
-            for img_root, repeat in img_root_list:
-                imgs = [os.path.join(img_root, x) for x in os.listdir(img_root) if get_file_ext(x) in types_support]
-                self.file_names.extend(imgs*repeat)
+            self.file_names = file_names
         self._build()
 
         self.bs = bs
