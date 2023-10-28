@@ -64,7 +64,6 @@ logger:
 model:
   revision: null
   pretrained_model_name_or_path: null
-  tokenizer_name: null
   tokenizer_repeats: 2
   enable_xformers: True
   gradient_checkpointing: True
@@ -73,9 +72,11 @@ model:
   ema_text_encoder: 0 # 0 to disable
   clip_skip: 0
   clip_final_norm: True
-  noise_scheduler:
-    _target_: diffusers.DDPMScheduler.from_pretrained
-    pretrained_model_name_or_path: ${model.pretrained_model_name_or_path}
-    subfolder: scheduler
+
+  tokenizer: null
+  noise_scheduler: null
+  unet: null
+  text_encoder: null
+  vae: null
 
 previewer: null

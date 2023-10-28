@@ -28,7 +28,6 @@ from accelerate.utils import set_seed
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from diffusers.utils.import_utils import is_xformers_available
 from omegaconf import OmegaConf
-from transformers import AutoTokenizer
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
@@ -200,9 +199,9 @@ class Trainer:
 
     def build_model(self):
         # Load the tokenizer
-        if self.cfgs.model.tokenizer_name:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.cfgs.model.tokenizer_name, revision=self.cfgs.model.revision, use_fast=False)
-        elif self.cfgs.model.pretrained_model_name_or_path:
+        if self.cfgs.model.tokenizer is not None:
+            self.tokenizer = self.cfgs.model.tokenizer
+        else:
             tokenizer_cls = auto_tokenizer(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
             self.tokenizer = tokenizer_cls.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="tokenizer",
@@ -214,19 +213,24 @@ class Trainer:
                                DDPMScheduler.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder='scheduler')
 
         self.num_train_timesteps = len(self.noise_scheduler.timesteps)
-        self.vae: AutoencoderKL = AutoencoderKL.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder="vae",
-                                                                revision=self.cfgs.model.revision)
+        self.vae: AutoencoderKL = self.cfgs.model.vae or AutoencoderKL.from_pretrained(
+            self.cfgs.model.pretrained_model_name_or_path, subfolder="vae", revision=self.cfgs.model.revision)
         self.build_unet_and_TE()
 
     def build_unet_and_TE(self):  # for easy to use colossalAI
-        unet = UNet2DConditionModel.from_pretrained(
+        unet = self.cfgs.model.unet or UNet2DConditionModel.from_pretrained(
             self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision
         )
-        # import correct text encoder class
-        text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
-        text_encoder = text_encoder_cls.from_pretrained(
-            self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
-        )
+
+        if self.cfgs.model.text_encoder is not None:
+            text_encoder = self.cfgs.model.text_encoder
+            text_encoder_cls = type(text_encoder)
+        else:
+            # import correct text encoder class
+            text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
+            text_encoder = text_encoder_cls.from_pretrained(
+                self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
+            )
 
         # Wrap unet and text_encoder to make DDP happy. Multiple DDP has soooooo many fxxking bugs!
         wrapper_cls = SDXLTEUnetWrapper if text_encoder_cls == SDXLTextEncoder else TEUnetWrapper
@@ -412,7 +416,7 @@ class Trainer:
                         'LR_word':{'format':'{:.2e}', 'data':[lr_word]},
                         'Loss':{'format':'{:.5f}', 'data':[loss_sum]},
                     }, step=self.global_step)
-                if self.min_img_log_step > 0 and self.global_step%self.min_img_log_step == 0:
+                if self.min_img_log_step>0 and self.global_step%self.min_img_log_step == 0:
                     self.loggers.log_image(self.previewer.preview_dict(), self.global_step)
 
             if self.global_step>=self.cfgs.train.train_steps:
