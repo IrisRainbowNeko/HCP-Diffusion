@@ -4,7 +4,7 @@ from typing import Dict, Any
 from PIL import Image
 from torchvision import transforms
 
-from .text2img import Text2ImageAttMapSource
+from .text2img import Text2ImageAttMapSource, default_image_transforms
 
 class Text2ImageCondSource(Text2ImageAttMapSource):
     def __init__(self, img_root, caption_file, prompt_template, text_transforms, image_transforms=default_image_transforms,

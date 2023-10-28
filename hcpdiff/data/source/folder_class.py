@@ -2,13 +2,13 @@ import os
 from typing import List, Tuple, Union
 from hcpdiff.utils.utils import get_file_name, get_file_ext
 from hcpdiff.utils.img_size_tool import types_support
-from .text2img import Text2ImageAttMapSource, DataSource
+from .text2img import Text2ImageAttMapSource
 from hcpdiff.data.caption_loader import BaseCaptionLoader, auto_caption_loader
 from copy import copy
 
 class T2IFolderClassSource(Text2ImageAttMapSource):
 
-    def get_image_list(self) -> List[Tuple[str, DataSource]]:
+    def get_image_list(self) -> List[Tuple[str, "T2IFolderClassSource"]]:
         sub_folders = [os.path.join(self.img_root, x) for x in os.listdir(self.img_root)]
         class_imgs = []
         for class_folder in sub_folders:

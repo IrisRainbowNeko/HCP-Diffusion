@@ -49,7 +49,7 @@ lora_text_encoder:
 这两个lora分支共享同一个基础模型，需要不同的触发词，各自的触发词在data中定义(需要提前创建word):
 ```yaml
 data:
-  tag_transforms:
+  text_transforms:
     transforms:
       - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:
@@ -60,7 +60,7 @@ data:
 ```yaml
 data_class:
   caption_file: dataset/image_captions.json #训练text-image对
-  tag_transforms:
+  text_transforms:
     transforms:
       - _target_: hcpdiff.utils.caption_tools.TemplateFill
         word_names:

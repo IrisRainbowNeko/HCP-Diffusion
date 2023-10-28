@@ -169,7 +169,7 @@ data:
         att_mask: null # attention_mask的文件夹路径
         bg_color: [255, 255, 255] # 读取透明图像时的填充背景色
         image_transforms: ${...image_transforms} # 图像增强与预处理
-        tag_transforms: # 文本增强与预处理
+        text_transforms: # 文本增强与预处理
           _target_: torchvision.transforms.Compose
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle # 按 "," 打乱描述的顺序
@@ -204,7 +204,7 @@ data:
         att_mask: null
         bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
         image_transforms: ${....dataset1.source.data_source1.image_transforms}
-        tag_transforms:
+        text_transforms:
           _target_: torchvision.transforms.Compose
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle

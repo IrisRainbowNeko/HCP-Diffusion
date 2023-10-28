@@ -47,18 +47,18 @@ The supported buckets:
     + From ratios: A set of n different aspect ratios are automatically selected from the given range of aspect ratios based on the target area, and the batch is divided into buckets based on these ratios.
     + From images: Images are automatically clustered based on their aspect ratio, and n buckets are selected that have the closest aspect ratio to the target area.
 
-## prompt template usage (with tag_transforms)
+## prompt template usage (with text_transforms)
 The prompt template can be replaced with specified text during training.
 For example, a prompt template:
 
 ```a photo of a {pt1} on the {pt2}, {caption}```
 
-The placeholders ```{pt1}``` and ```{pt2}``` in the prompt template will be replaced with specified words by the ```TemplateFill``` defined in the ```tag_transforms``` section. 
+The placeholders ```{pt1}``` and ```{pt2}``` in the prompt template will be replaced with specified words by the ```TemplateFill``` defined in the ```text_transforms``` section. 
 This word can be a custom embedding that occupies multiple words, or it can be a model's naive word.
 
-For example, define the following ```tag_transforms```:
+For example, define the following ```text_transforms```:
 ```yaml
-tag_transforms:
+text_transforms:
     _target_: torchvision.transforms.Compose
     transforms:
       - _target_: hcpdiff.utils.caption_tools.TemplateFill

@@ -126,7 +126,7 @@ data:
         att_mask: null # path to attention_mask
         bg_color: [255, 255, 255] # Fill background color when reading transparent images
         image_transforms: ${...image_transforms} # Image augmentation and preprocessing
-        tag_transforms: # Text augmentation and preprocessing
+        text_transforms: # Text augmentation and preprocessing
           _target_: torchvision.transforms.Compose
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle # Shuffle the caption by ","
@@ -161,7 +161,7 @@ data:
         att_mask: null
         bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
         image_transforms: ${....dataset1.source.data_source1.image_transforms}
-        tag_transforms:
+        text_transforms:
           _target_: torchvision.transforms.Compose
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle

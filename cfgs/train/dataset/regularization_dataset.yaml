@@ -21,7 +21,7 @@ data:
         word_names:
           pt1: ''
 
-        tag_transforms:
+        text_transforms:
           _target_: torchvision.transforms.Compose
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle

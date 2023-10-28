@@ -43,17 +43,17 @@ Bucket可以将图像分组排列组合，把具有相同特性的图像放入�
     + from ratios: 根据给定的宽高比范围，自动筛选出和目标尺寸最接近的n个不同宽高比的bucket。
     + from_images: 根据训练用到的图像自动对宽高比进行聚类，选出与目标尺寸最接近的n个bucket。
 
-## prompt模板使用 (配合tag_transforms)
+## prompt模板使用 (配合text_transforms)
 prompt模板可以在训练阶段将其中的占位符替换成指定的文本。
 例如一个prompt模板: 
 
 ```a photo of a {pt1} on the {pt2}, {caption}```
 
-其中的```{pt1}```和```{pt2}```会被```tag_transforms```中定义的```TemplateFill```替换为指定的词，
+其中的```{pt1}```和```{pt2}```会被```text_transforms```中定义的```TemplateFill```替换为指定的词，
 这个词可以是自定义的embedding(可以占多个词的位置)，也可以是模型原有的词。
-比如定义如下```tag_transforms```:
+比如定义如下```text_transforms```:
 ```yaml
-tag_transforms:
+text_transforms:
     _target_: torchvision.transforms.Compose
     transforms:
       - _target_: hcpdiff.utils.caption_tools.TemplateFill
