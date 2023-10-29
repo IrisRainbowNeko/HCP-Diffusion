@@ -1,7 +1,7 @@
 from .pair_dataset import TextImagePairDataset
 from .cond_dataset import TextImageCondPairDataset
 from .crop_info_dataset import CropInfoPairDataset
-from .bucket import BaseBucket, FixedBucket, RatioBucket
+from .bucket import BaseBucket, FixedBucket, RatioBucket, SizeBucket, RatioSizeBucket, LongEdgeBucket
 from .utils import CycleData
 from .caption_loader import JsonCaptionLoader, TXTCaptionLoader
 from .sampler import DistributedCycleSampler, get_sampler

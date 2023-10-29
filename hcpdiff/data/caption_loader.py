@@ -2,9 +2,11 @@ import json
 import os
 import glob
 import yaml
+from typing import Dict
 
 from loguru import logger
-
+from hcpdiff.utils.img_size_tool import types_support
+import os
 
 class BaseCaptionLoader:
     def __init__(self, path):
@@ -18,15 +20,24 @@ class BaseCaptionLoader:
         logger.info(f'{len(retval)} record(s) loaded with {self.__class__.__name__}, from path {self.path!r}')
         return retval
 
+    @staticmethod
+    def clean_ext(captions:Dict[str, str]):
+        def rm_ext(path):
+            name, ext = os.path.splitext(path)
+            if len(ext)>0 and ext[1:] in types_support:
+                return name
+            return path
+        return {rm_ext(k):v for k,v in captions.items()}
+
 class JsonCaptionLoader(BaseCaptionLoader):
     def _load(self):
         with open(self.path, 'r', encoding='utf-8') as f:
-            return json.loads(f.read())
+            return self.clean_ext(json.loads(f.read()))
 
 class YamlCaptionLoader(BaseCaptionLoader):
     def _load(self):
         with open(self.path, 'r', encoding='utf-8') as f:
-            return yaml.load(f.read(), Loader=yaml.FullLoader)
+            return self.clean_ext(yaml.load(f.read(), Loader=yaml.FullLoader))
 
 class TXTCaptionLoader(BaseCaptionLoader):
     def _load(self):
