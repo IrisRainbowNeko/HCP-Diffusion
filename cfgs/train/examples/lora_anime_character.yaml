@@ -6,7 +6,7 @@ model:
   clip_skip: 1
 
 train:
-  train_steps: 2000
+  train_steps: 1000
   save_step: 100
 
   scheduler:
