@@ -2,6 +2,7 @@ import torch
 from torch.utils.data.distributed import DistributedSampler
 from typing import Iterator
 import platform
+import math
 
 class DistributedCycleSampler(DistributedSampler):
     _cycle = 1000

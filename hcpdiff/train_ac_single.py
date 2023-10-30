@@ -6,7 +6,7 @@ import torch
 from accelerate import Accelerator
 from loguru import logger
 
-from hcpdiff.train_ac import Trainer, RatioBucket, load_config_with_cli, set_seed
+from hcpdiff.train_ac import Trainer, RatioBucket, load_config_with_cli, set_seed, get_sampler
 
 class TrainerSingleCard(Trainer):
     def init_context(self, cfgs_raw):
@@ -20,16 +20,6 @@ class TrainerSingleCard(Trainer):
         self.world_size = self.accelerator.num_processes
 
         set_seed(self.cfgs.seed+self.local_rank)
-
-    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
-        train_dataset, batch_size, arb = self.build_dataset(data_builder)
-
-        # Pytorch Data loader
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=self.world_size,
-                                                                        rank=self.local_rank, shuffle=not arb)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=self.cfgs.train.workers,
-                                                   sampler=train_sampler, collate_fn=train_dataset.collate_fn)
-        return train_loader
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
