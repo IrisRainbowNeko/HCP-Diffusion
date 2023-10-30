@@ -5,6 +5,13 @@ model:
   pretrained_model_name_or_path: 'deepghs/animefull-latest'
   clip_skip: 1
 
+train:
+  train_steps: 2000
+  save_step: 100
+
+  scheduler:
+    num_training_steps: ${train.train_steps}
+
 character_name: surtr_arknights
 dataset_dir: '/root/autodl-tmp/dataset/surtr_3'
 # if exp_dir is not set, a random time-based directory will be used
@@ -16,7 +23,7 @@ text_encoder_rank: 4
 tokenizer_pt:
   emb_dir: 'embs/' #自定义word目录
   replace: False #训练后是否替换原有word
-  train: 
+  train:
     - name: ${character_name}
       lr: 0.003
 
@@ -49,16 +56,16 @@ data:
           pt1: ${character_name}
 
     # support images with any size, not recommended for anime training
-    # bucket:
-    #   _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-    #   target_area: ${times:512,512}
-    #   num_bucket: 5
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${times:512,512}
+      num_bucket: 5
 
     # all images must have the same size, such as 512x704
-    bucket:
-      _target_: hcpdiff.data.bucket.SizeBucket.from_files # aspect ratio bucket
-      target_area: ---
-      num_bucket: 1
+#    bucket:
+#      _target_: hcpdiff.data.bucket.SizeBucket.from_files # aspect ratio bucket
+#      target_area: ---
+#      num_bucket: 1
 
 logger:
   - _target_: hcpdiff.loggers.CLILogger
