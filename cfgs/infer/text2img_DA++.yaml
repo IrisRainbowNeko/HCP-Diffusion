@@ -3,17 +3,18 @@ _base_: [cfgs/infer/text2img.yaml]
 merge:
   exp_dir: '2023-04-03-10-10-36'
   alpha: 0.8
+  alpha_neg: 0.65
 
   group1:
     type: 'unet'
     base_model_alpha: 1.0 # base model weight to merge with lora or part
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/unet-600.safetensors'
-        alpha: ${....alpha}
+      - path: 'exps/${merge.exp_dir}/ckpts/unet-600.safetensors'
+        alpha: ${merge.alpha}
         layers: 'all'
         mask: [ 0.5, 1 ] #
-      - path: 'exps/${....exp_dir}/ckpts/unet-neg-600.safetensors'
-        alpha: 0.65
+      - path: 'exps/${merge.exp_dir}/ckpts/unet-neg-600.safetensors'
+        alpha: ${merge.alpha_neg}
         layers: 'all'
         mask: [ 0, 0.5 ]
     part: null
@@ -22,12 +23,12 @@ merge:
     type: 'TE'
     base_model_alpha: 1.0 # base model weight to infer with lora or part
     lora:
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-600.safetensors'
-        alpha: ${....alpha}
+      - path: 'exps/${merge.exp_dir}/ckpts/text_encoder-600.safetensors'
+        alpha: ${merge.alpha}
         layers: 'all'
         mask: [ 0.5, 1 ]
-      - path: 'exps/${....exp_dir}/ckpts/text_encoder-neg-600.safetensors'
-        alpha: 0.65
+      - path: 'exps/${merge.exp_dir}/ckpts/text_encoder-neg-600.safetensors'
+        alpha: ${merge.alpha_neg}
         layers: 'all'
         mask: [ 0, 0.5 ]
     part: null

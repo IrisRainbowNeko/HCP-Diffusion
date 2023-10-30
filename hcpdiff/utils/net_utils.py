@@ -1,32 +1,12 @@
 import os
-import time
+from copy import deepcopy
 from typing import Optional, Union
 
 import torch
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from torch import nn
 from torch.optim import lr_scheduler
-from transformers import PretrainedConfig
-
-class TEUnetWrapper(nn.Module):
-    def __init__(self, unet, TE):
-        super().__init__()
-        self.unet = unet
-        self.TE = TE
-
-    def forward(self, prompt_ids, noisy_latents, timesteps, **kwargs):
-        input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, **kwargs)
-
-        if hasattr(self.TE, 'input_feeder'):
-            for feeder in self.TE.input_feeder:
-                feeder(input_all)
-        if hasattr(self.unet, 'input_feeder'):
-            for feeder in self.unet.input_feeder:
-                feeder(input_all)
-
-        encoder_hidden_states = self.TE(prompt_ids, output_hidden_states=True)  # Get the text embedding for conditioning
-        model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample  # Predict the noise residual
-        return model_pred
+from transformers import PretrainedConfig, AutoTokenizer
 
 def get_scheduler(
     name: Union[str, SchedulerType],
@@ -91,24 +71,45 @@ def get_scheduler(
 
     return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
 
-def import_text_encoder_class(pretrained_model_name_or_path: str, revision: str):
-    text_encoder_config = PretrainedConfig.from_pretrained(
-        pretrained_model_name_or_path,
-        subfolder="text_encoder",
-        revision=revision,
-    )
-    model_class = text_encoder_config.architectures[0]
+def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None):
+    from hcpdiff.models.compose import SDXLTokenizer
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path, subfolder="tokenizer_2",
+            revision=revision, use_fast=False,
+        )
+        return SDXLTokenizer
+    except OSError:
+        # not sdxl, only one tokenizer
+        return AutoTokenizer
 
-    if model_class == "CLIPTextModel":
-        from transformers import CLIPTextModel
+def auto_text_encoder(pretrained_model_name_or_path: str, revision: str = None):
+    from hcpdiff.models.compose import SDXLTextEncoder
+    try:
+        text_encoder_config = PretrainedConfig.from_pretrained(
+            pretrained_model_name_or_path,
+            subfolder="text_encoder_2",
+            revision=revision,
+        )
+        return SDXLTextEncoder
+    except OSError:
+        text_encoder_config = PretrainedConfig.from_pretrained(
+            pretrained_model_name_or_path,
+            subfolder="text_encoder",
+            revision=revision,
+        )
+        model_class = text_encoder_config.architectures[0]
 
-        return CLIPTextModel
-    elif model_class == "RobertaSeriesModelWithTransformation":
-        from diffusers.pipelines.alt_diffusion.modeling_roberta_series import RobertaSeriesModelWithTransformation
+        if model_class == "CLIPTextModel":
+            from transformers import CLIPTextModel
 
-        return RobertaSeriesModelWithTransformation
-    else:
-        raise ValueError(f"{model_class} is not supported.")
+            return CLIPTextModel
+        elif model_class == "RobertaSeriesModelWithTransformation":
+            from diffusers.pipelines.alt_diffusion.modeling_roberta_series import RobertaSeriesModelWithTransformation
+
+            return RobertaSeriesModelWithTransformation
+        else:
+            raise ValueError(f"{model_class} is not supported.")
 
 def remove_all_hooks(model: nn.Module) -> None:
     for name, child in model.named_modules():
@@ -138,8 +139,18 @@ def save_emb(path, emb: torch.Tensor, replace=False):
     if os.path.exists(path) and not replace:
         raise FileExistsError(f'embedding "{name}" already exist.')
     name = name[:name.rfind('.')]
-    #torch.save({'emb_params':emb, 'name':name}, path)
+    # torch.save({'emb_params':emb, 'name':name}, path)
     torch.save({'string_to_param':{'*':emb}, 'name':name}, path)
+
+class WordExistsError(AssertionError):
+    pass
+
+def check_word_name(tokenizer, name):
+    tokenizer = deepcopy(tokenizer)
+    tokenizer.add_tokens(name)
+    name_id = tokenizer(name, return_tensors="pt").input_ids.view(-1)[1].item()
+    if name_id<=tokenizer.eos_token_id:
+        raise WordExistsError(f"{name} is already in the word list, please use another word name.")
 
 def hook_compile(model):
     named_modules = {k:v for k, v in model.named_modules()}
@@ -187,3 +198,11 @@ def to_cpu(model):
 
 def to_cuda(model):
     model._apply(_convert_cuda)
+
+def split_module_name(layer_name):
+    name_split = layer_name.rsplit('.', 1)
+    if len(name_split) == 1:
+        parent_name, host_name = '', name_split[0]
+    else:
+        parent_name, host_name = name_split
+    return parent_name, host_name

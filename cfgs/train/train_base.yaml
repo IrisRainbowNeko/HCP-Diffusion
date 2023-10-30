@@ -29,7 +29,7 @@ train:
 
   loss:
     criterion:
-      _target_: hcpdiff.loss.MSELoss
+      _target_: torch.nn.MSELoss
       _partial_: True
       reduction: 'none' # support for attention mask
     type: 'eps' # 'eps' or 'sample'
@@ -64,13 +64,19 @@ logger:
 model:
   revision: null
   pretrained_model_name_or_path: null
-  tokenizer_name: null
   tokenizer_repeats: 2
   enable_xformers: True
   gradient_checkpointing: True
+  force_cast_precision: False
   ema_unet: 0 # 0 to disable
   ema_text_encoder: 0 # 0 to disable
   clip_skip: 0
-  noise_scheduler:
-    _target_: diffusers.DDPMScheduler.from_pretrained
-    _partial_: True
+  clip_final_norm: True
+
+  tokenizer: null
+  noise_scheduler: null
+  unet: null
+  text_encoder: null
+  vae: null
+
+previewer: null

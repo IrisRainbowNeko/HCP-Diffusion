@@ -12,13 +12,14 @@ from diffusers.utils.import_utils import is_xformers_available
 from torch.cuda.amp import autocast
 
 from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
+from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTextEncoder
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
-from hcpdiff.utils.net_utils import to_cpu, to_cuda
+from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
 
 class Visualizer:
-    dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16}
+    dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
     def __init__(self, cfgs):
         self.cfgs_raw = cfgs
@@ -29,22 +30,30 @@ class Visualizer:
 
         self.need_inter_imgs = any(item.need_inter_imgs for item in self.cfgs.interface)
 
-        pipeline = self.get_pipeline()
-        comp = pipeline.from_pretrained(self.cfgs.pretrained_model, safety_checker=None, requires_safety_checker=False,
-                                        torch_dtype=self.dtype).components
-        comp.update(self.cfgs.new_components)
-        self.pipe = pipeline(**comp)
+        self.pipe = self.load_model(self.cfgs.pretrained_model)
 
         if self.cfg_merge:
             self.merge_model()
 
         self.pipe = self.pipe.to(torch_dtype=self.dtype)
 
+        if isinstance(self.pipe.text_encoder, ComposeTextEncoder):
+            self.pipe.vae = self.pipe.vae.to(dtype=torch.float32)
+
         if 'save_model' in self.cfgs and self.cfgs.save_model is not None:
             self.save_model(self.cfgs.save_model)
             os._exit(0)
 
         self.build_optimize()
+
+    def load_model(self, pretrained_model):
+        pipeline = self.get_pipeline()
+        te = auto_text_encoder(pretrained_model).from_pretrained(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype)
+        tokenizer = auto_tokenizer(pretrained_model).from_pretrained(pretrained_model, subfolder="tokenizer", use_fast=False)
+
+        return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
+                                        text_encoder=te, tokenizer=tokenizer,
+                                        torch_dtype=self.dtype, **self.cfgs.new_components)
 
     def build_optimize(self):
         if self.offload:
@@ -59,9 +68,10 @@ class Visualizer:
             if self.cfgs.vae_optimize.slicing:
                 self.pipe.vae.enable_slicing()
 
-        self.emb_hook, _ = EmbeddingPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
+        self.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
                                                          N_repeats=self.cfgs.N_repeats)
-        self.te_hook = TEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip)
+        self.te_hook = ComposeTEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip,
+                                                 clip_final_norm=self.cfgs.clip_final_norm)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():
@@ -114,7 +124,7 @@ class Visualizer:
                     res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
                 else:
                     to_cuda(self.pipe.vae)
-                    res = decode_raw(latents, return_dict=return_dict)
+                    res = decode_raw(latents.to(dtype=self.pipe.vae.dtype), return_dict=return_dict)
 
                 to_cpu(self.pipe.vae)
                 to_cuda(self.pipe.unet)
@@ -172,7 +182,8 @@ class Visualizer:
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.dtype == 'amp'):
-            emb_n, emb_p = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p).chunk(2)
+            emb, pooled_output = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            emb_n, emb_p = emb.chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)
             emb_n = self.te_hook.mult_attn(emb_n, mult_n)
 
@@ -183,8 +194,8 @@ class Visualizer:
                 for feeder in self.pipe.unet.input_feeder:
                     feeder(ex_input_dict)
 
-            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback,
-                               generator=G, **kwargs).images
+            images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, generator=G,
+                               pooled_output=pooled_output[-1], **kwargs).images
         return images
 
     def inter_callback(self, i, t, num_t, latents):
@@ -199,15 +210,15 @@ class Visualizer:
                 interrupt |= bool(feed_back)
         return interrupt
 
-    def save_images(self, images, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None):
+    def save_images(self, images, prompt, negative_prompt='', seeds: List[int] = None):
         for interface in self.cfgs.interface:
-            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw if save_cfg else None, seeds=seeds)
+            interface.on_infer_finish(images, prompt, negative_prompt, self.cfgs_raw, seeds=seeds)
 
-    def vis_to_dir(self, prompt, negative_prompt='', save_cfg=True, seeds: List[int] = None, **kwargs):
+    def vis_to_dir(self, prompt, negative_prompt='', seeds: List[int] = None, **kwargs):
         seeds = [s or random.randint(0, 1 << 30) for s in seeds]
 
         images = self.vis_images(prompt, negative_prompt, seeds=seeds, **kwargs)
-        self.save_images(images, prompt, negative_prompt, save_cfg=save_cfg, seeds=seeds)
+        self.save_images(images, prompt, negative_prompt, seeds=seeds)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
@@ -222,5 +233,7 @@ if __name__ == '__main__':
 
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
-        viser.vis_to_dir(prompt=[cfgs.prompt]*cfgs.bs, negative_prompt=[cfgs.neg_prompt]*cfgs.bs,
+        prompt = cfgs.prompt[i*cfgs.bs:(i+1)*cfgs.bs] if isinstance(cfgs.prompt, list) else [cfgs.prompt]*cfgs.bs
+        negative_prompt = cfgs.neg_prompt[i*cfgs.bs:(i+1)*cfgs.bs] if isinstance(cfgs.neg_prompt, list) else [cfgs.neg_prompt]*cfgs.bs
+        viser.vis_to_dir(prompt=prompt, negative_prompt=negative_prompt,
                          seeds=seeds[i*cfgs.bs:(i+1)*cfgs.bs], save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)

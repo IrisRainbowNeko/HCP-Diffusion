@@ -8,6 +8,9 @@
 
 [📘中文说明](./README_cn.md)
 
+[📘English document](https://hcpdiff.readthedocs.io/en/latest/)
+[📘中文文档](https://hcpdiff.readthedocs.io/zh_CN/latest/)
+
 ## Introduction
 HCP-Diffusion is a toolbox for Stable Diffusion models based on [🤗 Diffusers](https://github.com/huggingface/diffusers).
 It facilitates flexiable configurations and component support for training, in comparison with [webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
@@ -42,6 +45,7 @@ Compared to DreamArtist, DreamArtist++ is more stable with higher image quality 
 * Min-SNR loss
 * Custom optimizer (Lion, DAdaptation, pytorch-optimizer, ...)
 * Custom lr scheduler
+* SDXL support
 
 ## Install
 
@@ -84,6 +88,7 @@ accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/cfg_file.yaml
 # with Accelerate and only one GPU
 accelerate launch -m hcpdiff.train_ac_single --cfg cfgs/train/cfg_file.yaml
 # with Colossal-AI
+# pip install colossalai
 torchrun --nproc_per_node 1 -m hcpdiff.train_colo --cfg cfgs/train/cfg_file.yaml
 ```
 

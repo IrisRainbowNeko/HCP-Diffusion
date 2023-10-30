@@ -1,0 +1,7 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+prompt: ''
+neg_prompt: ''
+
+clip_skip: 1
+clip_final_norm: False

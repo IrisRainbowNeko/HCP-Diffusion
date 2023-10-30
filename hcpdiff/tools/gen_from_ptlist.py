@@ -36,7 +36,7 @@ class DatasetCreator:
                 imgs = self.pipeline(p_batch, negative_prompt=[negative_prompt]*len(p_batch), width=self.img_w, height=self.img_h).images
                 for prompt, img in zip(p_batch, imgs):
                     img.save(os.path.join(self.out_dir, f'{count}.png'), format='PNG')
-                    captions[f'{count}.png'] = prompt
+                    captions[str(count)] = prompt
                     count += 1
                 if callback:
                     if not callback(count, total):

@@ -18,8 +18,9 @@ from torch import nn
 from .utils import net_path_join
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
-from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, WrapPluginBlock
+from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginBlock
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from .net_utils import split_module_name
 
 def get_class_match_layer(class_name, block:nn.Module):
     if type(block).__name__==class_name:
@@ -110,7 +111,7 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
             for layer_name in get_match_layers(item.layers, named_modules):
                 layer = named_modules[layer_name]
                 arg_dict = {k:v for k,v in item.items() if k!='layers'}
-                lora_block_dict = lora_layers.layer_map[getattr(arg_dict, 'type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
+                lora_block_dict = lora_layers.layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
 
                 block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
@@ -200,24 +201,24 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                     layer.requires_grad_(False)
                     layer.eval()
                 all_plugin_blocks[from_layer_name] = layer
-        elif issubclass(plugin_class, WrapPluginBlock):
+        elif issubclass(plugin_class, PatchPluginBlock):
             layers_name = builder.keywords.pop('layers')
             for layer_name in get_match_layers(layers_name, named_modules):
-                name_split = layer_name.rsplit('.', 1)
-                if len(name_split)==1:
-                    parent_name, host_name = '', name_split[0]
-                else:
-                    parent_name, host_name = name_split
-                layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
+                parent_name, host_name = split_module_name(layer_name)
+                layers = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
                                 parent_block=named_modules[parent_name], host_name=host_name)
-                if train_plugin:
-                    layer.requires_grad_(True)
-                    layer.train()
-                    params_group.extend(layer.parameters())
-                else:
-                    layer.requires_grad_(False)
-                    layer.eval()
-                all_plugin_blocks[layer_name] = layer
+                if not isinstance(layers, dict):
+                    layers={'':layers}
+
+                for k,v in layers.items():
+                    all_plugin_blocks[net_path_join(layer_name, k)] = v
+                    if train_plugin:
+                        v.requires_grad_(True)
+                        v.train()
+                        params_group.extend(v.parameters())
+                    else:
+                        v.requires_grad_(False)
+                        v.eval()
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
         if train_plugin:

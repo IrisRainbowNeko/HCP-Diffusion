@@ -27,7 +27,7 @@ from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
 from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
 from hcpdiff.utils.utils import load_config_with_cli
-from hcpdiff.utils.net_utils import import_text_encoder_class, TEUnetWrapper
+from hcpdiff.utils.net_utils import auto_text_encoder, TEUnetWrapper
 
 class TrainerColo(Trainer):
     def init_context(self, cfgs_raw):
@@ -57,7 +57,7 @@ class TrainerColo(Trainer):
 
     def build_unet_and_TE(self):
         # import correct text encoder class
-        text_encoder_cls = import_text_encoder_class(self.cfgs.model.pretrained_model_name_or_path,
+        text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path,
                                                      self.cfgs.model.revision)
         with ColoInitContext(device=self.device):
             self.unet = UNet2DConditionModel.from_pretrained(
@@ -197,7 +197,7 @@ class TrainerColo(Trainer):
         return unet
 
     @property
-    def text_encoder_raw(self):
+    def TE_raw(self):
         if self.train_TE:
             TE = get_static_torch_model(self.TE_unet).TE
             req_grad_dict = {k: v.requires_grad for k, v in self.text_encoder.named_parameters()}

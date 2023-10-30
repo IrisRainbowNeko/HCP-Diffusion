@@ -136,3 +136,13 @@ def prepare_seed(seeds:List[int], device='cuda'):
 
 def hash_str(data):
     return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+def format_number(num):
+    if num >= 1e9:
+        return f'{num/1e9:.1f}B'
+    elif num >= 1e6:
+        return f'{num/1e6:.1f}M'
+    elif num >= 1e3:
+        return f'{num/1e3:.1f}K'
+    else:
+        return str(num)

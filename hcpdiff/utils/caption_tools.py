@@ -69,7 +69,11 @@ class TemplateFill:
         fill_dict = {k: v for k, v in self.word_names.items() if k in keys_need}
 
         if (caption is not None) and ('caption' in keys_need):
-            fill_dict.update(caption=caption)
+            if self.dream_artist:
+                cap_fill = fill_dict.get('caption', [None, None])
+                fill_dict.update(caption=[cap_fill[0] or caption, cap_fill[1] or caption])
+            else:
+                fill_dict.update(caption=fill_dict.get('caption', None) or caption)
 
         # skip keys that not provide
         for k in keys_need:
@@ -77,10 +81,12 @@ class TemplateFill:
                 fill_dict[k] = ''
 
         if self.dream_artist:
-            fill_dict_pos = {k: (v if isinstance(v, str) else v[0]) for k, v in fill_dict.items()}
-            fill_dict_neg = {k: (v if isinstance(v, str) else v[1]) for k, v in fill_dict.items()}
+            fill_dict_pos = {k: ((v if isinstance(v, str) else v[0]) or '') for k, v in fill_dict.items()}
+            fill_dict_neg = {k: ((v if isinstance(v, str) else v[1]) or '') for k, v in fill_dict.items()}
             return {'prompt':[template.format(**fill_dict_neg), template.format(**fill_dict_pos)]}
         else:
+            # replace None value with ''
+            fill_dict = {k:(v or '') for k, v in fill_dict.items()}
             return {'prompt':[template.format(**fill_dict)]}
 
     def __repr__(self):

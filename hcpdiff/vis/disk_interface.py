@@ -7,10 +7,11 @@ from omegaconf import OmegaConf
 from .base_interface import BaseInterface
 
 class DiskInterface(BaseInterface):
-    def __init__(self, save_root, image_type='png', quality=95, show_steps=0):
+    def __init__(self, save_root, save_cfg=True, image_type='png', quality=95, show_steps=0):
         super(DiskInterface, self).__init__(show_steps=show_steps)
         os.makedirs(save_root, exist_ok=True)
         self.save_root = save_root
+        self.save_cfg = save_cfg
         self.image_type = image_type
         self.quality = quality
 
@@ -36,7 +37,7 @@ class DiskInterface(BaseInterface):
             img.save(img_path, quality=self.quality)
             self.on_save_one(num_img_exist, img_path)
 
-            if cfgs_raw is not None:
+            if self.save_cfg and cfgs_raw is not None:
                 with open(os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info.yaml"), 'w', encoding='utf-8') as f:
                     cfgs_raw.seed = seeds[bid]
                     f.write(OmegaConf.to_yaml(cfgs_raw))

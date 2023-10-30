@@ -2,12 +2,11 @@
 class NoiseBase:
     def __init__(self, base_scheduler):
         self.base_scheduler = base_scheduler
-        self.level =3
 
     def __getattr__(self, item):
-        if hasattr(super(), item):
+        try:
             return super(NoiseBase, self).__getattr__(item)
-        else:
+        except:
             return getattr(self.base_scheduler, item)
 
     def __setattr__(self, key, value):

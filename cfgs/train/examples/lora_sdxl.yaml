@@ -1,0 +1,41 @@
+_base_:
+  - cfgs/train/examples/lora_conventional.yaml
+
+lora_unet:
+  -
+    lr: 1e-4
+    rank: 8
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff$'
+
+lora_text_encoder:
+  - lr: 1e-5
+    rank: 4
+    # for both CLIP
+    layers:
+      - 're:.*self_attn$'
+      - 're:.*mlp$'
+    # for CLIP1 (CLIP_B)
+    # layers:
+    #   - 're:clip_B.*self_attn$'
+    #   - 're:clip_B.*mlp$'
+    # for CLIP2 (CLIP_bigG)
+    # layers:
+    #   - 're:clip_bigG.*self_attn$'
+    #   - 're:clip_bigG.*mlp$'
+
+model:
+  pretrained_model_name_or_path: '/mnt/f/models/stable-diffusion-xl-base-1.0'
+  clip_skip: 1
+  clip_final_norm: False
+
+data:
+  dataset1:
+    _target_: hcpdiff.data.CropInfoPairDataset
+    batch_size: 4
+
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"768*768"}
+      num_bucket: 4

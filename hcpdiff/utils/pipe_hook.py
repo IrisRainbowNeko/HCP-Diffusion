@@ -17,6 +17,26 @@ class HookPipe_T2I(StableDiffusionPipeline):
     def device(self) -> torch.device:
         return torch.device('cuda')
 
+    def proc_prompt(self, device, num_images_per_prompt, prompt_embeds = None, negative_prompt_embeds = None):
+        batch_size = prompt_embeds.shape[0]
+        prompt_embeds = prompt_embeds.to(dtype=self.text_encoder.dtype, device=device)
+
+        bs_embed, seq_len, _ = prompt_embeds.shape
+        # duplicate text embeddings for each generation per prompt, using mps friendly method
+        prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1)
+        prompt_embeds = prompt_embeds.view(bs_embed*num_images_per_prompt, seq_len, -1)
+
+        # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
+        seq_len = negative_prompt_embeds.shape[1]
+
+        negative_prompt_embeds = negative_prompt_embeds.to(dtype=self.text_encoder.dtype, device=device)
+
+        negative_prompt_embeds = negative_prompt_embeds.repeat(1, num_images_per_prompt, 1)
+        negative_prompt_embeds = negative_prompt_embeds.view(batch_size*num_images_per_prompt, seq_len, -1)
+
+        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+        return prompt_embeds
+
     @torch.no_grad()
     def __call__(
         self,
@@ -37,6 +57,8 @@ class HookPipe_T2I(StableDiffusionPipeline):
         callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
+        pooled_output: Optional[torch.FloatTensor] = None,
+        crop_coord: Optional[torch.FloatTensor] = None,
         **kwargs
     ):
         # 0. Default height and width to unet
@@ -44,9 +66,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
         width = width or self.unet.config.sample_size*self.vae_scale_factor
 
         # 1. Check inputs. Raise error if not correct
-        self.check_inputs(
-            prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
-        )
+        # self.check_inputs(prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds)
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):
@@ -63,15 +83,8 @@ class HookPipe_T2I(StableDiffusionPipeline):
         do_classifier_free_guidance = guidance_scale>1.0
 
         # 3. Encode input prompt
-        prompt_embeds = self._encode_prompt(
-            prompt,
-            device,
-            num_images_per_prompt,
-            do_classifier_free_guidance,
-            negative_prompt,
-            prompt_embeds=prompt_embeds,
-            negative_prompt_embeds=negative_prompt_embeds,
-        )
+        prompt_embeds = self.proc_prompt(device, num_images_per_prompt,
+                            prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds)
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -94,6 +107,18 @@ class HookPipe_T2I(StableDiffusionPipeline):
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
+        # SDXL inputs
+        if pooled_output is not None:
+            if crop_coord is None:
+                crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
+            else:
+                crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
+            crop_info = crop_info.to(device).repeat(batch_size*num_images_per_prompt, 1)
+            pooled_output = pooled_output.to(device)
+
+            if do_classifier_free_guidance:
+                crop_info = torch.cat([crop_info, crop_info], dim=0)
+
         # 7. Denoising loop
         num_warmup_steps = len(timesteps)-num_inference_steps*self.scheduler.order
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -102,13 +127,14 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 latent_model_input = torch.cat([latents]*2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                # predict the noise residual
-                noise_pred = self.unet(
-                    latent_model_input,
-                    t,
-                    prompt_embeds,
-                    cross_attention_kwargs=cross_attention_kwargs,
-                ).sample
+                if pooled_output is None:
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                                           cross_attention_kwargs=cross_attention_kwargs, ).sample
+                else:
+                    added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
+                    # predict the noise residual
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                                           cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
                 # perform guidance
                 if do_classifier_free_guidance:
@@ -131,12 +157,13 @@ class HookPipe_T2I(StableDiffusionPipeline):
                         if callback(i, t, num_inference_steps, latents_x0):
                             return None
 
+        latents = latents.to(dtype=self.vae.dtype)
         if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
+            image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
         else:
             image = latents
 
-        do_denormalize = [True] * image.shape[0]
+        do_denormalize = [True]*image.shape[0]
         image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         # Offload last model to CPU
@@ -259,13 +286,14 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
                         if callback(i, t, num_inference_steps, latents_x0):
                             return None
 
+        latents = latents.to(dtype=self.vae.dtype)
         if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
+            image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
         else:
             image = latents
         has_nsfw_concept = None
 
-        do_denormalize = [True] * image.shape[0]
+        do_denormalize = [True]*image.shape[0]
         image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         # Offload last model to CPU
@@ -407,7 +435,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
 
         # use original latents corresponding to unmasked portions of the image
         latents = (init_latents_orig*mask)+(latents*(1-mask))
-
+        latents = latents.to(dtype=self.vae.dtype)
         if not output_type == "latent":
             image = self.vae.decode(latents/self.vae.config.scaling_factor, return_dict=False)[0]
         else:
@@ -425,7 +453,6 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
             return (image, has_nsfw_concept)
 
         return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
-
 
 class HCPSDPipe(StableDiffusionImg2ImgPipeline):
     def __init__(self, vae, text_encoder, tokenizer, unet, scheduler, safety_checker, feature_extractor):
@@ -445,7 +472,7 @@ class HCPSDPipe(StableDiffusionImg2ImgPipeline):
         if image is not None:
             if not isinstance(image, torch.FloatTensor):
                 image = self.image_processor.preprocess(image, batch_size)
-            if image.shape[0]==1:
+            if image.shape[0] == 1:
                 image = repeat(image, 'n ... -> (n b) ...', b=batch_size)
         if mask is not None:
             mask = preprocess_mask(mask, batch_size, self.vae_scale_factor)

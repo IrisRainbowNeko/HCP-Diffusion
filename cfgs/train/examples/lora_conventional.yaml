@@ -47,6 +47,9 @@ data:
         prompt_template: 'prompt_tuning_template/object.txt'
         caption_file: null # path to image captions (file_words)
 
+        word_names:
+          pt1: pt-cat1
+
     bucket:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
       target_area: ${hcp.eval:"512*512"}

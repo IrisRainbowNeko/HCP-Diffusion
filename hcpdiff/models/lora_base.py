@@ -17,7 +17,7 @@ from .plugin import SinglePluginBlock, PluginGroup, BasePluginBlock
 from typing import Union, Tuple, Dict, Type
 
 class LoraBlock(SinglePluginBlock):
-    wrapable_classes = [nn.Linear, nn.Conv2d]
+    wrapable_classes = (nn.Linear, nn.Conv2d)
 
     def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
                  inplace=True, hook_param=None, alpha_auto_scale=True, **kwargs):
@@ -86,6 +86,7 @@ class LoraBlock(SinglePluginBlock):
         def __init__(self, host, rank, bias, dropout, block):
             super().__init__()
             self.rank=rank
+            self.bias = bias
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_features * self.rank), 1)
             self.dropout = nn.Dropout(dropout)
@@ -104,6 +105,7 @@ class LoraBlock(SinglePluginBlock):
         def __init__(self, host, rank, bias, dropout, block):
             super().__init__()
             self.rank = rank
+            self.bias = bias
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_channels * self.rank), 1)
             self.dropout = nn.Dropout(dropout)
@@ -128,7 +130,7 @@ class LoraBlock(SinglePluginBlock):
 
     @classmethod
     def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
-        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
+        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_classes=(LoraBlock,), **kwargs)
 
     @staticmethod
     def extract_lora_state(model:nn.Module):

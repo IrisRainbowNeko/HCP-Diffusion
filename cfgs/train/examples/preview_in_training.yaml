@@ -1,0 +1,6 @@
+_base_: [cfgs/train/train_base.yaml]
+
+previewer:
+  _target_: hcpdiff.loggers.preview.ImagePreviewer
+  _partial_: True
+  infer_cfg: cfgs/infer/text2img.yaml

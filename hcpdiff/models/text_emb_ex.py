@@ -19,13 +19,14 @@ from ..utils.net_utils import load_emb
 from .plugin import SinglePluginBlock
 
 class EmbeddingPTHook(SinglePluginBlock):
-    def __init__(self, token_embedding:nn.Module, N_word=75, N_repeats=3):
+    def __init__(self, token_embedding:nn.Embedding, N_word=75, N_repeats=3):
         super().__init__('emb_ex', token_embedding)
         self.handle_pre = token_embedding.register_forward_pre_hook(self.pre_hook)
 
         self.N_word=N_word
         self.N_repeats=N_repeats
         self.num_embeddings=token_embedding.num_embeddings
+        self.embedding_dim=token_embedding.embedding_dim
         self.emb={}
         self.emb_train=nn.ParameterList()
 
@@ -36,9 +37,10 @@ class EmbeddingPTHook(SinglePluginBlock):
         self.input_ids = rearrange(input_ids[0], '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
         return self.input_ids.clip(0, self.num_embeddings-1)
 
-    def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor): # inputs_embeds:[B, N_word+2, N_emb]
+    def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor):
         '''
         :param input_ids: [B, N_ids]
+        :param inputs_embeds: [B, N_repeat*(N_word+2), N_emb]
         :return: [B, N_repeat, N_word+2, N_emb]
         '''
         rep_idxs_B = self.input_ids >= self.num_embeddings
@@ -89,3 +91,4 @@ class EmbeddingPTHook(SinglePluginBlock):
         ex_words_emb = {file[:-3]: nn.Parameter(load_emb(os.path.join(emb_dir, file)).to(device), requires_grad=False)
                         for file in os.listdir(emb_dir) if file.endswith('.pt')}
         return cls.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs), ex_words_emb
+
