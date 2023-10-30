@@ -199,7 +199,7 @@ class Trainer:
 
     def build_model(self):
         # Load the tokenizer
-        if self.cfgs.model.tokenizer is not None:
+        if self.cfgs.model.get('tokenizer', None) is not None:
             self.tokenizer = self.cfgs.model.tokenizer
         else:
             tokenizer_cls = auto_tokenizer(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
@@ -209,20 +209,20 @@ class Trainer:
             )
 
         # Load scheduler and models
-        self.noise_scheduler = self.cfgs.model.noise_scheduler or \
+        self.noise_scheduler = self.cfgs.model.get('noise_scheduler', None) or \
                                DDPMScheduler.from_pretrained(self.cfgs.model.pretrained_model_name_or_path, subfolder='scheduler')
 
         self.num_train_timesteps = len(self.noise_scheduler.timesteps)
-        self.vae: AutoencoderKL = self.cfgs.model.vae or AutoencoderKL.from_pretrained(
+        self.vae: AutoencoderKL = self.cfgs.model.get('vae', None) or AutoencoderKL.from_pretrained(
             self.cfgs.model.pretrained_model_name_or_path, subfolder="vae", revision=self.cfgs.model.revision)
         self.build_unet_and_TE()
 
     def build_unet_and_TE(self):  # for easy to use colossalAI
-        unet = self.cfgs.model.unet or UNet2DConditionModel.from_pretrained(
+        unet = self.cfgs.model.get('unet', None) or UNet2DConditionModel.from_pretrained(
             self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision
         )
 
-        if self.cfgs.model.text_encoder is not None:
+        if self.cfgs.model.get('text_encoder', None) is not None:
             text_encoder = self.cfgs.model.text_encoder
             text_encoder_cls = type(text_encoder)
         else:
