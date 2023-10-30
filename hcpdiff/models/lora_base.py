@@ -17,7 +17,7 @@ from .plugin import SinglePluginBlock, PluginGroup, BasePluginBlock
 from typing import Union, Tuple, Dict, Type
 
 class LoraBlock(SinglePluginBlock):
-    wrapable_classes = [nn.Linear, nn.Conv2d]
+    wrapable_classes = (nn.Linear, nn.Conv2d)
 
     def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
                  inplace=True, hook_param=None, alpha_auto_scale=True, **kwargs):

@@ -231,7 +231,7 @@ plugin_unet:
 定义`wrapable_classes`，指定可以挂载的模块:
 ```python
 class PReLUPatch(PatchPluginBlock):
-    wrapable_classes = nn.SiLU
+    wrapable_classes = (nn.SiLU,)
     ...
 ```
 
