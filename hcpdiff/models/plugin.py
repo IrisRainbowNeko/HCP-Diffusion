@@ -82,7 +82,7 @@ class WrapablePlugin:
                     if 'parent_block' in kwargs:
                         parent_name, host_name = split_module_name(layer_name)
                         kwargs['parent_block'] = named_modules[parent_name]
-                        kwargs['host_name'] = named_modules[host_name]
+                        kwargs['host_name'] = host_name
                     plugin_block_dict[layer_name] = cls.wrap_layer(name, layer, **kwargs)
         return plugin_block_dict
 

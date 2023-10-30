@@ -205,16 +205,20 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             layers_name = builder.keywords.pop('layers')
             for layer_name in get_match_layers(layers_name, named_modules):
                 parent_name, host_name = split_module_name(layer_name)
-                layer = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
+                layers = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
                                 parent_block=named_modules[parent_name], host_name=host_name)
-                if train_plugin:
-                    layer.requires_grad_(True)
-                    layer.train()
-                    params_group.extend(layer.parameters())
-                else:
-                    layer.requires_grad_(False)
-                    layer.eval()
-                all_plugin_blocks[layer_name] = layer
+                if not isinstance(layers, dict):
+                    layers={'':layers}
+
+                for k,v in layers.items():
+                    all_plugin_blocks[net_path_join(layer_name, k)] = v
+                    if train_plugin:
+                        v.requires_grad_(True)
+                        v.train()
+                        params_group.extend(v.parameters())
+                    else:
+                        v.requires_grad_(False)
+                        v.eval()
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')
         if train_plugin:
