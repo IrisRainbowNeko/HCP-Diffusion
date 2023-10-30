@@ -63,19 +63,19 @@ class WrapablePlugin:
         return plugin
 
     @classmethod
-    def wrap_model(cls, name: str, model: nn.Module, exclude_key=None, **kwargs):  # -> Dict[str, SinglePluginBlock]:
+    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, **kwargs):  # -> Dict[str, SinglePluginBlock]:
         '''
         parent_block and other args required in __init__ will be put into kwargs, compatible with multiple models.
         '''
         plugin_block_dict = {}
-        if isinstance_list(model, cls.wrapable_classes):
-            plugin_block_dict[''] = cls.wrap_layer(name, model, **kwargs)
+        if isinstance_list(host, cls.wrapable_classes):
+            plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
         else:
             if exclude_key:
                 # there maybe multiple single plugin block, avoid insert plugin into plugin blocks with exclude_key
-                named_modules = {layer_name:layer for layer_name, layer in model.named_modules() if exclude_key not in layer_name}
+                named_modules = {layer_name:layer for layer_name, layer in host.named_modules() if exclude_key not in layer_name}
             else:
-                named_modules = {layer_name:layer for layer_name, layer in model.named_modules()}
+                named_modules = {layer_name:layer for layer_name, layer in host.named_modules()}
             for layer_name, layer in named_modules.items():
                 if isinstance_list(layer, cls.wrapable_classes):
                     # For plugins that need parent_block
