@@ -56,7 +56,6 @@ class BasePluginBlock(nn.Module):
 
 class WrapablePlugin:
     wrapable_classes = ()
-    exclude_module_names = ()
 
     @classmethod
     def wrap_layer(cls, name: str, layer: nn.Module, **kwargs):
@@ -65,22 +64,22 @@ class WrapablePlugin:
 
     @classmethod
     def named_modules_with_exclude(cls, self, memo = set(), prefix: str = '', remove_duplicate: bool = True,
-                                   exclude_key=None, exclude_module_names=tuple()):
+                                   exclude_key=None, exclude_classes=tuple()):
 
         if self not in memo:
             if remove_duplicate:
                 memo.add(self)
-            if (exclude_key is None or exclude_key not in prefix) and type(self).__name__ not in exclude_module_names:
+            if (exclude_key is None or exclude_key not in prefix) and not isinstance(self, exclude_classes):
                 yield prefix, self
                 for name, module in self._modules.items():
                     if module is None:
                         continue
                     submodule_prefix = prefix + ('.' if prefix else '') + name
-                    for m in cls.named_modules_with_exclude(module, memo, submodule_prefix, remove_duplicate, exclude_key, exclude_module_names):
+                    for m in cls.named_modules_with_exclude(module, memo, submodule_prefix, remove_duplicate, exclude_key, exclude_classes):
                         yield m
 
     @classmethod
-    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, **kwargs):  # -> Dict[str, SinglePluginBlock]:
+    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(), **kwargs):  # -> Dict[str, SinglePluginBlock]:
         '''
         parent_block and other args required in __init__ will be put into kwargs, compatible with multiple models.
         '''
@@ -90,7 +89,7 @@ class WrapablePlugin:
         else:
             host.named_modules()
             named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
-                host, exclude_key=exclude_key, exclude_module_names=cls.exclude_module_names)}
+                host, exclude_key=exclude_key, exclude_classes=exclude_classes)}
             for layer_name, layer in named_modules.items():
                 if isinstance(layer, cls.wrapable_classes):
                     # For plugins that need parent_block
