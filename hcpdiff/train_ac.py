@@ -38,7 +38,7 @@ from hcpdiff.models.compose import SDXLTextEncoder
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer, auto_text_encoder, load_emb
-from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd
+from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd, format_number
 from hcpdiff.visualizer import Visualizer
 
 def checkpoint_fix(function, *args, use_reentrant: bool = False, checkpoint_raw=torch.utils.checkpoint.checkpoint, **kwargs):
@@ -341,6 +341,10 @@ class Trainer:
             train_params_text_encoder += train_params_TE_plugin
         else:
             train_params_text_encoder = []
+
+        N_params_unet = format_number(sum(sum(x.numel() for x in p['params']) for p in train_params_unet))
+        N_params_TE = format_number(sum(sum(x.numel() for x in p['params']) for p in train_params_text_encoder))
+        self.loggers.info(f'unet trainable params: {N_params_unet}; text encoder trainable params: {N_params_TE}')
 
         # params for embedding
         train_params_emb = []

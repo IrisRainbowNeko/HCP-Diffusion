@@ -9,12 +9,12 @@ plugin.py
 """
 
 import weakref
+import re
 from typing import Tuple, List, Dict, Any
 
 import torch
 from torch import nn
 
-from hcpdiff.utils.utils import isinstance_list
 from hcpdiff.utils.net_utils import split_module_name
 
 class BasePluginBlock(nn.Module):
@@ -63,13 +63,15 @@ class WrapablePlugin:
         return plugin
 
     @classmethod
-    def named_modules_with_exclude(cls, self, memo = set(), prefix: str = '', remove_duplicate: bool = True,
+    def named_modules_with_exclude(cls, self, memo = None, prefix: str = '', remove_duplicate: bool = True,
                                    exclude_key=None, exclude_classes=tuple()):
 
+        if memo is None:
+            memo = set()
         if self not in memo:
             if remove_duplicate:
                 memo.add(self)
-            if (exclude_key is None or exclude_key not in prefix) and not isinstance(self, exclude_classes):
+            if (exclude_key is None or re.match(exclude_key, prefix)) and not isinstance(self, exclude_classes):
                 yield prefix, self
                 for name, module in self._modules.items():
                     if module is None:
@@ -87,7 +89,6 @@ class WrapablePlugin:
         if isinstance(host, cls.wrapable_classes):
             plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
         else:
-            host.named_modules()
             named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
                 host, exclude_key=exclude_key, exclude_classes=exclude_classes)}
             for layer_name, layer in named_modules.items():

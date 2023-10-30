@@ -130,7 +130,7 @@ class LoraBlock(SinglePluginBlock):
 
     @classmethod
     def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
-        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_key='lora_block_', **kwargs)
+        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_classes=(LoraBlock,), **kwargs)
 
     @staticmethod
     def extract_lora_state(model:nn.Module):
