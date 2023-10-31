@@ -52,8 +52,10 @@ def _read_scheduler_name(cfg) -> str:
     word = re.sub(r"([A-Z]+)([A-Z][a-z])", r'\1_\2', word)
     word = re.sub(r"([a-z\d])([A-Z])", r'\1_\2', word)
     word = word.replace('-', '_')
-    word = [w for w in re.split(r'_+', word) if w and w.lower() != 'scheduler']
-    return ' '.join(word)
+    words = [w for w in re.split(r'_+', word) if w and w.lower() != 'scheduler']
+    if cfg.get('use_karras_sigmas') and words[-1].lower() != 'karras':
+        words.append('Karras')
+    return ' '.join(words)
 
 class DiskInterface(BaseInterface):
     def __init__(self, save_root, save_cfg=True, image_type='png', quality=95, show_steps=0):
