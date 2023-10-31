@@ -1,0 +1,98 @@
+_base_:
+  - cfgs/train/examples/lora_conventional.yaml
+
+model:
+  pretrained_model_name_or_path: 'deepghs/animefull-latest'
+  clip_skip: 1
+
+train:
+  train_steps: 1000
+  save_step: 100
+
+  scheduler:
+    num_training_steps: ${train.train_steps}
+
+character_name: surtr_arknights
+dataset_dir: '/root/autodl-tmp/dataset/surtr_3'
+reg_dataset_dir: '/root/autodl-tmp/reg_dataset'
+# if exp_dir is not set, a random time-based directory will be used
+# exp_dir: 'exps/surtr'
+
+unet_rank: 8
+text_encoder_rank: 4
+
+tokenizer_pt:
+  emb_dir: 'embs/' #自定义word目录
+  replace: False #训练后是否替换原有word
+  train:
+    - name: ${character_name}
+      lr: 0.003
+
+lora_unet:
+  - lr: 1e-4
+    rank: ${unet_rank}
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff$'
+
+lora_text_encoder:
+  - lr: 1e-5
+    rank: ${text_encoder_rank}
+    layers:
+      - 're:.*self_attn$'
+      - 're:.*mlp$'
+
+data:
+  dataset1:
+    batch_size: 5
+    cache_latents: True
+
+    source:
+      data_source1:
+        img_root: ${dataset_dir}
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: ${dataset_dir}  # path to image captions (file_words)
+
+        word_names:
+          pt1: ${character_name}
+
+    # support images with any size, not recommended for anime training
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${times:512,512}
+      num_bucket: 5
+
+  dataset_class:
+    batch_size: 1
+    cache_latents: True
+    loss_weight: 1.0
+
+    source:
+      data_source1:
+        img_root: ${reg_dataset_dir}
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: ${reg_dataset_dir}
+
+        word_names:
+          pt1: ''
+
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${times:512,512}
+      num_bucket: 20
+
+logger:
+  - _target_: hcpdiff.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+  - _target_: hcpdiff.loggers.TBLogger
+    _partial_: True
+    out_path: 'tblog/'
+    log_step: 5
+#  - _target_: hcpdiff.loggers.WanDBLogger
+#    _partial_: True
+#    out_path: null
+#    log_step: 5
+
+
