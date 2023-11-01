@@ -253,12 +253,15 @@ def convert_ckpt(args):
     else:
         pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
 
-if __name__ == "__main__":
+def patch_method():
     diffusers_version = importlib_metadata.version("diffusers")
     if compare_versions(parse(diffusers_version), '>=', '0.18.0'):
         convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint_0_18
     else:
         convert_from_ckpt.convert_ldm_clip_checkpoint = convert_ldm_clip_checkpoint
+
+if __name__ == "__main__":
+    patch_method()
 
     parser = argparse.ArgumentParser()
 

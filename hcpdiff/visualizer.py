@@ -88,7 +88,13 @@ class Visualizer:
                 v.reparameterization_to_host()
                 v.remove()
 
-        self.pipe.save_pretrained(save_cfg.path, safe_serialization=save_cfg.to_safetensors)
+        if save_cfg.path.endswith('.ckpt'):
+            from hcpdiff.tools.diffusers2sd import save_state_dict
+            save_state_dict(save_cfg.path, self.pipe.unet.state_dict(), self.pipe.vae.state_dict(), self.pipe.text_encoder.state_dict(),
+                            use_safetensors=save_cfg.to_safetensors)
+
+        else:
+            self.pipe.save_pretrained(save_cfg.path, safe_serialization=save_cfg.to_safetensors)
 
     def get_pipeline(self):
         if self.cfgs.condition is None:
