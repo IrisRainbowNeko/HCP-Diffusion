@@ -61,7 +61,6 @@ class TagErase:
 
     def __call__(self, data):
         for i, item in enumerate(data['prompt']):
-            tags = item.split(',')
             if random.random()<self.p:
                 data['prompt'][i] = ''
         return data
