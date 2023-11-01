@@ -170,13 +170,13 @@ class RatioBucket(BaseBucket):
         :param img_root_list:
         '''
         self.file_names = file_names
+        self.bs = bs
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
 
         self._build()
 
-        self.bs = bs
         rs = np.random.RandomState(42)
         # make len(bucket)%bs==0
         self.data_len = 0
