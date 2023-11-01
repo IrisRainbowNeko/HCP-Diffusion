@@ -70,7 +70,6 @@ class RatioBucket(BaseBucket):
             data = pickle.load(f)
         self.buckets = data['buckets']
         self.size_buckets = data['size_buckets']
-        self.file_names = data['file_names']
         self.idx_bucket_map = data['idx_bucket_map']
         self.data_len = data['data_len']
 
@@ -80,7 +79,6 @@ class RatioBucket(BaseBucket):
                 'buckets':self.buckets,
                 'size_buckets':self.size_buckets,
                 'idx_bucket_map':self.idx_bucket_map,
-                'file_names':self.file_names,
                 'data_len':self.data_len,
             }, f)
 
@@ -163,11 +161,11 @@ class RatioBucket(BaseBucket):
         :param bs: batch_size * n_gpus * accumulation_step
         :param img_root_list:
         '''
+        self.file_names = file_names
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
-        else:
-            self.file_names = file_names
+
         self._build()
 
         self.bs = bs
