@@ -19,6 +19,8 @@ reg_dataset_dir: '/root/autodl-tmp/reg_dataset'
 # if exp_dir is not set, a random time-based directory will be used
 # exp_dir: 'exps/surtr'
 
+tag_dropout: 0.3
+
 unet_rank: 8
 text_encoder_rank: 4
 
@@ -62,7 +64,7 @@ data:
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle
             - _target_: hcpdiff.utils.caption_tools.TagDropout
-              p: 0.3
+              p: ${tag_dropout}
             - _target_: hcpdiff.utils.caption_tools.TemplateFill
               word_names: ${....word_names}
 
@@ -73,7 +75,7 @@ data:
       num_bucket: 5
 
   dataset_class:
-    batch_size: 12
+    batch_size: 1
     cache_latents: True
     loss_weight: 1.0
 
@@ -91,7 +93,7 @@ data:
           transforms:
             - _target_: hcpdiff.utils.caption_tools.TagShuffle
             - _target_: hcpdiff.utils.caption_tools.TagDropout
-              p: 0.3
+              p: ${tag_dropout}
             - _target_: hcpdiff.utils.caption_tools.TemplateFill
               word_names: ${....word_names}
 
