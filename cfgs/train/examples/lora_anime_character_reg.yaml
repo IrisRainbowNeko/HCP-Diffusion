@@ -70,9 +70,10 @@ data:
 
     # support images with any size, not recommended for anime training
     bucket:
-      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-      target_area: ${times:512,512}
-      num_bucket: 5
+      _target_: hcpdiff.data.bucket.RatioSizeBucket.from_files # aspect ratio bucket
+      target_area: ---
+      max_area: ${hcp.eval:"512*512"}
+      num_bucket: 10
 
   dataset_class:
     batch_size: 1
@@ -99,7 +100,7 @@ data:
 
     bucket:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-      target_area: ${times:512,512}
+      target_area: ${hcp.eval:"512*512"}
       num_bucket: 20
 
 logger:
