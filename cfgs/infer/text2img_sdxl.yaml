@@ -1,7 +1,8 @@
-_base_: [cfgs/infer/text2img.yaml]
+_base_: [ cfgs/infer/text2img.yaml ]
 
 prompt: ''
 neg_prompt: ''
+emb_dir: 'embs_sdxl/'
 
 clip_skip: 1
 clip_final_norm: False

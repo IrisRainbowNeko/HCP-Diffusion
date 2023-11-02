@@ -9,6 +9,9 @@ from hcpdiff.utils.utils import to_validate_file
 from .base_interface import BaseInterface
 
 def _read_scheduler_name(cfg) -> str:
+    if cfg is None:
+        return 'PNDM'
+
     _suffix_ = cfg._target_.split('.')[-1]
     if _suffix_ == 'DPMSolverMultistepScheduler':
         if cfg.get('use_karras_sigmas'):
@@ -97,7 +100,7 @@ class DiskInterface(BaseInterface):
                         'Clip skip':cfgs_raw.clip_skip+1,
                         'Model':cfgs_raw.pretrained_model,
                         # 'Model hash':'54ef3e3610',
-                        'Sampler':_read_scheduler_name(cfgs_raw.new_components.scheduler),
+                        'Sampler':_read_scheduler_name(cfgs_raw.new_components.get('scheduler')),
                         'Seed':cfgs_raw.seed,
                         'Size':(cfgs_raw.infer_args.width, cfgs_raw.infer_args.height),
                         'Steps':cfgs_raw.infer_args.num_inference_steps,
