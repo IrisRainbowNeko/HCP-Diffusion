@@ -69,11 +69,15 @@ data:
               word_names: ${....word_names}
 
     # support images with any size, not recommended for anime training
+    # bucket:
+    #   _target_: hcpdiff.data.bucket.RatioSizeBucket.from_files # aspect ratio bucket
+    #   target_area: ---
+    #   max_area: ${hcp.eval:"768*768"}
+    #   num_bucket: 10
     bucket:
-      _target_: hcpdiff.data.bucket.RatioSizeBucket.from_files # aspect ratio bucket
-      target_area: ---
-      max_area: ${hcp.eval:"512*512"}
-      num_bucket: 10
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"512*512"}
+      num_bucket: 5
 
   dataset_class:
     batch_size: 1
