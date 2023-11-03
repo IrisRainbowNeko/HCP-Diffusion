@@ -4,7 +4,6 @@ emb_dir: embs_sdxl
 
 prompt: ''
 neg_prompt: ''
-emb_dir: 'embs_sdxl/'
 
 clip_skip: 1
 clip_final_norm: False
