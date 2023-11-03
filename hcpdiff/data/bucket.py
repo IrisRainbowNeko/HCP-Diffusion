@@ -20,6 +20,8 @@ from hcpdiff.utils.utils import get_file_ext
 from .source import DataSource
 from loguru import logger
 from sklearn.cluster import KMeans
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 
 from .utils import resize_crop_fix, pad_crop_fix
 
@@ -70,7 +72,6 @@ class RatioBucket(BaseBucket):
             data = pickle.load(f)
         self.buckets = data['buckets']
         self.size_buckets = data['size_buckets']
-        self.file_names = data['file_names']
         self.idx_bucket_map = data['idx_bucket_map']
         self.data_len = data['data_len']
 
@@ -80,7 +81,6 @@ class RatioBucket(BaseBucket):
                 'buckets':self.buckets,
                 'size_buckets':self.size_buckets,
                 'idx_bucket_map':self.idx_bucket_map,
-                'file_names':self.file_names,
                 'data_len':self.data_len,
             }, f)
 
@@ -129,15 +129,21 @@ class RatioBucket(BaseBucket):
 
     def build_buckets_from_images(self):
         logger.info('build buckets from images')
-        ratio_list = []
-        for i, (file, source) in enumerate(self.file_names):
+
+        def get_ratio(data):
+            file, source = data
             w, h = get_image_size(file)
             ratio = np.log2(w/h)
-            ratio_list.append(ratio)
+            return ratio
+
+        ratio_list = []
+        with ThreadPoolExecutor() as executor:
+            for ratio in tqdm(executor.map(get_ratio, self.file_names), desc='get image info', total=len(self.file_names)):
+                ratio_list.append(ratio)
         ratio_list = np.array(ratio_list)
 
         # 聚类，选出指定个数的bucket
-        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407).fit(ratio_list.reshape(-1, 1))
+        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407, verbose=True, tol=1e-3).fit(ratio_list.reshape(-1, 1))
         labels = kmeans.labels_
         ratios = 2**kmeans.cluster_centers_.reshape(-1)
 
@@ -163,14 +169,14 @@ class RatioBucket(BaseBucket):
         :param bs: batch_size * n_gpus * accumulation_step
         :param img_root_list:
         '''
+        self.file_names = file_names
+        self.bs = bs
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
-        else:
-            self.file_names = file_names
+
         self._build()
 
-        self.bs = bs
         rs = np.random.RandomState(42)
         # make len(bucket)%bs==0
         self.data_len = 0
@@ -327,7 +333,7 @@ class LongEdgeBucket(RatioBucket):
         size_list = np.array(size_list)
 
         # 聚类，选出指定个数的bucket
-        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407).fit(size_list)
+        kmeans = KMeans(n_clusters=self.num_bucket, random_state=3407, verbose=True).fit(size_list)
         labels = kmeans.labels_
         size_buckets = kmeans.cluster_centers_
 

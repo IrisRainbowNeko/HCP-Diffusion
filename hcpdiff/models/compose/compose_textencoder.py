@@ -28,7 +28,6 @@ class ComposeTextEncoder(PreTrainedModel):
             self.model_names.append(name)
 
     def get_input_embeddings(self) -> List[nn.Module]:
-        nn.ParameterDict
         return [getattr(self, name).get_input_embeddings() for name in self.model_names]
 
     def set_input_embeddings(self, value_dict: Dict[str, int]):

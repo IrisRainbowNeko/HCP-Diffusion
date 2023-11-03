@@ -55,6 +55,18 @@ class TagDropout:
     def __repr__(self):
         return f'TagDropout(p={self.p})'
 
+class TagErase:
+    def __init__(self, p=0.1):
+        self.p = p
+
+    def __call__(self, data):
+        for i, item in enumerate(data['prompt']):
+            if random.random()<self.p:
+                data['prompt'][i] = ''
+        return data
+
+    def __repr__(self):
+        return f'TagErase(p={self.p})'
 
 class TemplateFill:
     def __init__(self, word_names: Dict[str, Union[str, List[str]]]):

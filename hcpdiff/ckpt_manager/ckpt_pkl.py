@@ -17,10 +17,10 @@ from torch import nn
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup, split_state
 from hcpdiff.models.plugin import PluginGroup, BasePluginBlock
 from hcpdiff.utils.net_utils import save_emb
+from .base import CkptManagerBase
 
-
-class CkptManagerPKL:
-    def __init__(self, plugin_from_raw=False):
+class CkptManagerPKL(CkptManagerBase):
+    def __init__(self, plugin_from_raw=False, **kwargs):
         self.plugin_from_raw = plugin_from_raw
 
     def set_save_dir(self, save_dir, emb_dir=None):
@@ -101,3 +101,38 @@ class CkptManagerPKL:
             save_emb(save_path, v.data, replace=True)
             if replace:
                 save_emb(f'{k}.pt', v.data, replace=True)
+
+    def save(self, step, unet, TE, lora_unet, lora_TE, all_plugin_unet, all_plugin_TE, embs, pipe):
+        '''
+
+        :param step:
+        :param unet:
+        :param TE:
+        :param lora_unet: [pos, neg]
+        :param lora_TE: [pos, neg]
+        :param all_plugin_unet:
+        :param all_plugin_TE:
+        :param emb:
+        :param pipe:
+        :return:
+        '''
+        self.save_model_with_lora(unet, lora_unet[0], model_ema=getattr(self, 'ema_unet', None), name='unet', step=step)
+        self.save_plugins(unet, all_plugin_unet, name='unet', step=step, model_ema=getattr(self, 'ema_unet', None))
+
+        if TE is not None:
+            # exclude_key: embeddings should not save with text-encoder
+            self.save_model_with_lora(TE, lora_TE[0], model_ema=getattr(self, 'ema_text_encoder', None),
+                                                   name='text_encoder', step=step, exclude_key='emb_ex.')
+            self.save_plugins(TE, all_plugin_TE, name='text_encoder', step=step,
+                                           model_ema=getattr(self, 'ema_text_encoder', None))
+
+        if lora_unet[1] is not None:
+            self.save_model_with_lora(None, lora_unet[1], name='unet-neg', step=step)
+            if lora_TE[1] is not None:
+                self.save_model_with_lora(None, lora_TE[1], name='text_encoder-neg', step=step)
+
+        self.save_embedding(embs, step, False)
+
+    @classmethod
+    def load(cls, pretrained_model):
+        raise NotImplementedError(f'{cls} dose not support load()')

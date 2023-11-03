@@ -272,7 +272,7 @@ class Trainer:
             self.TE_unet.enable_gradient_checkpointing()
 
         self.weight_dtype = self.weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
-        self.vae_dtype = torch.float32
+        self.vae_dtype = self.weight_dtype_map.get(self.cfgs.model.get('vae_dtype', None), torch.float32)
         # Move vae and text_encoder to device and cast to weight_dtype
         self.vae = self.vae.to(self.device, dtype=self.vae_dtype)
         if not self.train_TE:

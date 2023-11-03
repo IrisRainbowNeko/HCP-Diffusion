@@ -138,6 +138,9 @@ class ImagePreviewer(Visualizer):
                 for feeder in self.pipe.unet.input_feeder:
                     feeder(ex_input_dict)
 
+            if pooled_output is not None:
+                pooled_output = pooled_output[-1]
+
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, generator=G,
-                               pooled_output=pooled_output[-1], **kwargs).images
+                               pooled_output=pooled_output, **kwargs).images
         return images

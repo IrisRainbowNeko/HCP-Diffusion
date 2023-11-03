@@ -1,5 +1,7 @@
 _base_: [ cfgs/infer/text2img.yaml ]
 
+emb_dir: embs_sdxl
+
 prompt: ''
 neg_prompt: ''
 emb_dir: 'embs_sdxl/'
