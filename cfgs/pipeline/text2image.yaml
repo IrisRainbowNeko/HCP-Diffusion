@@ -1,0 +1,7 @@
+
+pipe1:
+  _target_: pipe.class
+  memory: {}
+  actions:
+    -
+      _target_: EncoderAction
