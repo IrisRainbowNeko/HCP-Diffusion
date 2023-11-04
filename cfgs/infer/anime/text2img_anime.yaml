@@ -29,3 +29,9 @@ new_components:
     _target_: diffusers.AutoencoderKL.from_pretrained
     pretrained_model_name_or_path: deepghs/animefull-latest  # path to vae model
     subfolder: vae
+
+output_dir: 'output/'
+interface:
+  - _target_: hcpdiff.vis.DiskInterface
+    show_steps: 0
+    save_root: '${output_dir}'
