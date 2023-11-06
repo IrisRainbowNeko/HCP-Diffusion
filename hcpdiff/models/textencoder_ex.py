@@ -61,7 +61,7 @@ class TEEXHook:
         if self.clip_final_norm:
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
-            encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state']  # avoid unused parameters, make gradient checkpointing happy
+            encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
 
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
         pooled_output = feat_out.pooler_output
