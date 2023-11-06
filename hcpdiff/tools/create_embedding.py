@@ -7,14 +7,14 @@ import os.path
 
 import torch
 from hcpdiff.utils.utils import str2bool
-from hcpdiff.utils.net_utils import auto_text_encoder, save_emb, auto_tokenizer, check_word_name
+from hcpdiff.utils.net_utils import auto_text_encoder_cls, save_emb, auto_tokenizer_cls, check_word_name
 from hcpdiff.models.compose import ComposeTextEncoder
 
 class PTCreator:
     def __init__(self, pretrained_model_name_or_path, root='embs/'):
         self.root = root
 
-        tokenizer_cls = auto_tokenizer(pretrained_model_name_or_path)
+        tokenizer_cls = auto_tokenizer_cls(pretrained_model_name_or_path)
         self.tokenizer = tokenizer_cls.from_pretrained(
             pretrained_model_name_or_path,
             subfolder="tokenizer",
@@ -24,7 +24,7 @@ class PTCreator:
         self.tokenizer.add_tokens('_pt_random_word')
         self.rand_holder_id = self.tokenizer('_pt_random_word', return_tensors="pt").input_ids.view(-1)[1].item()
 
-        text_encoder_cls = auto_text_encoder(pretrained_model_name_or_path)
+        text_encoder_cls = auto_text_encoder_cls(pretrained_model_name_or_path)
         self.text_encoder = text_encoder_cls.from_pretrained(pretrained_model_name_or_path, subfolder="text_encoder", revision=None)
 
         emb_layer = self.text_encoder.get_input_embeddings()

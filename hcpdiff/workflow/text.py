@@ -1,5 +1,6 @@
 from typing import List, Union
 
+import torch
 from torch.cuda.amp import autocast
 
 from hcpdiff.models import TokenizerHook
@@ -41,8 +42,7 @@ class TextEncodeAction(BasicAction):
         with autocast(enabled=self.dtype == 'amp'):
             emb, pooled_output = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
             emb = emb.to(dtype=dtype, device=device)
-            emb_n, emb_p = emb.chunk(2)
-        return {'emb_n':emb_n, 'emb_p':emb_p, **states}
+        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'device':device, 'dtype':dtype, **states}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
     def forward(self, te_hook, token_ex, dtype, device, **states):
@@ -54,4 +54,5 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             emb_n, emb_p = emb.chunk(2)
         emb_p = te_hook.mult_attn(emb_p, mult_p)
         emb_n = te_hook.mult_attn(emb_n, mult_n)
-        return {'emb_n':emb_n, 'emb_p':emb_p, **states}
+        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
+            'device':device, 'dtype':dtype, **states}

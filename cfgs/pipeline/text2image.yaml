@@ -1,7 +1,58 @@
+dtype: ${hcp.dtype:fp16}
+bs: 4
 
-pipe1:
-  _target_: pipe.class
-  memory: {}
-  actions:
-    -
-      _target_: EncoderAction
+memory: { }
+
+prepare:
+  - _target_: hcpdiff.workflow.LoadModelsAction
+    pretrained_model: 'ckpts/any5'
+    dtype: ${dtype}
+  - _target_: hcpdiff.workflow.PrepareDiffusionAction
+    dtype: ${dtype}
+
+actions:
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      from hcpdiff.utils.net_utils import to_cpu, to_cuda
+      to_cuda(memory.unet)
+      to_cuda(memory.text_encoder)
+      to_cuda(memory.vae)
+  - _target_: hcpdiff.workflow.TextHookAction
+    TE:
+      _target_: hcpdiff.workflow.from_memory
+      mem_name: text_encoder
+    tokenizer:
+      _target_: hcpdiff.workflow.from_memory
+      mem_name: tokenizer
+    N_repeats: 1
+    layer_skip: 1
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: 'masterpiece, best quality, 1girl, cat ears, outside'
+    negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+    bs: ${bs}
+    dtype: fp16
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: 42
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    scheduler:
+      _target_: hcpdiff.workflow.from_memory
+      mem_name: scheduler
+    N_steps: 30
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 512
+    height: 512
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        unet:
+          _target_: hcpdiff.workflow.from_memory
+          mem_name: unet
+        scheduler:
+          _target_: hcpdiff.workflow.from_memory
+          mem_name: scheduler
+        guidance_scale: 7.0
+  - _target_: hcpdiff.workflow.SaveImageAction
+    save_root: output_pipe/
+    image_type: webp
