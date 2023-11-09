@@ -208,7 +208,7 @@ def sd_vae_to_diffuser(args):
 
 def convert_ckpt(args):
     pipe = load_sd_ckpt(
-        checkpoint_path=args.checkpoint_path,
+        args.checkpoint_path,
         original_config_file=args.original_config_file,
         image_size=args.image_size,
         prediction_type=args.prediction_type,
