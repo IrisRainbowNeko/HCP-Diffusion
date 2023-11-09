@@ -11,7 +11,8 @@ class EncodeAction(BasicAction):
     def __init__(self, vae: AutoencoderKL, image_processor=None, offload: Dict[str, Any] = None):
         super().__init__()
         self.vae = vae
-        self.image_processor = VaeImageProcessor(vae_scale_factor=vae.config.scaling_factor) if image_processor is None else image_processor
+        self.vae_scale_factor = 2**(len(self.vae.config.block_out_channels)-1)
+        self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor) if image_processor is None else image_processor
         self.offload = offload
 
     def forward(self, images, dtype:str, device, generator, bs=None, **states):
@@ -20,7 +21,7 @@ class EncodeAction(BasicAction):
                 bs = len(states['prompt'])
 
         image = self.image_processor.preprocess(images)
-        image = image.to(device=device, dtype=get_dtype(dtype))
+        image = image.to(device=device, dtype=self.vae.dtype)
 
         if image.shape[1] == 4:
             init_latents = image
@@ -41,7 +42,7 @@ class EncodeAction(BasicAction):
             else:
                 init_latents = self.vae.encode(image).latent_dist.sample(generator)
 
-            init_latents = self.vae.config.scaling_factor * init_latents
+            init_latents = self.vae.config.scaling_factor * init_latents.to(dtype=get_dtype(dtype))
             if self.offload:
                 to_cpu(self.vae)
         return {**states, 'latents':init_latents, 'dtype':dtype, 'device':device, 'bs':bs}
