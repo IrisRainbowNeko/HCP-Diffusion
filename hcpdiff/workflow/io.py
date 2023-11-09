@@ -45,4 +45,4 @@ class SaveImageAction(BasicAction):
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
 
-        return {'images': images, 'prompt': prompt, 'negative_prompt':negative_prompt, 'seeds':seeds, **states}
+        return {**states, 'images': images, 'prompt': prompt, 'negative_prompt':negative_prompt, 'seeds':seeds}

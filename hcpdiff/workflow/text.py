@@ -33,7 +33,7 @@ class TextEncodeAction(BasicAction, MemoryMixin):
     @from_memory_context
     def __init__(self, prompt: Union[List, str], negative_prompt: Union[List, str], bs: int = None, te_hook=None):
         super().__init__()
-        if bs is not None:
+        if isinstance(prompt, str) and bs is not None:
             prompt = [prompt]*bs
             negative_prompt = [negative_prompt]*bs
 
@@ -47,7 +47,7 @@ class TextEncodeAction(BasicAction, MemoryMixin):
         with autocast(enabled=dtype == 'amp'):
             emb, pooled_output = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
             # emb = emb.to(dtype=get_dtype(dtype), device=device)
-        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'device':device, 'dtype':dtype, **states}
+        return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'device':device, 'dtype':dtype}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
     @from_memory_context
@@ -67,5 +67,5 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             emb_n, emb_p = emb.chunk(2)
         emb_p = te_hook.mult_attn(emb_p, mult_p)
         emb_n = te_hook.mult_attn(emb_n, mult_n)
-        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
-            'device':device, 'dtype':dtype, **states}
+        return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
+            'device':device, 'dtype':dtype}
