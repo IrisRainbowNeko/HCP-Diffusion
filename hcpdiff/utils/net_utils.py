@@ -8,6 +8,8 @@ from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
 
+dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
+
 def get_scheduler(
     name: Union[str, SchedulerType],
     optimizer: Optimizer,
@@ -212,3 +214,6 @@ def split_module_name(layer_name):
     else:
         parent_name, host_name = name_split
     return parent_name, host_name
+
+def get_dtype(dtype):
+    return dtype_dict.get(dtype, torch.float32)

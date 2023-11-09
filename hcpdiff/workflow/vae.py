@@ -4,18 +4,19 @@ from diffusers.image_processor import VaeImageProcessor
 from typing import Dict, Any
 import torch
 from hcpdiff.utils import to_cuda, to_cpu
+from hcpdiff.utils.net_utils import get_dtype
 
 class EncodeAction(BasicAction):
     @from_memory_context
-    def __init__(self, vae: AutoencoderKL = None, image_processor=None, offload: Dict[str, Any] = None):
+    def __init__(self, vae: AutoencoderKL, image_processor=None, offload: Dict[str, Any] = None):
         super().__init__()
         self.vae = vae
         self.image_processor = VaeImageProcessor(vae_scale_factor=vae.config.scaling_factor) if image_processor is None else image_processor
         self.offload = offload
 
-    def forward(self, image, dtype, device, generator, batch_size, **states):
+    def forward(self, image, dtype:str, device, generator, batch_size, **states):
         image = self.image_processor.preprocess(image)
-        image = image.to(device=device, dtype=dtype)
+        image = image.to(device=device, dtype=get_dtype(dtype))
 
         if image.shape[1] == 4:
             init_latents = image
@@ -43,7 +44,7 @@ class EncodeAction(BasicAction):
 
 class DecodeAction(BasicAction):
     @from_memory_context
-    def __init__(self, vae: AutoencoderKL = None, image_processor=None, output_type='pil', offload: Dict[str, Any] = None):
+    def __init__(self, vae: AutoencoderKL, image_processor=None, output_type='pil', offload: Dict[str, Any] = None):
         super().__init__()
         self.vae = vae
         self.offload = offload

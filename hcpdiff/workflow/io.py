@@ -3,14 +3,15 @@ import os
 
 from hcpdiff.utils import auto_text_encoder, auto_tokenizer, to_validate_file
 from hcpdiff.utils.img_size_tool import types_support
+from hcpdiff.utils.net_utils import get_dtype
 from diffusers import UNet2DConditionModel, AutoencoderKL, PNDMScheduler
 from .base import BasicAction, from_memory_context, MemoryMixin
 
 class LoadModelsAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, pretrained_model:str, dtype, unet=None, text_encoder=None, tokenizer=None, vae=None, scheduler=None):
+    def __init__(self, pretrained_model:str, dtype:str, unet=None, text_encoder=None, tokenizer=None, vae=None, scheduler=None):
         self.pretrained_model = pretrained_model
-        self.dtype = dtype
+        self.dtype = get_dtype(dtype)
 
         self.unet = unet
         self.text_encoder = text_encoder

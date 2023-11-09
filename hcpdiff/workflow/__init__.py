@@ -5,7 +5,7 @@ from .text import TextEncodeAction, TextHookAction, AttnMultTextEncodeAction
 from .vae import EncodeAction, DecodeAction
 from .io import LoadModelsAction, SaveImageAction
 from .utils import LatentResizeAction
-from .model import VaeOptimizeAction, BuildOffloadAction
+from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction
 
 from omegaconf import OmegaConf
 

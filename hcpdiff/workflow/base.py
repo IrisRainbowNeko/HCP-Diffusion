@@ -45,10 +45,13 @@ class LoopAction(BasicAction, MemoryMixin):
 
     def forward(self, memory, **states):
         loop_data = [states.pop(k) for k in self.loop_value.keys()]
-        for data in tqdm(zip(*loop_data), total=len(loop_data[0])):
+        pbar = tqdm(zip(*loop_data), total=len(loop_data[0]))
+        N_steps = len(self.actions)
+        for data in pbar:
             feed_data = {k:v for k,v in zip(self.loop_value.values(), data)}
             states.update(feed_data)
-            for act in self.actions:
+            for step, act in enumerate(self.actions):
+                pbar.set_description(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
                 if isinstance(act, MemoryMixin):
                     states = act(memory=memory, **states)
                 else:

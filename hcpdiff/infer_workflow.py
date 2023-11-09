@@ -37,8 +37,9 @@ class WorkflowRunner:
 
     @torch.no_grad()
     def run(self, actions, states):
-        for act in actions:
-            print(f'action: {type(act).__name__}')
+        N_steps = len(actions)
+        for step, act in enumerate(actions):
+            print(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
             if isinstance(act, MemoryMixin):
                 states = act(memory=self.memory, **states)
             else:

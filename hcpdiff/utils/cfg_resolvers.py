@@ -2,8 +2,7 @@ import time
 import warnings
 from omegaconf import OmegaConf
 import torch
-
-dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
+from .net_utils import dtype_dict
 
 def times(a,b):
     warnings.warn(f"${{times:{a},{b}}} is deprecated and will be removed in the future. Please use ${{hcp.eval:{a}*{b}}} instead.", DeprecationWarning)
