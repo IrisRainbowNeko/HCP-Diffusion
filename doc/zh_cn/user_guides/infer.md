@@ -102,8 +102,14 @@ merge:
 
 ### 加载插件
 
-除了lora之外，还可以添加自定义插件。lora也可以当成自定义插件添加。
+除了lora之外，还可以添加自定义插件。lora也可以当成自定义插件添加。比如加载`controlnet`。
 
+首先转换官方模型为`hcp plugin`格式，例如转换`control_v11p_sd15_openpose`:
+```yaml
+python -m hcpdiff.tools.sd2diffusers --checkpoint_path "ckpts/control_v11p_sd15_openpose.pth" --original_config_file "ckpts/control_v11p_sd15_openpose.yaml" --dump_path "ckpts/control_v11p_sd15_openpose" --controlnet
+```
+
+在生成图片的配置文件中加入相关配置，并加载模型权重:
 ```yaml
 merge:
   # 模型插件定义文件
