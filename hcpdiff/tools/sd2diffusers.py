@@ -46,6 +46,8 @@ try:
 except:
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import load_pipeline_from_original_stable_diffusion_ckpt as load_sd_ckpt
 
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_controlnet_from_original_ckpt
+
 def convert_ldm_clip_checkpoint(checkpoint, local_files_only=False):
     text_model = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14", local_files_only=local_files_only)
 
@@ -219,14 +221,29 @@ def convert_ckpt(args):
         upcast_attention=args.upcast_attention,
         from_safetensors=args.from_safetensors,
         device=args.device,
-        stable_unclip=args.stable_unclip,
-        stable_unclip_prior=args.stable_unclip_prior,
+        stable_unclip=None,
+        stable_unclip_prior=None,
         clip_stats_path=args.clip_stats_path,
         controlnet=args.controlnet,
     )
 
     if args.half:
         pipe.to(torch_dtype=torch.float16)
+    pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
+
+def convert_controlnet(args):
+    controlnet = download_controlnet_from_original_ckpt(
+        args.checkpoint_path,
+        original_config_file=args.original_config_file,
+        image_size=args.image_size,
+        extract_ema=args.extract_ema,
+        num_in_channels=args.num_in_channels,
+        upcast_attention=args.upcast_attention,
+        from_safetensors=args.from_safetensors,
+        device=args.device,
+        use_linear_projection=args.use_linear_projection,
+        cross_attention_dim=args.cross_attention_dim,
+    )
 
     def replace(k_from, k_to, sd):
         new_sd = {}
@@ -237,21 +254,18 @@ def convert_ckpt(args):
                 new_sd[k] = v
         return new_sd
 
-    if args.controlnet:
-        ckpt_manager = CkptManagerSafe() if args.to_safetensors else CkptManagerPKL()
 
-        sd_control = pipe.controlnet.state_dict()
-        sd_control = replace('controlnet_cond_embedding.conv_in', 'cond_head.0', sd_control)
-        for i in range(3):
-            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2}', f'cond_head.{2+i*4}', sd_control)
-            sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
-        sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
-        sd_control = {f'___.{k}':v for k, v in sd_control.items()}  # Add placeholder for plugin
-        os.makedirs(args.dump_path, exist_ok=True)
-        ckpt_manager._save_ckpt(sd_control, None, None, save_path=os.path.join(args.dump_path,
-                                                                               f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))
-    else:
-        pipe.save_pretrained(args.dump_path, safe_serialization=args.to_safetensors)
+    ckpt_manager = CkptManagerSafe() if args.to_safetensors else CkptManagerPKL()
+
+    sd_control = controlnet.state_dict()
+    sd_control = replace('controlnet_cond_embedding.conv_in', 'cond_head.0', sd_control)
+    for i in range(3):
+        sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2}', f'cond_head.{2+i*4}', sd_control)
+        sd_control = replace(f'controlnet_cond_embedding.blocks.{i*2+1}', f'cond_head.{4+i*4}', sd_control)
+    sd_control = replace('controlnet_cond_embedding.conv_out', 'cond_head.14', sd_control)
+    sd_control = {f'___.{k}':v for k, v in sd_control.items()}  # Add placeholder for plugin
+    os.makedirs(args.dump_path, exist_ok=True)
+    ckpt_manager._save_ckpt({'plugin': sd_control}, None, None, save_path=os.path.join(args.dump_path, f'controlnet.{"safetensors" if args.to_safetensors else "ckpt"}'))
 
 def patch_method():
     diffusers_version = importlib_metadata.version("diffusers")
@@ -298,7 +312,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--image_size",
-        default=None,
+        default=512,
         type=int,
         help=(
             "The image size that the model was trained on. Use 512 for Stable Diffusion v1.X and Stable Siffusion v2"
@@ -344,35 +358,29 @@ if __name__ == "__main__":
     parser.add_argument("--dump_path", default=None, type=str, required=True, help="Path to the output model.")
     parser.add_argument("--device", type=str, help="Device to use (e.g. cpu, cuda:0, cuda:1, etc.)")
     parser.add_argument(
-        "--stable_unclip",
-        type=str,
-        default=None,
-        required=False,
-        help="Set if this is a stable unCLIP model. One of 'txt2img' or 'img2img'.",
-    )
-    parser.add_argument(
-        "--stable_unclip_prior",
-        type=str,
-        default=None,
-        required=False,
-        help="Set if this is a stable unCLIP txt2img model. Selects which prior to use. If `--stable_unclip` is set to `txt2img`, the karlo prior (https://huggingface.co/kakaobrain/karlo-v1-alpha/tree/main/prior) is selected by default.",
-    )
-    parser.add_argument(
         "--clip_stats_path",
         type=str,
         help="Path to the clip stats file. Only required if the stable unclip model's config specifies `model.params.noise_aug_config.params.clip_stats_path`.",
         required=False,
     )
+
     parser.add_argument(
         "--controlnet", action="store_true", default=None, help="Set flag if this is a controlnet checkpoint."
     )
+    parser.add_argument(
+        "--use_linear_projection", action="store_true", default=False, help="Override for use linear projection",
+    )
+    parser.add_argument("--cross_attention_dim", help="Override for cross attention_dim", required=False, type=int)
+
     parser.add_argument("--half", action="store_true", help="Save weights in half precision.")
 
     parser.add_argument("--vae_pt_path", default=None, type=str, help="Path to the VAE.pt to convert.")
     args = parser.parse_args()
 
-    if args.vae_pt_path is None:
-        convert_ckpt(args)
-    else:
+    if args.vae_pt_path is not None:
         sd_vae_to_diffuser(args)
+    elif args.controlnet:
+        convert_controlnet(args)
+    else:
+        convert_ckpt(args)
     # python -m hcpdiff.tools.sd2diffusers --checkpoint_path test/control_sd15_canny.pth --original_config_file test/config.yaml --dump_path test/ckpt/control --controlnet
