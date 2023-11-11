@@ -19,7 +19,7 @@ from .utils import net_path_join
 from hcpdiff.models.lora_base import LoraBlock, LoraGroup
 from hcpdiff.models import lora_layers
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginBlock
-from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.ckpt_manager import auto_manager
 from .net_utils import split_module_name
 
 def get_class_match_layer(class_name, block:nn.Module):
@@ -226,21 +226,30 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
         all_plugin_group[plugin_name] = PluginGroup(all_plugin_blocks)
     return train_params, all_plugin_group
 
-@torch.no_grad()
-def load_hcpdiff(model:nn.Module, cfg_merge):
-    named_modules = {k: v for k, v in model.named_modules()}
-    named_params = {k: v for k, v in model.named_parameters()}
-    all_lora_blocks = {}
+class HCPModelLoader:
+    def __init__(self, host):
+        self.host = host
+        self.named_modules = {k:v for k, v in host.named_modules()}
+        self.named_params = {k:v for k, v in host.named_parameters()}
 
-    ckpt_manager_torch = CkptManagerPKL()
-    ckpt_manager_safe = CkptManagerSafe()
+    @torch.no_grad()
+    def load_part(self, cfg, base_model_alpha=0.0):
+        for item in cfg:
+            part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
+            if item.layers == 'all':
+                for k, v in part_state.items():
+                    self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
+            else:
+                match_blocks = get_match_layers(item.layers, self.named_modules)
+                state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
+                for k, v in state_add.items():
+                    self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
 
-    def get_ckpt_manager(path:str):
-        return ckpt_manager_safe if path.endswith('.safetensors') else ckpt_manager_torch
-
-    if getattr(cfg_merge, "lora", None) is not None:
-        for lora_id, item in enumerate(cfg_merge.lora):
-            lora_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
+    @torch.no_grad()
+    def load_lora(self, cfg, base_model_alpha=1.0):
+        all_lora_blocks = {}
+        for lora_id, item in enumerate(cfg):
+            lora_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
             lora_block_state = {}
             # get all layers in the lora_state
             for name, p in lora_state.items():
@@ -251,7 +260,7 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                 lora_block_state[prefix][block_name] = p
             # get selected layers
             if item.layers != 'all':
-                match_blocks = get_match_layers(item.layers, named_modules)
+                match_blocks = get_match_layers(item.layers, self.named_modules)
                 lora_state_new = {}
                 for k, v in lora_block_state.items():
                     for mk in match_blocks:
@@ -267,42 +276,35 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                 if 'scale' in lora_state: # old format
                     del lora_state['scale']
 
-                lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
+                lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
                                                         alpha=getattr(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
                                                         rank_groups=rank_groups, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True))
                 all_lora_blocks[f'{host_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
                 lora_block.set_mask(getattr(item, 'mask', None))
-                lora_block.to(model.device)
+                lora_block.to(self.host.device)
+        return LoraGroup(all_lora_blocks)
 
-    if getattr(cfg_merge, "part", None) is not None:
-        for item in cfg_merge.part:
-            part_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
-            if item.layers == 'all':
-                for k, v in part_state.items():
-                    named_params[k].data = cfg_merge.base_model_alpha * named_params[k].data + item.alpha * v
-            else:
-                match_blocks = get_match_layers(item.layers, named_modules)
-                state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
-                for k, v in state_add.items():
-                    named_params[k].data = cfg_merge.base_model_alpha * named_params[k].data + item.alpha * v
-
-    if getattr(cfg_merge, "plugin", None) is not None:
-        for name, item in cfg_merge.plugin.items():
-            plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
+    @torch.no_grad()
+    def load_plugin(self, cfg):
+        for name, item in cfg.items():
+            plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
             if item.layers != 'all':
-                match_blocks = get_match_layers(item.layers, named_modules)
-                plugin_state = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
+                match_blocks = get_match_layers(item.layers, self.named_modules)
+                plugin_state = {k:v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
             plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
-            plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()} # replace placeholder to target plugin name
-            model.load_state_dict(plugin_state, strict=False)
+            plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
+            self.host.load_state_dict(plugin_state, strict=False)
             del item.layers
             del item.path
-            if hasattr(model, name): # MultiPluginBlock
-                getattr(model, name).set_hyper_params(**item)
+            if hasattr(self.host, name):  # MultiPluginBlock
+                getattr(self.host, name).set_hyper_params(**item)
             else:
                 for plugin_key in plugin_key_set:
-                    named_modules[plugin_key].set_hyper_params(**item)
+                    self.named_modules[plugin_key].set_hyper_params(**item)
 
-
-    return LoraGroup(all_lora_blocks)
+    def load_all(self, cfg_merge):
+        self.load_part(cfg_merge.get('part', []), base_model_alpha=cfg_merge.get('base_model_alpha', 0.0))
+        lora_group = self.load_lora(cfg_merge.get('lora', []), base_model_alpha=cfg_merge.get('base_model_alpha', 1.0))
+        self.load_plugin(cfg_merge.get('plugin', {}))
+        return lora_group

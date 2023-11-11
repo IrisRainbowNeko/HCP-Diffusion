@@ -3,7 +3,7 @@ from .diffusion import InputFeederAction, PrepareDiffusionAction, MakeLatentActi
     X0PredAction, SeedAction, MakeTimestepsAction
 from .text import TextEncodeAction, TextHookAction, AttnMultTextEncodeAction
 from .vae import EncodeAction, DecodeAction
-from .io import LoadModelsAction, SaveImageAction
+from .io import LoadModelsAction, SaveImageAction, BuildModelLoaderAction, LoadPartAction, LoadLoraAction, LoadPluginAction
 from .utils import LatentResizeAction, ImageResizeAction
 from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction
 

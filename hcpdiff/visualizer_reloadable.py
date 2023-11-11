@@ -5,7 +5,7 @@ from hcpdiff.models import EmbeddingPTHook
 import hydra
 from diffusers import AutoencoderKL, PNDMScheduler
 import torch
-from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
+from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils import load_config, hash_str
 from copy import deepcopy
 
@@ -24,9 +24,9 @@ class VisualizerReloadable(Visualizer):
         for cfg_group in cfg_merge.values():
             if hasattr(cfg_group, 'type'):
                 if cfg_group.type == 'unet':
-                    lora_group = load_hcpdiff(self.pipe.unet, cfg_group)
+                    lora_group = HCPModelLoader(self.pipe.unet).load_all(cfg_group)
                 elif cfg_group.type == 'TE':
-                    lora_group = load_hcpdiff(self.pipe.text_encoder, cfg_group)
+                    lora_group = HCPModelLoader(self.pipe.text_encoder).load_all(cfg_group)
                 else:
                     raise ValueError(f'no host model type named {cfg_group.type}')
 
