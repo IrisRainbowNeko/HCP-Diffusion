@@ -4,7 +4,7 @@ from .diffusion import InputFeederAction, PrepareDiffusionAction, MakeLatentActi
 from .text import TextEncodeAction, TextHookAction, AttnMultTextEncodeAction
 from .vae import EncodeAction, DecodeAction
 from .io import LoadModelsAction, SaveImageAction
-from .utils import LatentResizeAction
+from .utils import LatentResizeAction, ImageResizeAction
 from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction
 
 from omegaconf import OmegaConf

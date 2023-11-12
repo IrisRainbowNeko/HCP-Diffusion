@@ -44,7 +44,7 @@ class SeedAction(BasicAction):
         seeds = [s or random.randint(0, 1 << 30) for s in seeds]
 
         G = prepare_seed(seeds, device=device)
-        return {'seeds':seeds, 'generator':G, 'device':device, **states}
+        return {**states, 'seeds':seeds, 'generator':G, 'device':device}
 
 class PrepareDiffusionAction(BasicAction, MemoryMixin):
     def __init__(self, dtype='fp32'):
@@ -53,7 +53,7 @@ class PrepareDiffusionAction(BasicAction, MemoryMixin):
     def forward(self, memory, **states):
         device = memory.unet.device
         vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
-        return {'dtype': self.dtype, 'device':device, 'vae_scale_factor':vae_scale_factor, **states}
+        return {**states, 'dtype': self.dtype, 'device':device, 'vae_scale_factor':vae_scale_factor}
 
 class MakeTimestepsAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -80,7 +80,7 @@ class MakeTimestepsAction(BasicAction, MemoryMixin):
         if self.strength:
             timesteps = self.get_timesteps(timesteps, self.strength)
         alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
-        return {'device':device, 'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod, **states}
+        return {**states, 'device':device, 'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod}
 
 class MakeLatentAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -112,7 +112,7 @@ class MakeLatentAction(BasicAction, MemoryMixin):
             latents = latents.to(device)
             latents = scheduler.add_noise(latents, noise, start_timestep)
 
-        return {'latents': latents, 'device':device, 'dtype':dtype, 'generator':generator, **states}
+        return {**states, 'latents': latents, 'device':device, 'dtype':dtype, 'generator':generator}
 
 class NoisePredAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -142,8 +142,8 @@ class NoisePredAction(BasicAction, MemoryMixin):
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
 
-        return {'noise_pred':noise_pred, 'latents': latents, 't':t, 'prompt_embeds':prompt_embeds, 'pooled_output':pooled_output,
-            'crop_info':crop_info, 'cross_attention_kwargs':cross_attention_kwargs, **states}
+        return {**states, 'noise_pred':noise_pred, 'latents': latents, 't':t, 'prompt_embeds':prompt_embeds, 'pooled_output':pooled_output,
+            'crop_info':crop_info, 'cross_attention_kwargs':cross_attention_kwargs}
 
 class SampleAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -176,7 +176,7 @@ class SampleAction(BasicAction, MemoryMixin):
         # compute the previous noisy sample x_t -> x_t-1
         sc_out = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)
         latents = sc_out.prev_sample
-        return {'latents': latents, 't':t, 'generator':generator, **states}
+        return {**states, 'latents': latents, 't':t, 'generator':generator}
 
 class DiffusionStepAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -195,4 +195,4 @@ class X0PredAction(BasicAction):
         alpha_prod_t = alphas_cumprod[t.long()]
         beta_prod_t = 1-alpha_prod_t
         latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
-        return {'latents_x0': latents_x0, 'latents': latents, 'alphas_cumprod':alphas_cumprod, 't':t, 'noise_pred':noise_pred, **states}
+        return {**states, 'latents_x0': latents_x0, 'latents': latents, 'alphas_cumprod':alphas_cumprod, 't':t, 'noise_pred':noise_pred}
