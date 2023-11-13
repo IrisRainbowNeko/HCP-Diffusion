@@ -10,7 +10,7 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 
 from hcpdiff.utils import prepare_seed
-from hcpdiff.utils.net_utils import get_dtype
+from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
 import random
 
 class InputFeederAction(BasicAction):
@@ -51,6 +51,11 @@ class PrepareDiffusionAction(BasicAction, MemoryMixin):
         self.dtype = dtype
 
     def forward(self, memory, **states):
+        dtype = get_dtype(self.dtype)
+        memory.unet.to(dtype=dtype)
+        memory.text_encoder.to(dtype=dtype)
+        memory.vae.to(dtype=dtype)
+
         device = memory.unet.device
         vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
         return {**states, 'dtype': self.dtype, 'device':device, 'vae_scale_factor':vae_scale_factor}

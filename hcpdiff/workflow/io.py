@@ -54,32 +54,35 @@ class BuildModelLoaderAction(BasicAction, MemoryMixin):
         memory.model_loader_TE = HCPModelLoader(memory.text_encoder)
         return states
 
-class LoadPartAction(BasicAction):
+class LoadPartAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, model_loader: HCPModelLoader, cfg):
-        self.model_loader = model_loader
+    def __init__(self, model: str, cfg):
+        self.model = model
         self.cfg = cfg
 
-    def forward(self, **states):
-        self.model_loader.load_part(self.cfg)
+    def forward(self, memory, **states):
+        model_loader = memory[f"model_loader_{self.model}"]
+        model_loader.load_part(self.cfg)
         return states
 
-class LoadLoraAction(BasicAction):
+class LoadLoraAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, model_loader: HCPModelLoader, cfg):
-        self.model_loader = model_loader
+    def __init__(self, model: str, cfg):
+        self.model = model
         self.cfg = cfg
 
-    def forward(self, **states):
-        self.model_loader.load_lora(self.cfg)
+    def forward(self, memory, **states):
+        model_loader = memory[f"model_loader_{self.model}"]
+        model_loader.load_lora(self.cfg)
         return states
 
-class LoadPluginAction(BasicAction):
+class LoadPluginAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, model_loader: HCPModelLoader, cfg):
-        self.model_loader = model_loader
+    def __init__(self, model: str, cfg):
+        self.model = model
         self.cfg = cfg
 
-    def forward(self, **states):
-        self.model_loader.load_plugin(self.cfg)
+    def forward(self, memory, **states):
+        model_loader = memory[f"model_loader_{self.model}"]
+        model_loader.load_plugin(self.cfg)
         return states

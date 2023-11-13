@@ -236,11 +236,12 @@ class HCPModelLoader:
     def load_part(self, cfg, base_model_alpha=0.0):
         for item in cfg:
             part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
-            if item.layers == 'all':
+            layers = item.get('layers', 'all')
+            if layers == 'all':
                 for k, v in part_state.items():
                     self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
             else:
-                match_blocks = get_match_layers(item.layers, self.named_modules)
+                match_blocks = get_match_layers(layers, self.named_modules)
                 state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
                 for k, v in state_add.items():
                     self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
@@ -259,8 +260,9 @@ class HCPModelLoader:
                     lora_block_state[prefix] = {}
                 lora_block_state[prefix][block_name] = p
             # get selected layers
-            if item.layers != 'all':
-                match_blocks = get_match_layers(item.layers, self.named_modules)
+            layers = item.get('layers', 'all')
+            if layers != 'all':
+                match_blocks = get_match_layers(layers, self.named_modules)
                 lora_state_new = {}
                 for k, v in lora_block_state.items():
                     for mk in match_blocks:
@@ -289,13 +291,15 @@ class HCPModelLoader:
     def load_plugin(self, cfg):
         for name, item in cfg.items():
             plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
-            if item.layers != 'all':
-                match_blocks = get_match_layers(item.layers, self.named_modules)
+            layers = item.get('layers', 'all')
+            if layers != 'all':
+                match_blocks = get_match_layers(layers, self.named_modules)
                 plugin_state = {k:v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
             plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
             plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
             self.host.load_state_dict(plugin_state, strict=False)
-            del item.layers
+            if 'layers' in item:
+                del item.layers
             del item.path
             if hasattr(self.host, name):  # MultiPluginBlock
                 getattr(self.host, name).set_hyper_params(**item)
