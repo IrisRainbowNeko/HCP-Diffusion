@@ -32,7 +32,6 @@ infer_args:
 output_dir: 'output/'
 lora:
   alpha: 0.8
-  mask: [ 0.5, 1 ]
   dir: ${models_dir}
   step: 5000
   text_encoder: ${lora.dir}/text_encoder-${lora.step}.safetensors
@@ -63,13 +62,11 @@ prepare:
     cfg:
       - path: ${lora.text_encoder}
         alpha: ${lora.alpha}
-        mask: ${lora.mask}
   - _target_: hcpdiff.workflow.LoadLoraAction
     model: 'unet'
     cfg:
       - path: ${lora.unet}
         alpha: ${lora.alpha}
-        mask: ${lora.mask}
   - _target_: hcpdiff.workflow.XformersEnableAction
   - _target_: hcpdiff.workflow.ExecAction
     prog: |-
