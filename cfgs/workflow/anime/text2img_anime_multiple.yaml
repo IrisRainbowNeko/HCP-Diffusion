@@ -14,6 +14,7 @@ neg_prompt:
 N_repeats: 1
 
 clip_skip: 1 #动漫模型通常会跳过一个CLIP层
+emb_dir: 'embs/'
 
 infer_args:
   width: 512
@@ -56,6 +57,7 @@ actions:
   - _target_: hcpdiff.workflow.TextHookAction
     N_repeats: ${N_repeats}
     layer_skip: ${clip_skip}
+    emb_dir: ${emb_dir}
 
   ## Text2Img
   # encode text
