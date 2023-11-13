@@ -40,7 +40,6 @@ prepare:
     prog: |-
       from hcpdiff.utils.net_utils import to_cpu, to_cuda
       to_cuda(memory.unet)
-      to_cuda(memory.text_encoder)
       to_cuda(memory.vae)
   - _target_: hcpdiff.workflow.PrepareDiffusionAction
     dtype: ${dtype}
