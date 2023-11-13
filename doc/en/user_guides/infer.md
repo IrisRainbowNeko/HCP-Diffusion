@@ -102,8 +102,14 @@ If you use the DreamArtist++, adding only positive trigger words in the prompt w
 
 ### Load Plugins
 
-Besides lora, custom plugins also supported. lora can also be added as a custom plugin.
+Besides lora, custom plugins also supported. lora can also be added as a custom plugin, like `controlnet`:
 
+First convert the official model to `hcp plugin` format, for example convert `control_v11p_sd15_openpose`:
+```yaml
+python -m hcpdiff.tools.sd2diffusers --checkpoint_path "ckpts/control_v11p_sd15_openpose.pth" --original_config_file "ckpts/control_v11p_sd15_openpose.yaml" --dump_path "ckpts/control_v11p_sd15_openpose" --controlnet
+```
+
+After that add the relevant configurations in the generation config file and load the model weights:
 ```yaml
 merge:
   # Model plugin definition file

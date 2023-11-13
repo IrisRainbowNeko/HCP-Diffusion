@@ -203,7 +203,7 @@ if __name__ == '__main__':
 
     # load lora model
     print('convert lora model')
-    ckpt_manager = auto_manager(args.lora_path)()
+    ckpt_manager = auto_manager(args.lora_path)
 
     if args.from_webui:
         state = ckpt_manager.load_ckpt(args.lora_path)

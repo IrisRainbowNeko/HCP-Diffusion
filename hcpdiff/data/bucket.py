@@ -120,7 +120,7 @@ class RatioBucket(BaseBucket):
 
         # fill buckets with images w,h
         self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
-        for i, file in enumerate(self.file_names):
+        for i, (file, source) in enumerate(self.file_names):
             w, h = get_image_size(file)
             bucket_id = np.abs(ratios_log-np.log2(w/h)).argmin()
             self.buckets[bucket_id].append(i)

@@ -6,6 +6,7 @@ from torch.cuda.amp import autocast
 from hcpdiff.models import TokenizerHook
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
 from .base import BasicAction, from_memory_context, MemoryMixin
+from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
 
 class TextHookAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -59,6 +60,10 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         te_hook = self.te_hook or memory.te_hook
         token_ex = self.token_ex or memory.token_ex
 
+        offload = memory.text_encoder.device.type == 'cpu'
+        if offload:
+            to_cuda(memory.text_encoder)
+
         mult_p, clean_text_p = token_ex.parse_attn_mult(self.prompt)
         mult_n, clean_text_n = token_ex.parse_attn_mult(self.negative_prompt)
         with autocast(enabled=dtype == 'amp'):
@@ -67,5 +72,9 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             emb_n, emb_p = emb.chunk(2)
         emb_p = te_hook.mult_attn(emb_p, mult_p)
         emb_n = te_hook.mult_attn(emb_n, mult_n)
+
+        if offload:
+            to_cpu(memory.text_encoder)
+
         return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
             'device':device, 'dtype':dtype}
