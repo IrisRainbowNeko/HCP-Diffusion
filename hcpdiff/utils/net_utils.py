@@ -15,7 +15,7 @@ def get_scheduler(cfg, optimizer):
     elif isinstance(cfg, partial):
         return cfg(optimizer=optimizer)
     else:
-        return get_scheduler(optimizer=optimizer, **cfg)
+        return get_scheduler_with_name(optimizer=optimizer, **cfg)
 
 def get_scheduler_with_name(
     name: Union[str, SchedulerType],
