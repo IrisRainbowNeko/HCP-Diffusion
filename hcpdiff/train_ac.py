@@ -471,7 +471,7 @@ class Trainer:
                 image = data.pop('img').to(self.device, dtype=self.weight_dtype)
                 att_mask = data.pop('mask').to(self.device) if 'mask' in data else None
                 prompt_ids = data.pop('prompt').to(self.device)
-                other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items()}
+                other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k!='plugin_input'}
                 if 'plugin_input' in data:
                     other_datas['plugin_input'] = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data['plugin_input'].items()}
 
