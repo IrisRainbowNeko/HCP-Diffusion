@@ -1,7 +1,6 @@
 import argparse
 import os
 import random
-import sys
 from typing import List
 
 import hydra
@@ -9,14 +8,14 @@ import torch
 from PIL import Image
 from accelerate import infer_auto_device_map, dispatch_model
 from diffusers.utils.import_utils import is_xformers_available
-from torch.cuda.amp import autocast
-
-from hcpdiff.models import EmbeddingPTHook, TEEXHook, TokenizerHook, LoraBlock
+from hcpdiff.models import TokenizerHook, LoraBlock
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTextEncoder
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
+from omegaconf import OmegaConf
+from torch.cuda.amp import autocast
 
 class Visualizer:
     dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
@@ -69,7 +68,7 @@ class Visualizer:
                 self.pipe.vae.enable_slicing()
 
         self.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
-                                                         N_repeats=self.cfgs.N_repeats)
+                                                          N_repeats=self.cfgs.N_repeats)
         self.te_hook = ComposeTEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip,
                                                  clip_final_norm=self.cfgs.clip_final_norm)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
@@ -236,7 +235,11 @@ if __name__ == '__main__':
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
 
     if cfgs.seed is not None:
-        seeds = list(range(cfgs.seed, cfgs.seed+cfgs.num*cfgs.bs))
+        if OmegaConf.is_list(cfgs.seed) or isinstance(cfgs.seed, list):
+            assert len(cfgs.seed) == cfgs.num*cfgs.bs, 'seed list length should be equal to num*bs'
+            seeds = list(cfgs.seed)
+        else:
+            seeds = list(range(cfgs.seed, cfgs.seed+cfgs.num*cfgs.bs))
     else:
         seeds = [None]*(cfgs.num*cfgs.bs)
 
