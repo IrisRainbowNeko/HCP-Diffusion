@@ -166,11 +166,11 @@ class Trainer:
             prepare_name_list.append('TE_unet.unet')
 
         if hasattr(self, 'optimizer'):
-            prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
-            prepare_name_list.extend(['optimizer', 'lr_scheduler'])
+            prepare_obj_list.extend([self.optimizer, self.lr_scheduler] if self.lr_scheduler else [self.optimizer])
+            prepare_name_list.extend(['optimizer', 'lr_scheduler'] if self.lr_scheduler else ['optimizer'])
         if hasattr(self, 'optimizer_pt'):
-            prepare_obj_list.extend([self.optimizer_pt, self.lr_scheduler_pt])
-            prepare_name_list.extend(['optimizer_pt', 'lr_scheduler_pt'])
+            prepare_obj_list.extend([self.optimizer_pt, self.lr_scheduler_pt] if self.lr_scheduler_pt else [self.optimizer_pt])
+            prepare_name_list.extend(['optimizer_pt', 'lr_scheduler_pt'] if self.lr_scheduler_pt else ['optimizer_pt'])
 
         prepare_obj_list.extend(self.train_loader_group.loader_list)
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
@@ -369,11 +369,7 @@ class Trainer:
                 self.scale_lr(parameters)
             assert isinstance(cfg_opt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
             self.optimizer = cfg_opt(params=parameters)
-
-            if isinstance(self.cfgs.train.scheduler, partial):
-                self.lr_scheduler = self.cfgs.train.scheduler(optimizer=self.optimizer)
-            else:
-                self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
+            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
         if len(parameters_pt)>0:  # do prompt-tuning
             cfg_opt_pt = self.cfgs.train.optimizer_pt
@@ -381,11 +377,7 @@ class Trainer:
                 self.scale_lr(parameters_pt)
             assert isinstance(cfg_opt_pt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
             self.optimizer_pt = cfg_opt_pt(params=parameters_pt)
-
-            if isinstance(self.cfgs.train.scheduler_pt, partial):
-                self.lr_scheduler_pt = self.cfgs.train.scheduler_pt(optimizer=self.optimizer_pt)
-            else:
-                self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
+            self.lr_scheduler_pt = get_scheduler(self.cfgs.train.scheduler_pt, self.optimizer_pt)
 
     def train(self, loss_ema=0.93):
         total_batch_size = sum(self.batch_size_list)*self.world_size*self.cfgs.train.gradient_accumulation_steps
@@ -410,8 +402,9 @@ class Trainer:
                 if self.global_step%self.cfgs.train.save_step == 0:
                     self.save_model()
                 if self.global_step%self.min_log_step == 0:
-                    lr_model = self.lr_scheduler.get_last_lr()[0] if hasattr(self, 'lr_scheduler') else 0.
-                    lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
+                    # get learning rate from optimizer
+                    lr_model = self.optimizer.param_groups[0]['lr'] if hasattr(self, 'optimizer') else 0.
+                    lr_word = self.optimizer_pt.param_groups[0]['lr'] if hasattr(self, 'optimizer_pt') else 0.
                     self.loggers.log(datas={
                         'Step':{'format':'[{}/{}]', 'data':[self.global_step, self.cfgs.train.train_steps]},
                         'Epoch':{'format':'[{}/{}]<{}/{}>', 'data':[self.global_step//self.steps_per_epoch, self.cfgs.train.train_epochs,
@@ -495,12 +488,14 @@ class Trainer:
                         clip_param = self.TE_unet.module.trainable_parameters()
                     self.accelerator.clip_grad_norm_(clip_param, self.cfgs.train.max_grad_norm)
                 self.optimizer.step()
-                self.lr_scheduler.step()
+                if self.lr_scheduler:
+                    self.lr_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
             if hasattr(self, 'optimizer_pt'):  # prompt tuning
                 self.optimizer_pt.step()
-                self.lr_scheduler_pt.step()
+                if self.lr_scheduler_pt:
+                    self.lr_scheduler_pt.step()
                 self.optimizer_pt.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
             self.update_ema()

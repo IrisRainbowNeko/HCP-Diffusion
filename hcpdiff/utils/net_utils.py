@@ -7,10 +7,19 @@ from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Op
 from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
+from functools import partial
 
 dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
-def get_scheduler(
+def get_scheduler(cfg, optimizer):
+    if cfg is None:
+        return None
+    elif isinstance(cfg, partial):
+        return cfg(optimizer=optimizer)
+    else:
+        return get_scheduler(optimizer=optimizer, **cfg)
+
+def get_scheduler_with_name(
     name: Union[str, SchedulerType],
     optimizer: Optimizer,
     num_warmup_steps: Optional[int] = None,

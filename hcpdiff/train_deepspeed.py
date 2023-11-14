@@ -57,11 +57,7 @@ class TrainerDeepSpeed(Trainer):
                 self.scale_lr(parameters)
             assert isinstance(cfg_opt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
             self.optimizer = cfg_opt(params=parameters)
-
-            if isinstance(self.cfgs.train.scheduler, partial):
-                self.lr_scheduler = self.cfgs.train.scheduler(optimizer=self.optimizer)
-            else:
-                self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
+            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
