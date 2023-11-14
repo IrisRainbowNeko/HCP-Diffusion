@@ -1,7 +1,7 @@
 from accelerate import infer_auto_device_map, dispatch_model
 from diffusers.utils.import_utils import is_xformers_available
 
-from hcpdiff.utils.net_utils import get_dtype
+from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
 from hcpdiff.utils.utils import size_to_int, int_to_size
 from .base import BasicAction, from_memory_context, MemoryMixin
 
@@ -44,4 +44,24 @@ class XformersEnableAction(BasicAction, MemoryMixin):
         if is_xformers_available():
             memory.unet.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
+        return states
+
+class StartTextEncode(BasicAction, MemoryMixin):
+    def forward(self, memory, **states):
+        to_cuda(memory.text_encoder)
+        return states
+
+class EndTextEncode(BasicAction, MemoryMixin):
+    def forward(self, memory, **states):
+        to_cpu(memory.text_encoder)
+        return states
+
+class StartDiffusion(BasicAction, MemoryMixin):
+    def forward(self, memory, **states):
+        to_cuda(memory.unet)
+        return states
+
+class EndDiffusion(BasicAction, MemoryMixin):
+    def forward(self, memory, **states):
+        to_cpu(memory.unet)
         return states

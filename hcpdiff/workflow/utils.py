@@ -1,3 +1,5 @@
+import torch
+
 from .base import BasicAction, from_memory_context
 from torch import nn
 from PIL import Image
@@ -11,7 +13,9 @@ class LatentResizeAction(BasicAction):
         self.antialias = antialias
 
     def forward(self, latents, **states):
-        latents = nn.functional.interpolate(latents, scale_factor=self.scale_factor, mode=self.mode)
+        latents_dtype = latents.dtype
+        latents = nn.functional.interpolate(latents.to(dtype=torch.float32), scale_factor=self.scale_factor, mode=self.mode)
+        latents = latents.to(dtype=latents_dtype)
         return {**states, 'latents':latents}
 
 class ImageResizeAction(BasicAction):
