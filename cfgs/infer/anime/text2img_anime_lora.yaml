@@ -1,5 +1,5 @@
 _base_: 
-  - cfgs/infer/text2img_anime.yaml
+  - cfgs/infer/anime/text2img_anime.yaml
 
 pretrained_model: 'stablediffusionapi/anything-v5'  # better generic anime model
 
