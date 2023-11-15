@@ -10,7 +10,7 @@ plugin.py
 
 import weakref
 import re
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Iterable
 
 import torch
 from torch import nn
@@ -53,6 +53,9 @@ class BasePluginBlock(nn.Module):
                 else:
                     model_sd[k] = v
         return model_sd
+
+    def get_trainable_parameters(self) -> Iterable[nn.Parameter]:
+        return self.parameters()
 
 class WrapablePlugin:
     wrapable_classes = ()
