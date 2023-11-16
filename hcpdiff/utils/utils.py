@@ -146,3 +146,6 @@ def format_number(num):
         return f'{num/1e3:.1f}K'
     else:
         return str(num)
+
+def is_list(v):
+    return OmegaConf.is_list(v) or isinstance(v, list)

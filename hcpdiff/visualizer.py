@@ -13,7 +13,7 @@ from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTex
 from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
-from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed
+from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list
 from omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
@@ -235,7 +235,7 @@ if __name__ == '__main__':
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
 
     if cfgs.seed is not None:
-        if OmegaConf.is_list(cfgs.seed) or isinstance(cfgs.seed, list):
+        if s_list(cfgs.seed):
             assert len(cfgs.seed) == cfgs.num*cfgs.bs, 'seed list length should be equal to num*bs'
             seeds = list(cfgs.seed)
         else:
@@ -245,7 +245,7 @@ if __name__ == '__main__':
 
     viser = Visualizer(cfgs)
     for i in range(cfgs.num):
-        prompt = cfgs.prompt[i*cfgs.bs:(i+1)*cfgs.bs] if isinstance(cfgs.prompt, list) else [cfgs.prompt]*cfgs.bs
-        negative_prompt = cfgs.neg_prompt[i*cfgs.bs:(i+1)*cfgs.bs] if isinstance(cfgs.neg_prompt, list) else [cfgs.neg_prompt]*cfgs.bs
+        prompt = cfgs.prompt[i*cfgs.bs:(i+1)*cfgs.bs] if is_list(cfgs.prompt) else [cfgs.prompt]*cfgs.bs
+        negative_prompt = cfgs.neg_prompt[i*cfgs.bs:(i+1)*cfgs.bs] if is_list(cfgs.neg_prompt) else [cfgs.neg_prompt]*cfgs.bs
         viser.vis_to_dir(prompt=prompt, negative_prompt=negative_prompt,
                          seeds=seeds[i*cfgs.bs:(i+1)*cfgs.bs], save_cfg=cfgs.save.save_cfg, **cfgs.infer_args)
