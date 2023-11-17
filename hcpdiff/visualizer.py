@@ -47,11 +47,11 @@ class Visualizer:
 
     def load_model(self, pretrained_model):
         pipeline = self.get_pipeline()
-        te = auto_text_encoder(pretrained_model).from_pretrained(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype)
+        te = auto_text_encoder(pretrained_model).from_pretrained(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
         tokenizer = auto_tokenizer(pretrained_model).from_pretrained(pretrained_model, subfolder="tokenizer", use_fast=False)
 
         return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
-                                        text_encoder=te, tokenizer=tokenizer,
+                                        text_encoder=te, tokenizer=tokenizer, resume_download=True,
                                         torch_dtype=self.dtype, **self.cfgs.new_components)
 
     def build_optimize(self):
