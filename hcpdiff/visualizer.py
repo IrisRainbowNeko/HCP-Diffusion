@@ -235,7 +235,7 @@ if __name__ == '__main__':
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
 
     if cfgs.seed is not None:
-        if s_list(cfgs.seed):
+        if is_list(cfgs.seed):
             assert len(cfgs.seed) == cfgs.num*cfgs.bs, 'seed list length should be equal to num*bs'
             seeds = list(cfgs.seed)
         else:
