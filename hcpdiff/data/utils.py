@@ -31,10 +31,10 @@ def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     ratio_img = w/h
     if ratio_img>target_size[0]/target_size[1]:
         new_size = (round(ratio_img*target_size[1]), target_size[1])
-        interp_type = Image.ANTIALIAS if h>target_size[1] else Image.BICUBIC
+        interp_type = Image.LANCZOS if h>target_size[1] else Image.BICUBIC
     else:
         new_size = (target_size[0], round(target_size[0]/ratio_img))
-        interp_type = Image.ANTIALIAS if w>target_size[0] else Image.BICUBIC
+        interp_type = Image.LANCZOS if w>target_size[0] else Image.BICUBIC
     img['img'] = img['img'].resize(new_size, interp_type)
     if "mask" in img:
         img['mask'] = cv2.resize(img['mask'], new_size, interpolation=mask_interp)

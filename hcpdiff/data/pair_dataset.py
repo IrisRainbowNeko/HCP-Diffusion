@@ -106,14 +106,15 @@ class TextImagePairDataset(Dataset):
         '''
         batch: [{img:tensor, prompt:str, ..., plugin_input:{...}},{}]
         '''
-        if 'plugin_input' in batch[0]:
+        has_plugin_input = 'plugin_input' in batch[0]
+        if has_plugin_input:
             plugin_input = {k:[] for k in batch[0]['plugin_input'].keys()}
 
         datas = {k:[] for k in batch[0].keys() if k != 'plugin_input' and k != 'prompt'}
         sn_list, sp_list = [], []
 
         for data in batch:
-            if 'plugin_input' in data:
+            if has_plugin_input:
                 for k, v in data.pop('plugin_input').items():
                     plugin_input[k].append(v)
 
@@ -134,7 +135,7 @@ class TextImagePairDataset(Dataset):
 
         sn_list += sp_list
         datas['prompt'] = torch.stack(sn_list)
-        if 'plugin_input' in batch[0]:
+        if has_plugin_input:
             datas['plugin_input'] = {k:torch.stack(v) for k, v in plugin_input.items()}
 
         return datas

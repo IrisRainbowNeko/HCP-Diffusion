@@ -161,9 +161,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
             if train_plugin:
-                layer.requires_grad_(True)
                 layer.train()
-                params_group.extend(layer.parameters())
+                params = layer.get_trainable_parameters()
+                for p in params:
+                    p.requires_grad_(True)
+                    params_group.append(p)
             else:
                 layer.requires_grad_(False)
                 layer.eval()
@@ -178,9 +180,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 for k,v in blocks.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
-                        v.requires_grad_(True)
                         v.train()
-                        params_group.extend(v.parameters())
+                        params = v.get_trainable_parameters()
+                        for p in params:
+                            p.requires_grad_(True)
+                            params_group.append(p)
                     else:
                         v.requires_grad_(False)
                         v.eval()
@@ -194,9 +198,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
                 if train_plugin:
-                    layer.requires_grad_(True)
                     layer.train()
-                    params_group.extend(layer.parameters())
+                    params = layer.get_trainable_parameters()
+                    for p in params:
+                        p.requires_grad_(True)
+                        params_group.append(p)
                 else:
                     layer.requires_grad_(False)
                     layer.eval()
@@ -213,9 +219,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 for k,v in layers.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
-                        v.requires_grad_(True)
                         v.train()
-                        params_group.extend(v.parameters())
+                        params = v.get_trainable_parameters()
+                        for p in params:
+                            p.requires_grad_(True)
+                            params_group.append(p)
                     else:
                         v.requires_grad_(False)
                         v.eval()
