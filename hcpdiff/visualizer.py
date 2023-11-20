@@ -140,7 +140,7 @@ class Visualizer:
 
         def vae_encode_offload(x, return_dict=True, encode_raw=self.pipe.vae.encode):
             to_cuda(self.pipe.vae)
-            res = encode_raw(x, return_dict=return_dict)
+            res = encode_raw(x.to(dtype=self.pipe.vae.dtype), return_dict=return_dict)
             to_cpu(self.pipe.vae)
             return res
 
