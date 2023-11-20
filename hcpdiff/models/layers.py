@@ -71,8 +71,11 @@ class GroupLinear(nn.Module):
         with torch.no_grad():
             return tensor.uniform_(-bound, bound)
 
-    def forward(self, x: torch.Tensor): # x: [B,G,L,C]
-        out = x @ self.weight
+    def forward(self, x: torch.Tensor): # x: [G,B,L,C]
+        x = rearrange(x, '(g b) l c -> g (b l) c', g=self.num_groups)
         if self.bias is not None:
-            out = out + self.bias
+            out = torch.bmm(x, self.weight) + self.bias
+        else:
+            out = torch.bmm(x, self.weight)
+        out = rearrange(out, 'g (b l) c -> (g b) l c', b=B)
         return out
