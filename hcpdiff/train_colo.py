@@ -135,17 +135,17 @@ class TrainerColo(Trainer):
         if len(parameters)>0: # do fine-tuning
             if self.cfgs.train.scale_lr:
                 self.scale_lr(parameters)
-            self.optimizer = GeminiAdamOptimizerP(self.TE_unet if self.train_TE else self.unet, parameters, lr=self.lr,
+            self.optimizer = GeminiAdamOptimizerP(self.TE_unet if self.train_TE else self.unet, parameters,
                                                   initial_scale=2 ** 5, clipping_norm=self.cfgs.train.max_grad_norm)
 
-            self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
+            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
         if len(parameters_pt)>0: # do prompt-tuning
             if self.cfgs.train.scale_lr_pt:
                 self.scale_lr(parameters_pt)
 
-            self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt.weight_decay_pt)
-            self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
+            self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, weight_decay=cfg_opt.weight_decay_pt)
+            self.lr_scheduler_pt = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
     def train_one_step(self, data_list):
         torch.cuda.reset_peak_memory_stats()

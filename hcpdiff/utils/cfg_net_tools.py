@@ -16,8 +16,7 @@ import torch
 from torch import nn
 
 from .utils import net_path_join
-from hcpdiff.models.lora_base import LoraBlock, LoraGroup
-from hcpdiff.models import lora_layers
+from hcpdiff.models import LoraBlock, LoraGroup, lora_layer_map
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginBlock
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from .net_utils import split_module_name
@@ -82,10 +81,10 @@ def get_lora_rank_and_cls(lora_state):
             rank = rank_groups * lora_state['layer.lora_down.weight'].shape[2]
         else:
             rank = lora_state['layer.lora_down.weight'].shape[0]
-        lora_layer_cls = lora_layers.layer_map['loha_group']
+        lora_layer_cls = lora_layer_map['loha_group']
     else:
         rank = lora_state['layer.lora_down.weight'].shape[0]
-        lora_layer_cls = lora_layers.layer_map['lora']
+        lora_layer_cls = lora_layer_map['lora']
     return lora_layer_cls, rank, rank_groups
 
 def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
@@ -111,7 +110,7 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
             for layer_name in get_match_layers(item.layers, named_modules):
                 layer = named_modules[layer_name]
                 arg_dict = {k:v for k,v in item.items() if k!='layers'}
-                lora_block_dict = lora_layers.layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
+                lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
 
                 block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
@@ -161,9 +160,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
             if train_plugin:
-                layer.requires_grad_(True)
                 layer.train()
-                params_group.extend(layer.parameters())
+                params = layer.get_trainable_parameters()
+                for p in params:
+                    p.requires_grad_(True)
+                    params_group.append(p)
             else:
                 layer.requires_grad_(False)
                 layer.eval()
@@ -178,9 +179,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 for k,v in blocks.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
-                        v.requires_grad_(True)
                         v.train()
-                        params_group.extend(v.parameters())
+                        params = v.get_trainable_parameters()
+                        for p in params:
+                            p.requires_grad_(True)
+                            params_group.append(p)
                     else:
                         v.requires_grad_(False)
                         v.eval()
@@ -194,9 +197,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
                 if train_plugin:
-                    layer.requires_grad_(True)
                     layer.train()
-                    params_group.extend(layer.parameters())
+                    params = layer.get_trainable_parameters()
+                    for p in params:
+                        p.requires_grad_(True)
+                        params_group.append(p)
                 else:
                     layer.requires_grad_(False)
                     layer.eval()
@@ -213,9 +218,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 for k,v in layers.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
-                        v.requires_grad_(True)
                         v.train()
-                        params_group.extend(v.parameters())
+                        params = v.get_trainable_parameters()
+                        for p in params:
+                            p.requires_grad_(True)
+                            params_group.append(p)
                     else:
                         v.requires_grad_(False)
                         v.eval()

@@ -84,7 +84,8 @@ class TEEXHook:
             for i, item in enumerate(attn_mult):
                 if len(item)>0:
                     original_mean = prompt_embeds[i, ...].mean()
-                    prompt_embeds[i, 1:len(item)+1, :] *= item.view(-1, 1).to(prompt_embeds.device)
+                    N_words = min(prompt_embeds.shape[1]-1, len(item))
+                    prompt_embeds[i, 1:len(item)+1, :] *= item[:N_words].view(-1, 1).to(prompt_embeds.device)
                     new_mean = prompt_embeds[i, ...].mean()
                     prompt_embeds[i, ...] *= original_mean/new_mean
         return prompt_embeds
