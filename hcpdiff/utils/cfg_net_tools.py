@@ -7,8 +7,7 @@ cfg_net_tools.py
     :Created:     10/03/2023
     :Licence:     Apache-2.0
 """
-
-
+import warnings
 from typing import Dict, List, Tuple, Union, Any
 
 import re
@@ -20,6 +19,7 @@ from hcpdiff.models import LoraBlock, LoraGroup, lora_layer_map
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginBlock
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from .net_utils import split_module_name
+from hcpdiff.tools.convert_old_lora import convert_state
 
 def get_class_match_layer(class_name, block:nn.Module):
     if type(block).__name__==class_name:
@@ -75,17 +75,17 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
         return sorted(set(res), key=res.index)
 
 def get_lora_rank_and_cls(lora_state):
-    rank_groups = getattr(lora_state, 'layer.rank_groups', 1)
-    if rank_groups > 1:
-        if len(lora_state['layer.lora_down.weight'].shape) == 3:
-            rank = rank_groups * lora_state['layer.lora_down.weight'].shape[2]
-        else:
-            rank = lora_state['layer.lora_down.weight'].shape[0]
-        lora_layer_cls = lora_layer_map['loha_group']
-    else:
+    if 'layer.lora_down.weight' in lora_state: # old format
+        warnings.warn("The old lora format is deprecated.", DeprecationWarning)
         rank = lora_state['layer.lora_down.weight'].shape[0]
         lora_layer_cls = lora_layer_map['lora']
-    return lora_layer_cls, rank, rank_groups
+        return lora_layer_cls, rank, True
+    elif 'layer.W_down' in lora_state:
+        rank = lora_state['layer.W_down'].shape[0]
+        lora_layer_cls = lora_layer_map['lora']
+        return lora_layer_cls, rank, False
+    else:
+        raise ValueError('Unknown lora format.')
 
 def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
     named_modules = {k:v for k,v in model.named_modules()}
@@ -108,9 +108,10 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
         for lora_id, item in enumerate(cfg_lora):
             params_group = []
             for layer_name in get_match_layers(item.layers, named_modules):
+                parent_name, host_name = split_module_name(layer_name)
                 layer = named_modules[layer_name]
                 arg_dict = {k:v for k,v in item.items() if k!='layers'}
-                lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
+                lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, parent_block=named_modules[parent_name], host_name=host_name, **arg_dict)
 
                 block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
@@ -267,19 +268,20 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                             break
                 lora_block_state = lora_state_new
             # add lora to host and load weights
-            for host_name, lora_state in lora_block_state.items():
-                lora_layer_cls, rank, rank_groups = get_lora_rank_and_cls(lora_state)
+            for layer_name, lora_state in lora_block_state.items():
+                parent_name, host_name = split_module_name(layer_name)
+                lora_layer_cls, rank, old_format = get_lora_rank_and_cls(lora_state)
                 if 'alpha' in lora_state:
                     del lora_state['alpha']
-                if 'scale' in lora_state: # old format
-                    del lora_state['scale']
 
-                lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
-                                                        alpha=getattr(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
-                                                        rank_groups=rank_groups, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True))
-                all_lora_blocks[f'{host_name}.{lora_block.name}'] = lora_block
+                if old_format:
+                    lora_state = convert_state(lora_state)
+
+                lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
+                                                        alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
+                                                        parent_block=named_modules[parent_name], host_name=host_name)
+                all_lora_blocks[f'{layer_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
-                lora_block.set_mask(getattr(item, 'mask', None))
                 lora_block.to(model.device)
 
     if getattr(cfg_merge, "part", None) is not None:

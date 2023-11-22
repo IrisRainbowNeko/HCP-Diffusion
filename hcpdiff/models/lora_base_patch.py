@@ -18,7 +18,7 @@ from .plugin import PatchPluginBlock, PluginGroup, PatchPluginContainer
 from typing import Union, Tuple, Dict, Type
 
 class LoraPatchContainer(PatchPluginContainer):
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         weight_ = None
         for name in self.plugin_names:
             if weight_ is None:
@@ -28,6 +28,7 @@ class LoraPatchContainer(PatchPluginContainer):
         return self[name].post_forward(x, self._host.weight + weight_)
 
 class LoraBlock(PatchPluginBlock):
+    container_cls = LoraPatchContainer
     wrapable_classes = (nn.Linear, nn.Conv2d)
 
     def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
@@ -38,10 +39,10 @@ class LoraBlock(PatchPluginBlock):
 
         if isinstance(host, nn.Linear):
             self.host_type = 'linear'
-            self.layer = self.LinearLayer(host, rank, bias, dropout, self)
+            self.layer = self.LinearLayer(host, rank, bias, self)
         elif isinstance(host, nn.Conv2d):
             self.host_type = 'conv'
-            self.layer = self.Conv2dLayer(host, rank, bias, dropout, self)
+            self.layer = self.Conv2dLayer(host, rank, bias, self)
         else:
             raise NotImplementedError(f'No lora for {type(host)}')
         self.dropout = nn.Dropout(dropout)
@@ -61,8 +62,7 @@ class LoraBlock(PatchPluginBlock):
             U, V = low_rank_approximate(host.weight, self.rank)
             self.layer.feed_svd(U, V, host.weight)
         else:
-            self.layer.lora_down.reset_parameters()
-            nn.init.zeros_(self.layer.lora_up.weight)
+            self.layer.reset_parameters()
 
     def reparameterization_to_host(self, alpha=None, base_alpha=1.0):
         if alpha is None:
@@ -82,13 +82,11 @@ class LoraBlock(PatchPluginBlock):
                     host.bias.data * base_alpha + alpha * re_b.to(host.weight.device, dtype=host.weight.dtype))
 
     class LinearLayer(nn.Module):
-        def __init__(self, host, rank, bias, dropout, block):
+        def __init__(self, host, rank, bias, block):
             super().__init__()
             self.rank=rank
-            self.bias = bias
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_features * self.rank), 1)
-            self.dropout = nn.Dropout(dropout)
 
         def feed_svd(self, U, V, weight):
             self.lora_up.weight.data = U.to(device=weight.device, dtype=weight.dtype)
@@ -107,13 +105,11 @@ class LoraBlock(PatchPluginBlock):
             pass
 
     class Conv2dLayer(nn.Module):
-        def __init__(self, host, rank, bias, dropout, block):
+        def __init__(self, host, rank, bias, block):
             super().__init__()
             self.rank = rank
-            self.bias = bias
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_channels * self.rank), 1)
-            self.dropout = nn.Dropout(dropout)
 
         def feed_svd(self, U, V, weight):
             self.lora_up.weight.data = U.to(device=weight.device, dtype=weight.dtype)
@@ -136,7 +132,6 @@ class LoraBlock(PatchPluginBlock):
                    bias=False, mask=None, **kwargs):# -> LoraBlock:
         lora_block = cls(lora_id, layer, rank, dropout, alpha, bias=bias, **kwargs)
         lora_block.init_weights(svd_init)
-        lora_block.set_mask(mask)
         return lora_block
 
     @classmethod
