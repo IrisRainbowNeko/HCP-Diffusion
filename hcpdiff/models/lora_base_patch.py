@@ -65,7 +65,11 @@ class LoraBlock(PatchPluginBlock):
         return bias * self.alpha if bias is not None else None
 
     def post_forward(self, x, host_weight, weight, host_bias, bias=None):
-        bias = (host_bias or 0.) + (bias or 0.)
+        if host_bias is not None:
+            if bias is None:
+                bias = host_bias
+            else:
+                bias = host_bias + bias
         return self.dropout(self.layer(x, host_weight+weight, bias))
 
     def init_weights(self, svd_init=False):

@@ -44,12 +44,13 @@ class LoraLayer(LoraBlock):
             return self.bias
 
         def forward(self, x, weight, bias=None):
-            if isinstance(bias, float):
-                bias = None
             # make it faster
             x_shape = x.shape
-            return torch.mm(x.view(-1, x_shape[-1]), weight.transpose(0, 1)).view(*x_shape[:-1], -1)
-            #return F.linear(x, weight, bias)
+            if bias is None:
+                return torch.mm(x.view(-1, x_shape[-1]), weight.transpose(0, 1)).view(*x_shape[:-1], -1)
+            else:
+                return torch.mm(x.view(-1, x_shape[-1]), weight.transpose(0, 1)).view(*x_shape[:-1], -1) + bias
+            #return F.linear(x, weight, bias) # linear is slow
 
         def get_collapsed_param(self):
             w = self.W_up.data@self.W_down.data
