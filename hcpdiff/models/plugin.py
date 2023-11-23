@@ -266,7 +266,10 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
 
     def __init__(self, name: str, host: nn.Module, host_model=None, parent_block: nn.Module = None, host_name: str = None):
         super().__init__(name)
-        self.host = weakref.ref(host)
+        if isinstance(host, self.container_cls):
+            self.host = weakref.ref(host._host)
+        else:
+            self.host = weakref.ref(host)
         self.parent_block = weakref.ref(parent_block)
         self.host_name = host_name
 
@@ -289,6 +292,27 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
             return host
         else:
             return self.container_cls(host_name, host, parent_block)
+
+    @classmethod
+    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(), **kwargs):  # -> Dict[str, SinglePluginBlock]:
+        '''
+        parent_block and other args required in __init__ will be put into kwargs, compatible with multiple models.
+        '''
+        plugin_block_dict = {}
+        if isinstance(host, cls.wrapable_classes):
+            plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
+        else:
+            named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
+                host, exclude_key=exclude_key, exclude_classes=exclude_classes)}
+            for layer_name, layer in named_modules.items():
+                if isinstance(layer, cls.wrapable_classes) or isinstance(layer, cls.container_cls):
+                    # For plugins that need parent_block
+                    if 'parent_block' in kwargs:
+                        parent_name, host_name = split_module_name(layer_name)
+                        kwargs['parent_block'] = named_modules[parent_name]
+                        kwargs['host_name'] = host_name
+                    plugin_block_dict[layer_name] = cls.wrap_layer(name, layer, **kwargs)
+        return plugin_block_dict
 
 class PluginGroup:
     def __init__(self, plugin_dict: Dict[str, BasePluginBlock]):

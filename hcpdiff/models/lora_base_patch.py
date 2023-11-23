@@ -44,6 +44,7 @@ class LoraBlock(PatchPluginBlock):
 
         self.bias=bias
 
+        host = self.host()
         if isinstance(host, nn.Linear):
             self.host_type = 'linear'
             self.layer = self.LinearLayer(host, rank, bias, self)
