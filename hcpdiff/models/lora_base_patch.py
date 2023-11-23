@@ -20,12 +20,19 @@ from typing import Union, Tuple, Dict, Type
 class LoraPatchContainer(PatchPluginContainer):
     def forward(self, x, *args, **kwargs):
         weight_ = None
+        bias_ = None
         for name in self.plugin_names:
             if weight_ is None:
                 weight_ = self[name].get_weight()
             else:
                 weight_ = weight_ + self[name].get_weight()
-        return self[name].post_forward(x, self._host.weight + weight_)
+
+            if bias_ is None:
+                bias_ = self[name].get_bias()
+            else:
+                bias_ = bias_ + self[name].get_bias()
+
+        return self[name].post_forward(x, self._host.weight, weight_, self._host.bias, bias_)
 
 class LoraBlock(PatchPluginBlock):
     container_cls = LoraPatchContainer
@@ -53,12 +60,17 @@ class LoraBlock(PatchPluginBlock):
     def get_weight(self):
         return self.layer.get_weight() * self.alpha
 
-    def post_forward(self, x, weight, bias=None):
-        return self.dropout(self.layer(x, weight, bias))
+    def get_bias(self):
+        bias = self.layer.get_bias()
+        return bias * self.alpha if bias is not None else None
+
+    def post_forward(self, x, host_weight, weight, host_bias, bias=None):
+        bias = (host_bias or 0.) + (bias or 0.)
+        return self.dropout(self.layer(x, host_weight+weight, bias))
 
     def init_weights(self, svd_init=False):
-        host = self.host()
         if svd_init:
+            host = self.host()
             U, V = low_rank_approximate(host.weight, self.rank)
             self.layer.feed_svd(U, V, host.weight)
         else:
