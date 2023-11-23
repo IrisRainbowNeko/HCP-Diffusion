@@ -285,7 +285,7 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
         container.remove_plugin(self.name)
 
     def get_container(self, host, host_name, parent_block):
-        if isinstance(host, PatchPluginContainer):
+        if isinstance(host, self.container_cls):
             return host
         else:
             return self.container_cls(host_name, host, parent_block)
