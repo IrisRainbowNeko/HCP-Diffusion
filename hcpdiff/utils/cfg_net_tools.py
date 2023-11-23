@@ -113,19 +113,9 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
                 arg_dict = {k:v for k,v in item.items() if k!='layers'}
                 lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, parent_block=named_modules[parent_name], host_name=host_name, **arg_dict)
 
-                block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
                     block_path = net_path_join(layer_name, k)
-                    if block_branch is None:
-                        all_lora_blocks[block_path] = v
-                    elif block_branch=='p':
-                        all_lora_blocks[block_path] = v
-                        v.set_mask((0.5, 1))
-                    elif block_branch == 'n':
-                        all_lora_blocks_neg[block_path]=v
-                        v.set_mask((0, 0.5))
-                    else:
-                        raise NotImplementedError(f'Unsupported branch "{block_branch}"')
+                    all_lora_blocks[block_path] = v
                     v.requires_grad_(True)
                     v.train()
                     params_group.extend(v.parameters())

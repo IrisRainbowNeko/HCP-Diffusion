@@ -74,7 +74,7 @@ class WrapablePlugin:
         if self not in memo:
             if remove_duplicate:
                 memo.add(self)
-            if (exclude_key is None or re.match(exclude_key, prefix)) and not isinstance(self, exclude_classes):
+            if (exclude_key is None or not re.search(exclude_key, prefix)) and not isinstance(self, exclude_classes):
                 yield prefix, self
                 for name, module in self._modules.items():
                     if module is None:
