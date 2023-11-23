@@ -303,7 +303,7 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
             plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
         else:
             named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
-                host, exclude_key=exclude_key, exclude_classes=exclude_classes)}
+                host, exclude_key=exclude_key or '_host', exclude_classes=exclude_classes)}
             for layer_name, layer in named_modules.items():
                 if isinstance(layer, cls.wrapable_classes) or isinstance(layer, cls.container_cls):
                     # For plugins that need parent_block
