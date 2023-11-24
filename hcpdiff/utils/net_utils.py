@@ -9,6 +9,8 @@ from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
 from functools import partial
 
+dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
+
 def get_scheduler(cfg, optimizer):
     if cfg is None:
         return None
@@ -80,7 +82,7 @@ def get_scheduler_with_name(
 
     return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
 
-def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None):
+def auto_tokenizer_cls(pretrained_model_name_or_path: str, revision: str = None):
     from hcpdiff.models.compose import SDXLTokenizer
     try:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -92,7 +94,7 @@ def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None):
         # not sdxl, only one tokenizer
         return AutoTokenizer
 
-def auto_text_encoder(pretrained_model_name_or_path: str, revision: str = None):
+def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = None):
     from hcpdiff.models.compose import SDXLTextEncoder
     try:
         text_encoder_config = PretrainedConfig.from_pretrained(
@@ -119,6 +121,12 @@ def auto_text_encoder(pretrained_model_name_or_path: str, revision: str = None):
             return RobertaSeriesModelWithTransformation
         else:
             raise ValueError(f"{model_class} is not supported.")
+
+def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None, **kwargs):
+    return auto_tokenizer_cls(pretrained_model_name_or_path, revision).from_pretrained(pretrained_model_name_or_path, revision=revision, **kwargs)
+
+def auto_text_encoder(pretrained_model_name_or_path: str, revision: str = None, **kwargs):
+    return auto_text_encoder_cls(pretrained_model_name_or_path, revision).from_pretrained(pretrained_model_name_or_path, revision=revision, **kwargs)
 
 def remove_all_hooks(model: nn.Module) -> None:
     for name, child in model.named_modules():
@@ -215,3 +223,6 @@ def split_module_name(layer_name):
     else:
         parent_name, host_name = name_split
     return parent_name, host_name
+
+def get_dtype(dtype):
+    return dtype_dict.get(dtype, torch.float32)

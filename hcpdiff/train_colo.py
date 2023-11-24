@@ -27,7 +27,7 @@ from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
 from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
 from hcpdiff.utils.utils import load_config_with_cli
-from hcpdiff.utils.net_utils import auto_text_encoder, TEUnetWrapper
+from hcpdiff.utils.net_utils import auto_text_encoder_cls, TEUnetWrapper
 
 class TrainerColo(Trainer):
     def init_context(self, cfgs_raw):
@@ -57,8 +57,8 @@ class TrainerColo(Trainer):
 
     def build_unet_and_TE(self):
         # import correct text encoder class
-        text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path,
-                                                     self.cfgs.model.revision)
+        text_encoder_cls = auto_text_encoder_cls(self.cfgs.model.pretrained_model_name_or_path,
+                                                 self.cfgs.model.revision)
         with ColoInitContext(device=self.device):
             self.unet = UNet2DConditionModel.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision,
