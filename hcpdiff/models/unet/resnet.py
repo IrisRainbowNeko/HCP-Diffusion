@@ -23,7 +23,7 @@ class ResnetBlock(nn.Module):
             norm_builder(num_channels=out_channels),
             nn.SiLU(),
             nn.Dropout(dropout),
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
         )
 
         if in_channels != out_channels:
@@ -34,6 +34,6 @@ class ResnetBlock(nn.Module):
     def forward(self, x, temb):
         shortcut = self.conv_shortcut(x)
         x = self.block1(x)
-        x = x+self.time_emb_proj(temb)
+        x = x+self.time_emb_proj(temb)[:, :, None, None]
         x = self.block2(x)
         return x+shortcut

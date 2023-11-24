@@ -1,4 +1,3 @@
-from diffusers.models.embeddings import Timesteps, TimestepEmbedding
 from functools import partial
 from typing import List, Union, Optional, Tuple
 
@@ -21,7 +20,7 @@ class SDUNet(nn.Module):
                  conv_in_kernel: int = 3,
                  time_embedding_dim: int = None, ):
         super().__init__()
-        block0_channels = self.downblock_builders[0].keywords["in_channels"]
+        block0_channels = downblock_builders[0].keywords["in_channels"]
 
         conv_in_padding = (conv_in_kernel-1)//2
         self.conv_in = nn.Conv2d(in_channels, block0_channels, kernel_size=conv_in_kernel, padding=conv_in_padding)
@@ -39,7 +38,7 @@ class SDUNet(nn.Module):
 
         # proj out
         self.conv_norm_out = nn.GroupNorm(num_channels=block0_channels, num_groups=32, eps=1e-5)
-        self.conv_act = nn.SiLU
+        self.conv_act = nn.SiLU()
         self.conv_out = nn.Conv2d(block0_channels, out_channels, kernel_size=3, padding=1)
 
     def encode_timesteps(self, sample: torch.FloatTensor, timesteps: Union[torch.Tensor, float, int]):
@@ -115,7 +114,7 @@ class SDUNet(nn.Module):
 
         # 5. up
         for i, block in enumerate(self.upblocks):
-            is_final_block = i == len(self.up_blocks)-1
+            is_final_block = i == len(self.upblocks)-1
 
             res_samples = down_block_res_samples[-len(block.resnets):]
             down_block_res_samples = down_block_res_samples[: -len(block.resnets)]
@@ -124,6 +123,8 @@ class SDUNet(nn.Module):
             # upsample size, we do it here
             if not is_final_block:
                 upsample_size = down_block_res_samples[-1].shape[2:]
+            else:
+                upsample_size = None
 
             sample = block(
                 hidden_states=sample,
@@ -147,14 +148,14 @@ def unet_sd15(heads=8, cross_attention_dim=768):
         partial(CrossAttnDownBlock, in_channels=320, out_channels=320, num_layers=2, heads=heads, cross_attention_dim=cross_attention_dim),
         partial(CrossAttnDownBlock, in_channels=320, out_channels=640, num_layers=2, heads=heads, cross_attention_dim=cross_attention_dim),
         partial(CrossAttnDownBlock, in_channels=640, out_channels=1280, num_layers=2, heads=heads, cross_attention_dim=cross_attention_dim),
-        partial(DownBlock, in_channels=1280, out_channels=1280, num_layers=2, heads=8, add_downsample=False),
+        partial(DownBlock, in_channels=1280, out_channels=1280, num_layers=2, add_downsample=False),
     ]
-    midblock_builder = partial(CrossAttnMidBlock, in_channels=1280, out_channels=1280, num_layers=1, heads=heads, cross_attention_dim=cross_attention_dim)
+    midblock_builder = partial(CrossAttnMidBlock, in_channels=1280, num_layers=1, heads=heads, cross_attention_dim=cross_attention_dim)
     upblock_builders = [
-        partial(UpBlock, in_channels=1280, out_channels=1280, num_layers=3, heads=heads, add_upsample=False),
-        partial(CrossAttnUpBlock, in_channels=1280, out_channels=640, num_layers=3, heads=heads, cross_attention_dim=cross_attention_dim),
-        partial(CrossAttnUpBlock, in_channels=640, out_channels=320, num_layers=3, heads=heads, cross_attention_dim=cross_attention_dim),
-        partial(CrossAttnUpBlock, in_channels=320, out_channels=320, num_layers=3, heads=heads, cross_attention_dim=cross_attention_dim),
+        partial(UpBlock, in_channels=1280, out_channels=1280, prev_out_ch=1280, num_layers=3),
+        partial(CrossAttnUpBlock, in_channels=1280, out_channels=1280, prev_out_ch=640, num_layers=3, heads=heads, cross_attention_dim=cross_attention_dim),
+        partial(CrossAttnUpBlock, in_channels=1280, out_channels=640, prev_out_ch=320, num_layers=3, heads=heads, cross_attention_dim=cross_attention_dim),
+        partial(CrossAttnUpBlock, in_channels=640, out_channels=320, prev_out_ch=320, num_layers=3, heads=heads, cross_attention_dim=cross_attention_dim, add_upsample=False),
     ]
 
     time_proj_builder = partial(Timesteps, flip_sin_to_cos=True, downscale_freq_shift=0)

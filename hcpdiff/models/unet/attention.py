@@ -58,9 +58,12 @@ class Attention(nn.Module):
 
         return attention_mask
 
-    def scale_dot_product(self, query, key, value, attention_mask):
+    def scale_dot_product(self, query, key, value, attention_mask=None):
         # Q * K^T
-        attention_scores = torch.baddbmm(attention_mask, query, key.transpose(1, 2), alpha=self.scale)
+        if attention_mask is None:
+            attention_scores = torch.bmm(query, key.transpose(1, 2)/self.scale)
+        else:
+            attention_scores = torch.baddbmm(attention_mask, query, key.transpose(1, 2), alpha=self.scale)
         attention_probs = attention_scores.softmax(dim=-1)
         del attention_scores
 

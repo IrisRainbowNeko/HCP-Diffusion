@@ -8,7 +8,7 @@ from .attention import Attention
 from einops import rearrange
 
 class FeedForward(nn.Module):
-    def __init__(self, dim: int, dim_out: Optional[int] = None, mult: int = 4, activation_builder: partial = partial(GELU), dropout: float = 0.0, ):
+    def __init__(self, dim: int, dim_out: Optional[int] = None, mult: int = 4, activation_builder: partial = partial(GEGLU), dropout: float = 0.0, ):
         super().__init__()
         inner_dim = int(dim*mult)
         dim_out = dim_out or dim
@@ -24,7 +24,7 @@ class FeedForward(nn.Module):
 
 class Transformer2DBlock(nn.Module):
     def __init__(self, in_channels, out_channels, heads, dim_head, dropout=0.0, cross_attention_dim: Optional[int] = None, qkv_bias:bool=False,
-                 activation_builder: partial = partial(GELU), norm_builder: Optional[partial] = None, in_norm_builder: Optional[partial] = None):
+                 activation_builder: partial = partial(GEGLU), norm_builder: Optional[partial] = None, in_norm_builder: Optional[partial] = None):
         super().__init__()
         inner_dim = heads*dim_head
 

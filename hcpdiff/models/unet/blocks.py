@@ -14,10 +14,12 @@ class DownBlock(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
+        self.gradient_checkpointing = False
 
         resnets = []
         for i in range(num_layers):
             resnets.append(ResnetBlock(in_channels, out_channels, temb_channels=temb_channels, dropout=dropout))
+            in_channels = out_channels
         self.resnets = nn.ModuleList(resnets)
 
         if add_downsample:
@@ -33,16 +35,20 @@ class DownBlock(nn.Module):
         attention_mask: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.FloatTensor] = None
     ) -> Tuple[torch.FloatTensor, Tuple[torch.FloatTensor, ...]]:
+        output_states = ()
         if self.training and self.gradient_checkpointing:
             for resnet in self.resnets:
                 hidden_states = torch.utils.checkpoint.checkpoint(resnet, hidden_states, temb)
+                output_states = output_states+(hidden_states,)
         else:
             for resnet in self.resnets:
                 hidden_states = resnet(hidden_states, temb)
+                output_states = output_states+(hidden_states,)
 
         if self.downsamplers is not None:
             hidden_states = self.downsamplers(hidden_states)
-        return hidden_states
+            output_states = output_states+(hidden_states,)
+        return hidden_states, output_states
 
 class CrossAttnDownBlock(DownBlock):
     def __init__(self, in_channels: int, out_channels: int, temb_channels: int, dropout: float = 0.0, num_layers: int = 1,
@@ -62,37 +68,42 @@ class CrossAttnDownBlock(DownBlock):
         attention_mask: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.FloatTensor] = None
     ) -> Tuple[torch.FloatTensor, Tuple[torch.FloatTensor, ...]]:
+        output_states = ()
         if self.training and self.gradient_checkpointing:
             for resnet, attn in zip(self.resnets, self.attentions):
                 hidden_states = checkpoint(resnet, hidden_states, temb)
                 hidden_states = checkpoint(attn, hidden_states, encoder_hidden_states=encoder_hidden_states,
                                            attention_mask=attention_mask, encoder_attention_mask=encoder_attention_mask)
+                output_states = output_states+(hidden_states,)
         else:
             for resnet, attn in zip(self.resnets, self.attentions):
                 hidden_states = resnet(hidden_states, temb)
                 hidden_states = attn(hidden_states, encoder_hidden_states=encoder_hidden_states, attention_mask=attention_mask,
                                      encoder_attention_mask=encoder_attention_mask)
+                output_states = output_states+(hidden_states,)
 
         if self.downsamplers is not None:
             hidden_states = self.downsamplers(hidden_states)
-        return hidden_states
+            output_states = output_states+(hidden_states,)
+        return hidden_states, output_states
 
 class UpBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, temb_channels: int, dropout: float = 0.0, num_layers: int = 1,
+    def __init__(self, in_channels: int, out_channels: int, prev_out_ch:int, temb_channels: int, dropout: float = 0.0, num_layers: int = 1,
                  add_upsample: bool = True):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
+        self.gradient_checkpointing = False
 
         resnets = []
         for i in range(num_layers):
-            res_skip_channels = in_channels if (i == num_layers-1) else out_channels
+            res_skip_channels = prev_out_ch if (i == num_layers-1) else out_channels
             resnet_in_channels = in_channels if i == 0 else out_channels
             resnets.append(ResnetBlock(resnet_in_channels + res_skip_channels, out_channels, temb_channels=temb_channels, dropout=dropout))
         self.resnets = nn.ModuleList(resnets)
 
         if add_upsample:
-            self.upsamplers = Upsample2D(in_channels, out_channels)
+            self.upsamplers = Upsample2D(out_channels, out_channels)
         else:
             self.upsamplers = None
 
@@ -127,9 +138,9 @@ class UpBlock(nn.Module):
         return hidden_states
 
 class CrossAttnUpBlock(UpBlock):
-    def __init__(self, in_channels: int, out_channels: int, temb_channels: int, dropout: float = 0.0, num_layers: int = 1,
+    def __init__(self, in_channels: int, out_channels: int, prev_out_ch:int, temb_channels: int, dropout: float = 0.0, num_layers: int = 1,
                  add_upsample: bool = True, heads: int = 1, cross_attention_dim: int = 1280):
-        super().__init__(in_channels, out_channels, temb_channels, dropout, num_layers, add_upsample)
+        super().__init__(in_channels, out_channels, prev_out_ch, temb_channels, dropout, num_layers, add_upsample)
         attentions = []
         for i in range(num_layers):
             attentions.append(Transformer2DBlock(out_channels, out_channels, heads=heads, dim_head=out_channels//heads,
