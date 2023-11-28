@@ -129,7 +129,9 @@ class ImagePreviewer(Visualizer):
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.dtype == 'amp'):
-            emb, pooled_output = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            if not self.cfgs.encoder_attention_mask:
+                attention_mask = None
             emb_n, emb_p = emb.chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)
             emb_n = self.te_hook.mult_attn(emb_n, mult_n)
@@ -142,5 +144,5 @@ class ImagePreviewer(Visualizer):
                 pooled_output = pooled_output[-1]
 
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, generator=G,
-                               pooled_output=pooled_output, **kwargs).images
+                               pooled_output=pooled_output, encoder_attention_mask=attention_mask, **kwargs).images
         return images

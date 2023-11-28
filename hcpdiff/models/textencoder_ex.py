@@ -39,18 +39,20 @@ class TEEXHook:
             return_tensors="pt",
         )
         text_input_ids = text_inputs.input_ids
-
-        if hasattr(self.text_enc.config, "use_attention_mask") and self.text_enc.config.use_attention_mask:
-            attention_mask = text_inputs.attention_mask.to(self.device)
-        else:
-            attention_mask = None
+        attention_mask = text_inputs.get('attention_mask', None)
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(self.device)
+        position_ids = text_inputs.get('position_ids', None)
+        if position_ids is not None:
+            position_ids = position_ids.to(self.device)
 
         prompt_embeds, pooled_output = self.text_enc(
             text_input_ids.to(self.device),
             attention_mask=attention_mask,
+            position_ids=position_ids,
             output_hidden_states=True,
         )
-        return prompt_embeds, pooled_output
+        return prompt_embeds, pooled_output, attention_mask
 
     def forward_hook_input(self, host, feat_in):
         feat_re = rearrange(feat_in[0], 'b (r w) -> (b r) w', r=self.N_repeats)  # 使Attention mask的尺寸为N_word+2
