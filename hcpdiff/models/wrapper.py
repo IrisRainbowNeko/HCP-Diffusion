@@ -1,5 +1,6 @@
 from torch import nn
 import itertools
+from transformers import CLIPTextModel
 
 class TEUnetWrapper(nn.Module):
     def __init__(self, unet, TE, train_TE=False):
@@ -31,22 +32,17 @@ class TEUnetWrapper(nn.Module):
             self.unet = accelerator.prepare(self.unet)
             return self
 
-    def freeze_model(self):
-        if self.train_TE:
-            for name, m in self.named_modules():
-                if isinstance(m, nn.Dropout) and not m.training:
-                    m.p = 0.
-            self.train()
-        else:
-            for name, m in self.unet.named_modules():
-                if isinstance(m, nn.Dropout) and not m.training:
-                    m.p = 0.
-            self.unet.train()
-
     def enable_gradient_checkpointing(self):
+        def grad_ckpt_enable(m):
+            if hasattr(m, 'gradient_checkpointing'):
+                m.training = True
+
         self.unet.enable_gradient_checkpointing()
         if self.train_TE:
             self.TE.gradient_checkpointing_enable()
+            self.apply(grad_ckpt_enable)
+        else:
+            self.unet.apply(grad_ckpt_enable)
 
     def trainable_parameters(self):
         if self.train_TE:
