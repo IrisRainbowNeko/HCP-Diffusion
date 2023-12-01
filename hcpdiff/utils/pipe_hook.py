@@ -56,6 +56,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
         return_dict: bool = True,
         callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
+        encoder_attention_mask: Optional[torch.FloatTensor] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         pooled_output: Optional[torch.FloatTensor] = None,
         crop_coord: Optional[torch.FloatTensor] = None,
@@ -128,12 +129,12 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
                 if pooled_output is None:
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, ).sample
                 else:
                     added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                     # predict the noise residual
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
                 # perform guidance
@@ -202,6 +203,7 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
         return_dict: bool = True,
         callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
+        encoder_attention_mask: Optional[torch.FloatTensor] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         pooled_output: Optional[torch.FloatTensor] = None,
         crop_coord: Optional[torch.FloatTensor] = None,
@@ -275,12 +277,12 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
 
                 # predict the noise residual
                 if pooled_output is None:
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, ).sample
                 else:
                     added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                     # predict the noise residual
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
                 # perform guidance
@@ -349,6 +351,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         negative_prompt_embeds: Optional[torch.FloatTensor] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
+        encoder_attention_mask: Optional[torch.FloatTensor] = None,
         callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
         **kwargs
@@ -415,7 +418,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
                 # predict the noise residual
-                noise_pred = self.unet(latent_model_input, t, prompt_embeds).sample
+                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask).sample
 
                 # perform guidance
                 if do_classifier_free_guidance:

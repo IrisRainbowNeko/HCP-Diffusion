@@ -10,7 +10,7 @@ from accelerate import infer_auto_device_map, dispatch_model
 from diffusers.utils.import_utils import is_xformers_available
 from hcpdiff.models import TokenizerHook, LoraBlock
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTextEncoder
-from hcpdiff.utils.cfg_net_tools import load_hcpdiff, make_plugin
+from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list
@@ -47,8 +47,8 @@ class Visualizer:
 
     def load_model(self, pretrained_model):
         pipeline = self.get_pipeline()
-        te = auto_text_encoder(pretrained_model).from_pretrained(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
-        tokenizer = auto_tokenizer(pretrained_model).from_pretrained(pretrained_model, subfolder="tokenizer", use_fast=False)
+        te = auto_text_encoder(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
+        tokenizer = auto_tokenizer(pretrained_model, subfolder="tokenizer", use_fast=False)
 
         return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
                                         text_encoder=te, tokenizer=tokenizer, resume_download=True,
@@ -157,9 +157,9 @@ class Visualizer:
         for cfg_group in self.cfg_merge.values():
             if hasattr(cfg_group, 'type'):
                 if cfg_group.type == 'unet':
-                    load_hcpdiff(self.pipe.unet, cfg_group)
+                    HCPModelLoader(self.pipe.unet).load_all(cfg_group)
                 elif cfg_group.type == 'TE':
-                    load_hcpdiff(self.pipe.text_encoder, cfg_group)
+                    HCPModelLoader(self.pipe.text_encoder).load_all(cfg_group)
 
     def set_scheduler(self, scheduler):
         self.pipe.scheduler = scheduler
@@ -190,7 +190,9 @@ class Visualizer:
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.dtype == 'amp'):
-            emb, pooled_output = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            if not self.cfgs.encoder_attention_mask:
+                attention_mask = None
             emb_n, emb_p = emb.chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)
             emb_n = self.te_hook.mult_attn(emb_n, mult_n)
@@ -203,7 +205,7 @@ class Visualizer:
                     feeder(ex_input_dict)
 
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, generator=G,
-                               pooled_output=pooled_output[-1], **kwargs).images
+                               pooled_output=pooled_output[-1], encoder_attention_mask=attention_mask, **kwargs).images
         return images
 
     def inter_callback(self, i, t, num_t, latents):

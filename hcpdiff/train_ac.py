@@ -37,7 +37,7 @@ from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
 from hcpdiff.models.compose import SDXLTextEncoder
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
 from hcpdiff.utils.ema import ModelEMA
-from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer, auto_text_encoder, load_emb
+from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer_cls, auto_text_encoder_cls, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd, format_number
 from hcpdiff.visualizer import Visualizer
 
@@ -69,8 +69,6 @@ class Trainer:
         assert len(cfgs.data)>0, "At least one dataset is need."
         loss_weights = [dataset.keywords['loss_weight'] for name, dataset in cfgs.data.items()]
         self.train_loader_group = DataGroup([self.build_data(dataset) for name, dataset in cfgs.data.items()], loss_weights)
-
-        self.TE_unet.freeze_model()
 
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
@@ -202,7 +200,7 @@ class Trainer:
         if self.cfgs.model.get('tokenizer', None) is not None:
             self.tokenizer = self.cfgs.model.tokenizer
         else:
-            tokenizer_cls = auto_tokenizer(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
+            tokenizer_cls = auto_tokenizer_cls(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
             self.tokenizer = tokenizer_cls.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="tokenizer",
                 revision=self.cfgs.model.revision, use_fast=False,
@@ -227,7 +225,7 @@ class Trainer:
             text_encoder_cls = type(text_encoder)
         else:
             # import correct text encoder class
-            text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
+            text_encoder_cls = auto_text_encoder_cls(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
             text_encoder = text_encoder_cls.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
             )
