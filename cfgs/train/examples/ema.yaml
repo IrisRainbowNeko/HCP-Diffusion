@@ -1,0 +1,10 @@
+_base_:
+  - cfgs/train/examples/fine-tuning.yaml
+
+model:
+  ema:
+    _target_: hcpdiff.utils.ema.ModelEMA
+    _partial_: True
+    decay_max: 0.9997
+    power: 0.85
+

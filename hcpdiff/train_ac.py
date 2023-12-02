@@ -235,10 +235,10 @@ class Trainer:
         self.TE_unet = wrapper_cls(unet, text_encoder, train_TE=self.train_TE)
 
     def build_ema(self):
-        if self.cfgs.model.ema_unet>0:
-            self.ema_unet = ModelEMA(self.TE_unet.unet, self.cfgs.model.ema_unet)
-        if self.train_TE and self.cfgs.model.ema_text_encoder>0:
-            self.ema_text_encoder = ModelEMA(self.TE_unet.TE, self.cfgs.model.ema_text_encoder)
+        if self.cfgs.model.ema is not None:
+            self.ema_unet = self.cfgs.model.ema(self.TE_unet.unet)
+            if self.train_TE:
+                self.ema_text_encoder = self.cfgs.model.ema(self.TE_unet.TE)
 
     def build_ckpt_manager(self):
         self.ckpt_manager = self.ckpt_manager_map[self.cfgs.ckpt_type]()
