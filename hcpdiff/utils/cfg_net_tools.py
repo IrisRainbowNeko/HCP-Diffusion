@@ -232,6 +232,8 @@ class HCPModelLoader:
 
     @torch.no_grad()
     def load_part(self, cfg, base_model_alpha=0.0):
+        if cfg is None:
+            return
         for item in cfg:
             part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
             layers = item.get('layers', 'all')
@@ -246,6 +248,9 @@ class HCPModelLoader:
 
     @torch.no_grad()
     def load_lora(self, cfg, base_model_alpha=1.0):
+        if cfg is None:
+            return
+
         all_lora_blocks = {}
         for lora_id, item in enumerate(cfg):
             lora_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
@@ -280,7 +285,7 @@ class HCPModelLoader:
 
                 lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
                                                         alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
-                                                        parent_block=named_modules[parent_name], host_name=host_name)
+                                                        parent_block=self.named_modules[parent_name], host_name=host_name)
                 all_lora_blocks[f'{layer_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
                 lora_block.to(self.host.device)
@@ -288,6 +293,9 @@ class HCPModelLoader:
 
     @torch.no_grad()
     def load_plugin(self, cfg):
+        if cfg is None:
+            return
+
         for name, item in cfg.items():
             plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
             layers = item.get('layers', 'all')

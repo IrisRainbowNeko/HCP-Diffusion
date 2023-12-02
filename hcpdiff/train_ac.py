@@ -445,12 +445,12 @@ class Trainer:
         # (this is the forward diffusion process)
         return self.noise_scheduler.add_noise(latents, noise, timesteps), noise, timesteps
 
-    def forward(self, latents, prompt_ids, **kwargs):
+    def forward(self, latents, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
         noisy_latents, noise, timesteps = self.make_noise(latents)
 
         # CFG context for DreamArtist
         noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)
-        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, **kwargs)
+        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, attn_mask=attn_mask, position_ids=position_ids, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
         # Get the target for loss depending on the prediction type
@@ -467,15 +467,17 @@ class Trainer:
         with self.accelerator.accumulate(self.TE_unet):
             for idx, data in enumerate(data_list):
                 image = data.pop('img').to(self.device, dtype=self.weight_dtype)
-                att_mask = data.pop('mask').to(self.device) if 'mask' in data else None
+                img_mask = data.pop('mask').to(self.device) if 'mask' in data else None
                 prompt_ids = data.pop('prompt').to(self.device)
-                other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k!='plugin_input'}
+                attn_mask = data.pop('attn_mask').to(self.device) if 'attn_mask' in data else None
+                position_ids = data.pop('position_ids').to(self.device) if 'position_ids' in data else None
+                other_datas = {k:v.to(self.device) for k, v in data.items() if k!='plugin_input'}
                 if 'plugin_input' in data:
                     other_datas['plugin_input'] = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data['plugin_input'].items()}
 
                 latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
-                model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
-                loss = self.get_loss(model_pred, target, timesteps, att_mask)*self.train_loader_group.get_loss_weights(idx)
+                model_pred, target, timesteps = self.forward(latents, prompt_ids, attn_mask, position_ids, **other_datas)
+                loss = self.get_loss(model_pred, target, timesteps, img_mask)*self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):

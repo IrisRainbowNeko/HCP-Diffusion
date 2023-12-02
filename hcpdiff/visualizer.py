@@ -13,7 +13,7 @@ from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTex
 from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
-from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list
+from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list, pad_attn_bias
 from omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
@@ -70,7 +70,7 @@ class Visualizer:
         self.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.cfgs.emb_dir, self.pipe.tokenizer, self.pipe.text_encoder,
                                                           N_repeats=self.cfgs.N_repeats)
         self.te_hook = ComposeTEEXHook.hook_pipe(self.pipe, N_repeats=self.cfgs.N_repeats, clip_skip=self.cfgs.clip_skip,
-                                                 clip_final_norm=self.cfgs.clip_final_norm)
+                                                 clip_final_norm=self.cfgs.clip_final_norm, use_attention_mask=self.cfgs.encoder_attention_mask)
         self.token_ex = TokenizerHook(self.pipe.tokenizer)
 
         if is_xformers_available():
@@ -191,7 +191,9 @@ class Visualizer:
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.dtype == 'amp'):
             emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
-            if not self.cfgs.encoder_attention_mask:
+            if self.cfgs.encoder_attention_mask:
+                emb, attention_mask = pad_attn_bias(emb, attention_mask)
+            else:
                 attention_mask = None
             emb_n, emb_p = emb.chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)

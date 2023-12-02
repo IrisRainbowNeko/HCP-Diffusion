@@ -14,8 +14,8 @@ class MinSNRLoss(nn.MSELoss):
         alphas_cumprod = noise_scheduler.alphas_cumprod
         sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
         sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0-alphas_cumprod)
-        self.alpha = sqrt_alphas_cumprod
-        self.sigma = sqrt_one_minus_alphas_cumprod
+        self.alpha = sqrt_alphas_cumprod.to(device)
+        self.sigma = sqrt_one_minus_alphas_cumprod.to(device)
         self.all_snr = ((self.alpha/self.sigma)**2).to(device)
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, timesteps: torch.Tensor) -> torch.Tensor:

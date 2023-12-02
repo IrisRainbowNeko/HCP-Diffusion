@@ -17,7 +17,7 @@ from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
 
 class TEEXHook:
-    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
+    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
         self.text_enc = text_enc
         self.tokenizer = tokenizer
 
@@ -26,6 +26,7 @@ class TEEXHook:
         self.clip_final_norm = clip_final_norm
         self.device = device
         self.attn_mult = None
+        self.use_attention_mask = use_attention_mask
 
         text_enc.register_forward_hook(self.forward_hook)
         text_enc.register_forward_pre_hook(self.forward_hook_input)
@@ -39,7 +40,10 @@ class TEEXHook:
             return_tensors="pt",
         )
         text_input_ids = text_inputs.input_ids
-        attention_mask = text_inputs.get('attention_mask', None)
+        if self.use_attention_mask:
+            attention_mask = text_inputs.get('attention_mask', None)
+        else:
+            attention_mask = None
         if attention_mask is not None:
             attention_mask = attention_mask.to(self.device)
         position_ids = text_inputs.get('position_ids', None)
@@ -143,9 +147,9 @@ class TEEXHook:
         layer.forward = forward
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
-        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device)
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
+        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device, use_attention_mask=use_attention_mask)
 
     @classmethod
-    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm)
+    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
