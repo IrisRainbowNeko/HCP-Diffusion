@@ -341,5 +341,8 @@ class PluginGroup:
             sd_model = model.state_dict()
             return {f'{k}.___.{ks}':sd_model[f'{k}.{v.name}.{ks}'] for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()}
 
+    def state_keys_raw(self):
+        return [f'{k}.{v.name}.{ks}' for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()]
+
     def empty(self):
         return len(self.plugin_dict) == 0
