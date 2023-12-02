@@ -498,7 +498,8 @@ class Trainer:
                     self.lr_scheduler_pt.step()
                 self.optimizer_pt.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
-            self.update_ema()
+            if self.accelerator.sync_gradients:
+                self.update_ema()
         return loss.item()
 
     def get_loss(self, model_pred, target, timesteps, att_mask):
@@ -514,9 +515,9 @@ class Trainer:
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
-            self.ema_unet.step(self.unet_raw.named_parameters())
+            self.ema_unet.step(self.unet_raw)
         if hasattr(self, 'ema_text_encoder'):
-            self.ema_text_encoder.step(self.TE_raw.named_parameters())
+            self.ema_text_encoder.step(self.TE_raw)
 
     def save_model(self, from_raw=False):
         unet_raw = self.unet_raw
