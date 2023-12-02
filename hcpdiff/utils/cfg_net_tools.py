@@ -231,11 +231,11 @@ class HCPModelLoader:
         self.named_params = {k:v for k, v in host.named_parameters()}
 
     @torch.no_grad()
-    def load_part(self, cfg, base_model_alpha=0.0):
+    def load_part(self, cfg, base_model_alpha=0.0, load_ema=False):
         if cfg is None:
             return
         for item in cfg:
-            part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
+            part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base_ema' if load_ema else 'base']
             layers = item.get('layers', 'all')
             if layers == 'all':
                 for k, v in part_state.items():
@@ -247,13 +247,13 @@ class HCPModelLoader:
                     self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
 
     @torch.no_grad()
-    def load_lora(self, cfg, base_model_alpha=1.0):
+    def load_lora(self, cfg, base_model_alpha=1.0, load_ema=False):
         if cfg is None:
             return
 
         all_lora_blocks = {}
         for lora_id, item in enumerate(cfg):
-            lora_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
+            lora_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora_ema' if load_ema else 'lora']
             lora_block_state = {}
             # get all layers in the lora_state
             for name, p in lora_state.items():
@@ -292,12 +292,12 @@ class HCPModelLoader:
         return LoraGroup(all_lora_blocks)
 
     @torch.no_grad()
-    def load_plugin(self, cfg):
+    def load_plugin(self, cfg, load_ema=False):
         if cfg is None:
             return
 
         for name, item in cfg.items():
-            plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
+            plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin_ema' if load_ema else 'plugin']
             layers = item.get('layers', 'all')
             if layers != 'all':
                 match_blocks = get_match_layers(layers, self.named_modules)
@@ -314,8 +314,8 @@ class HCPModelLoader:
                 for plugin_key in plugin_key_set:
                     self.named_modules[plugin_key].set_hyper_params(**item)
 
-    def load_all(self, cfg_merge):
-        self.load_part(cfg_merge.get('part', []), base_model_alpha=cfg_merge.get('base_model_alpha', 0.0))
-        lora_group = self.load_lora(cfg_merge.get('lora', []), base_model_alpha=cfg_merge.get('base_model_alpha', 1.0))
-        self.load_plugin(cfg_merge.get('plugin', {}))
+    def load_all(self, cfg_merge, load_ema=False):
+        self.load_part(cfg_merge.get('part', []), base_model_alpha=cfg_merge.get('base_model_alpha', 0.0), load_ema=load_ema)
+        lora_group = self.load_lora(cfg_merge.get('lora', []), base_model_alpha=cfg_merge.get('base_model_alpha', 1.0), load_ema=load_ema)
+        self.load_plugin(cfg_merge.get('plugin', {}), load_ema=load_ema)
         return lora_group
