@@ -66,7 +66,7 @@ class CkptManagerPKL(CkptManagerBase):
                 sd_ema = {k:ema_state[k] for k in sd_model['base'].keys()}
                 sd_model['base_ema'] = self.exclude_state(sd_ema, exclude_key)
             if (lora_blocks is not None) and (not lora_blocks.empty()):
-                sd_model['lora_ema'] = {k:ema_state[k_raw] for k, k_raw in zip(sd_model['lora'].keys(), lora_blocks.state_keys_raw())}
+                sd_model['lora_ema'] = lora_blocks.state_dict(model_ema)
 
         self._save_ckpt(sd_model, name, step)
 
