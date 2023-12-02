@@ -236,9 +236,9 @@ class Trainer:
 
     def build_ema(self):
         if self.cfgs.model.ema_unet>0:
-            self.ema_unet = ModelEMA(self.TE_unet.unet.named_parameters(), self.cfgs.model.ema_unet)
+            self.ema_unet = ModelEMA(self.TE_unet.unet, self.cfgs.model.ema_unet)
         if self.train_TE and self.cfgs.model.ema_text_encoder>0:
-            self.ema_text_encoder = ModelEMA(self.TE_unet.TE.named_parameters(), self.cfgs.model.ema_text_encoder)
+            self.ema_text_encoder = ModelEMA(self.TE_unet.TE, self.cfgs.model.ema_text_encoder)
 
     def build_ckpt_manager(self):
         self.ckpt_manager = self.ckpt_manager_map[self.cfgs.ckpt_type]()
@@ -515,9 +515,9 @@ class Trainer:
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
-            self.ema_unet.step(self.unet_raw)
+            self.ema_unet.update(self.unet_raw)
         if hasattr(self, 'ema_text_encoder'):
-            self.ema_text_encoder.step(self.TE_raw)
+            self.ema_text_encoder.update(self.TE_raw)
 
     def save_model(self, from_raw=False):
         unet_raw = self.unet_raw

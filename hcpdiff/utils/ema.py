@@ -5,15 +5,17 @@ from typing import Iterable, Tuple, Dict
 import numpy as np
 
 class ModelEMA:
-    def __init__(self, model: nn.Module, decay_max=0.9997, inv_gamma=1., power=2/3, start_step=0):
-        self.train_params = {name:p.data.clone().detach() for name, p in model.named_parameters() if p.requires_grad}
+    def __init__(self, model: nn.Module, decay_max=0.9997, inv_gamma=1., power=2/3, start_step=0, device='cpu'):
+        self.train_params = {name:p.data.clone().to(device) for name, p in model.named_parameters() if p.requires_grad}
+        self.train_params.update({name:p.clone().to(device) for name, p in model.named_buffers()})
         self.decay_max = decay_max
         self.inv_gamma = inv_gamma
         self.power = power
         self.step = start_step
+        self.device=device
 
     @torch.no_grad()
-    def step(self, model: nn.Module, device='cpu'):
+    def update(self, model: nn.Module):
         self.step += 1
         # Compute the decay factor for the exponential moving average.
         decay = 1-(1+self.step/self.inv_gamma)**-self.power
@@ -21,7 +23,11 @@ class ModelEMA:
 
         for name, param in model.named_parameters():
             if name in self.train_params:
-                self.train_params[name].lerp_(param.data.to(device), 1-decay) # (1-e)x + e*x_
+                self.train_params[name].lerp_(param.data.to(self.device), 1-decay) # (1-e)x + e*x_
+
+        for name, param in model.named_buffers():
+            if name in self.train_params:
+                self.train_params[name].copy_(param.to(self.device))
 
         #torch.cuda.empty_cache()
 
