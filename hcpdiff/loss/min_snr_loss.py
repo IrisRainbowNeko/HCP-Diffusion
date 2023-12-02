@@ -14,9 +14,9 @@ class MinSNRLoss(nn.MSELoss):
         alphas_cumprod = noise_scheduler.alphas_cumprod
         sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
         sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0-alphas_cumprod)
-        alpha = sqrt_alphas_cumprod
-        sigma = sqrt_one_minus_alphas_cumprod
-        self.all_snr = ((alpha/sigma)**2).to(device)
+        self.alpha = sqrt_alphas_cumprod
+        self.sigma = sqrt_one_minus_alphas_cumprod
+        self.all_snr = ((self.alpha/self.sigma)**2).to(device)
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, timesteps: torch.Tensor) -> torch.Tensor:
         loss = super(MinSNRLoss, self).forward(input, target)
@@ -40,4 +40,12 @@ class KDiffMinSNRLoss(MinSNRLoss):
         loss = super(MinSNRLoss, self).forward(input, target)
         snr = self.all_snr[timesteps[:loss.shape[0], ...].squeeze()]
         snr_weight = 4*(((self.gamma*snr)**2/(snr**2 + self.gamma**2)**2)).float()
+        return loss*snr_weight.view(-1, 1, 1, 1)
+
+class EDMLoss(MinSNRLoss):
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor, timesteps: torch.Tensor) -> torch.Tensor:
+        loss = super(MinSNRLoss, self).forward(input, target)
+        sigma = self.sigma[timesteps[:loss.shape[0], ...].squeeze()]
+        snr_weight = ((sigma**2+2**2)/(sigma*2)**2).float()
         return loss*snr_weight.view(-1, 1, 1, 1)
