@@ -154,12 +154,13 @@ class Visualizer:
             make_plugin(self.pipe.unet, plugin_cfg.plugin_unet)
             make_plugin(self.pipe.text_encoder, plugin_cfg.plugin_TE)
 
+        load_ema = self.cfg_merge.get('load_ema', False)
         for cfg_group in self.cfg_merge.values():
             if hasattr(cfg_group, 'type'):
                 if cfg_group.type == 'unet':
-                    HCPModelLoader(self.pipe.unet).load_all(cfg_group)
+                    HCPModelLoader(self.pipe.unet).load_all(cfg_group, load_ema=load_ema)
                 elif cfg_group.type == 'TE':
-                    HCPModelLoader(self.pipe.text_encoder).load_all(cfg_group)
+                    HCPModelLoader(self.pipe.text_encoder).load_all(cfg_group, load_ema=load_ema)
 
     def set_scheduler(self, scheduler):
         self.pipe.scheduler = scheduler
