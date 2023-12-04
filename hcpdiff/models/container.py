@@ -15,7 +15,10 @@ class ParameterGroup:
 
     @property
     def data(self):
-        return torch.cat([v.data for v in self.values], dim=-1)
+        return torch.cat([v.data for v in self.values], dim=-1).mean()
+
+    def mean(self, dim=None):
+        return torch.cat([v for v in self.values], dim=-1).mean(dim=dim)
 
     def __getitem__(self, idx):
         return self.values[idx]
