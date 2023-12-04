@@ -148,11 +148,13 @@ class Visualizer:
     def merge_model(self):
         if 'plugin_cfg' in self.cfg_merge:  # Build plugins
             if isinstance(self.cfg_merge.plugin_cfg, str):
-                plugin_cfg = hydra.utils.instantiate(load_config(self.cfg_merge.plugin_cfg))
+                plugin_cfg = load_config(self.cfg_merge.plugin_cfg)
+                plugin_cfg = {'plugin_unet': hydra.utils.instantiate(plugin_cfg['plugin_unet']),
+                              'plugin_TE': hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
             else:
                 plugin_cfg = self.cfg_merge.plugin_cfg
-            make_plugin(self.pipe.unet, plugin_cfg.plugin_unet)
-            make_plugin(self.pipe.text_encoder, plugin_cfg.plugin_TE)
+            make_plugin(self.pipe.unet, plugin_cfg['plugin_unet'])
+            make_plugin(self.pipe.text_encoder, plugin_cfg['plugin_TE'])
 
         load_ema = self.cfg_merge.get('load_ema', False)
         for cfg_group in self.cfg_merge.values():
