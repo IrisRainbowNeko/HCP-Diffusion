@@ -1,9 +1,9 @@
 dtype: fp16
-bs: 1
-seed: null
+bs: 4
+seed: 42
 
 pretrained_model: 'Meina/MeinaMix_V11'
-prompt: 'masterpiece, best quality, 1girl, solo, tohsaka rin'  # image of 远坂凛(tohsaka rin)
+prompt: 'masterpiece, best quality, 1girl, solo, tohsaka rin, full body, bikini'  # image of 远坂凛(tohsaka rin)
 neg_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
 N_repeats: 1
 
@@ -80,6 +80,8 @@ actions:
 
   # image to image
   - _target_: hcpdiff.workflow.LatentResizeAction
+    width: ${infer_args.width}
+    height: ${infer_args.height}
   - _target_: hcpdiff.workflow.SeedAction
     seed: ${seed}
   - _target_: hcpdiff.workflow.MakeTimestepsAction

@@ -8,10 +8,10 @@ seed:
 
 pretrained_model: 'Meina/MeinaMix_V11'
 prompt:
-  - 'masterpiece, best quality, 1girl, solo, {ling_arknights-5000:1.2}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair'
-  - 'best quality, masterpiece, highres, solo, {ling_arknights-5000:1.15}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair, 1girl, black_gloves, black_shorts, boots, coat, dragon_girl, elbow_gloves, gloves, holding, looking_at_viewer, open_clothes, open_coat, shirt, short_shorts, shorts, thigh_strap, white_coat, white_footwear, white_shirt, bare_legs, dragon_tail, full_body, gourd, holding_staff, lantern, long_sleeves, staff, ankle_boots, closed_mouth, one_eye_closed, simple_background, wide_sleeves'
-  - 'best quality, masterpiece, highres, solo, {night:1.10}, {starry sky:1.10}, beach, beautiful detailed sky, {extremely detailed background:1.20}, {ling_arknights-5000:0.8}, {standing:1.10}, looking at viewer, {bikini:1.30}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair, light smile'
-  - 'best quality, masterpiece, highres, solo, {black business suit:1.40}, {tie:1.20}, {sunglasses:1.25}, {white gloves:1.15}, {white shirt:1.10}, {black skirt:1.15}, {smoking:1.20}, handsome, {ling_arknights-5000:1.15}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair'
+  - 'masterpiece, best quality, 1girl, solo, {ling_arknights-4400:1.2}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair'
+  - 'best quality, masterpiece, highres, solo, {ling_arknights-4400:1.15}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair, 1girl, black_gloves, black_shorts, boots, coat, dragon_girl, elbow_gloves, gloves, holding, looking_at_viewer, open_clothes, open_coat, shirt, short_shorts, shorts, thigh_strap, white_coat, white_footwear, white_shirt, bare_legs, dragon_tail, full_body, gourd, holding_staff, lantern, long_sleeves, staff, ankle_boots, closed_mouth, one_eye_closed, simple_background, wide_sleeves'
+  - 'best quality, masterpiece, highres, solo, {night:1.10}, {starry sky:1.10}, beach, beautiful detailed sky, {extremely detailed background:1.20}, {ling_arknights-4400:0.8}, {standing:1.10}, looking at viewer, {bikini:1.30}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair, light smile'
+  - 'best quality, masterpiece, highres, solo, {black business suit:1.40}, {tie:1.20}, {sunglasses:1.25}, {white gloves:1.15}, {white shirt:1.10}, {black skirt:1.15}, {smoking:1.20}, handsome, {ling_arknights-4400:1.15}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair'
 neg_prompt:
   - 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
   - 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
@@ -20,7 +20,7 @@ neg_prompt:
 N_repeats: 3
 
 clip_skip: 1 #动漫模型通常会跳过一个CLIP层
-models_dir: exps/ling_t4_r1_w1_p0.3_init_scunet_dp/ckpts
+models_dir: exps/ling/ckpts
 emb_dir: ${models_dir}
 
 infer_args:
@@ -33,7 +33,7 @@ output_dir: 'output/'
 lora:
   alpha: 0.8
   dir: ${models_dir}
-  step: 5000
+  step: 4400
   text_encoder: ${lora.dir}/text_encoder-${lora.step}.safetensors
   unet: ${lora.dir}/unet-${lora.step}.safetensors
 
