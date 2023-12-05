@@ -22,6 +22,7 @@ class ImagePreviewer(Visualizer):
         self.cfgs = hydra.utils.instantiate(self.cfgs_raw)
         self.save_cfg = save_cfg
         self.offload = 'offload' in self.cfgs and self.cfgs.offload is not None
+        self.dtype = self.dtype_dict[self.cfgs.dtype]
 
         if getattr(self.cfgs.new_components, 'scheduler', None) is None:
             scheduler = PNDMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule='scaled_linear')
