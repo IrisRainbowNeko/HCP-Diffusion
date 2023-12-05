@@ -127,7 +127,8 @@ class NoisePredAction(BasicAction, MemoryMixin):
         self.unet = unet
         self.scheduler = scheduler
 
-    def forward(self, memory, t, latents, prompt_embeds, pooled_output=None, crop_info=None, cross_attention_kwargs=None, dtype='fp32', **states):
+    def forward(self, memory, t, latents, prompt_embeds, pooled_output=None, encoder_attention_mask=None, crop_info=None,
+                cross_attention_kwargs=None, dtype='fp32', **states):
         self.scheduler = self.scheduler or memory.scheduler
         self.unet = self.unet or memory.unet
 
@@ -136,12 +137,12 @@ class NoisePredAction(BasicAction, MemoryMixin):
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
             if pooled_output is None:
-                noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                        cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
                 added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                 # predict the noise residual
-                noise_pred = self.unet(latent_model_input, t, prompt_embeds,
+                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                        cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
             # perform guidance

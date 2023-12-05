@@ -7,14 +7,14 @@ from typing import List
 
 class LatentResizeAction(BasicAction):
     @from_memory_context
-    def __init__(self, scale_factor=2, mode='bicubic', antialias=True):
-        self.scale_factor = scale_factor
+    def __init__(self, width=1024, height=1024, mode='bicubic', antialias=True):
+        self.size = (height//8, width//8)
         self.mode = mode
         self.antialias = antialias
 
     def forward(self, latents, **states):
         latents_dtype = latents.dtype
-        latents = nn.functional.interpolate(latents.to(dtype=torch.float32), scale_factor=self.scale_factor, mode=self.mode)
+        latents = nn.functional.interpolate(latents.to(dtype=torch.float32), size=self.size, mode=self.mode)
         latents = latents.to(dtype=latents_dtype)
         return {**states, 'latents':latents}
 
@@ -24,10 +24,10 @@ class ImageResizeAction(BasicAction):
         'hamming':Image.HAMMING, 'antialias':Image.ANTIALIAS}
 
     @from_memory_context
-    def __init__(self, scale_factor=2, mode='bicubic'):
-        self.scale_factor = scale_factor
+    def __init__(self, width=1024, height=1024, mode='bicubic'):
+        self.size = (width, height)
         self.mode = self.mode_map[mode]
 
     def forward(self, images:List[Image.Image], **states):
-        images = [image.resize((int(image.width*self.scale_factor), int(image.height*self.scale_factor)), resample=self.mode) for image in images]
+        images = [image.resize(self.size, resample=self.mode) for image in images]
         return {**states, 'images':images}

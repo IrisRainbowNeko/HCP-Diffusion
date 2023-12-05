@@ -67,7 +67,7 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         mult_p, clean_text_p = token_ex.parse_attn_mult(self.prompt)
         mult_n, clean_text_n = token_ex.parse_attn_mult(self.negative_prompt)
         with autocast(enabled=dtype == 'amp'):
-            emb, pooled_output = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
             # emb = emb.to(dtype=dtype, device=device)
             emb_n, emb_p = emb.chunk(2)
         emb_p = te_hook.mult_attn(emb_p, mult_p)
@@ -77,4 +77,4 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             to_cpu(memory.text_encoder)
 
         return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
-            'device':device, 'dtype':dtype}
+            'device':device, 'dtype':dtype, 'encoder_attention_mask': attention_mask}
