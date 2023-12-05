@@ -138,7 +138,7 @@ class LohaLayer(LoraBlock):
             b = None
             return w, b
 
-layer_map={
+lora_layer_map={
     'lora': LoraLayer,
     'loha_group': LoraLayerGroup,
     'loha': LohaLayer,

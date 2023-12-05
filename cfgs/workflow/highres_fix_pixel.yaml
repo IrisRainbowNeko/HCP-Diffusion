@@ -1,0 +1,99 @@
+dtype: fp16
+bs: 2
+seed: 42
+
+memory: { }
+
+prepare:
+  - _target_: hcpdiff.workflow.LoadModelsAction
+    pretrained_model: 'ckpts/any5'
+    dtype: ${dtype}
+    scheduler:
+      _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
+      beta_start: 0.00085
+      beta_end: 0.012
+      beta_schedule: 'scaled_linear'
+  - _target_: hcpdiff.workflow.XformersEnableAction
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      import torch
+      memory.vae.to(dtype=torch.bfloat16)
+  - _target_: hcpdiff.workflow.PrepareDiffusionAction
+    dtype: ${dtype}
+  - _target_: hcpdiff.workflow.VaeOptimizeAction
+    slicing: True
+
+actions:
+  - _target_: hcpdiff.workflow.TextHookAction # text encoder and tokenizer auto get from memory
+    N_repeats: 1
+    layer_skip: 1
+  # encode text
+  - _target_:  hcpdiff.workflow.StartTextEncode
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: 'masterpiece, best quality, 1girl, cat ears, outside'
+    negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+    bs: ${bs}
+  - _target_:  hcpdiff.workflow.EndTextEncode
+
+  - _target_:  hcpdiff.workflow.StartDiffusion
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 30
+  # text to image
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 512
+    height: 768
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: 7.0
+  - _target_:  hcpdiff.workflow.EndDiffusion
+
+  # decode and resize image
+  - _target_: hcpdiff.workflow.DecodeAction
+    vae: ${hcp.from_memory:vae}
+    offload: false
+  - _target_: hcpdiff.workflow.SaveImageAction
+    save_root: output_pipe/
+    image_type: webp
+  - _target_: hcpdiff.workflow.ImageResizeAction
+  - _target_: hcpdiff.workflow.EncodeAction
+    vae: ${hcp.from_memory:vae}
+
+  # image to image
+  - _target_:  hcpdiff.workflow.StartDiffusion
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 30
+  # only part of timesteps
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      states['timesteps'] = states['timesteps'][int(30*(1-0.6)):]
+      states['start_timestep'] = states['timesteps'][:1]
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 1024
+    height: 1536
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: 7.0
+  - _target_:  hcpdiff.workflow.EndDiffusion
+
+  # decode to image
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      from hcpdiff.utils.net_utils import to_cpu, to_cuda
+      to_cpu(memory.unet)
+  - _target_: hcpdiff.workflow.DecodeAction
+    vae: ${hcp.from_memory:vae}
+    offload: true
+  - _target_: hcpdiff.workflow.SaveImageAction
+    save_root: output_pipe/
+    image_type: png

@@ -68,8 +68,7 @@ model:
   enable_xformers: True
   gradient_checkpointing: True
   force_cast_precision: False
-  ema_unet: 0 # 0 to disable
-  ema_text_encoder: 0 # 0 to disable
+  ema: null
   clip_skip: 0
   clip_final_norm: True
 

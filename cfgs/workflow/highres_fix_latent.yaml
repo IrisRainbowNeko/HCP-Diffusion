@@ -83,4 +83,4 @@ actions:
     offload: true
   - _target_: hcpdiff.workflow.SaveImageAction
     save_root: output_pipe/
-    image_type: webp
+    image_type: png

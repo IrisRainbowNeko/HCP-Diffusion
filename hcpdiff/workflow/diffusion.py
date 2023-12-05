@@ -1,6 +1,7 @@
 from .base import BasicAction, from_memory_context, ExecAction, MemoryMixin
 from typing import Dict, Any, Union, List
 import torch
+from torch.cuda.amp import autocast
 import inspect
 
 try:
@@ -126,29 +127,31 @@ class NoisePredAction(BasicAction, MemoryMixin):
         self.unet = unet
         self.scheduler = scheduler
 
-    def forward(self, memory, t, latents, prompt_embeds, pooled_output=None, crop_info=None, cross_attention_kwargs=None, **states):
+    def forward(self, memory, t, latents, prompt_embeds, pooled_output=None, encoder_attention_mask=None, crop_info=None,
+                cross_attention_kwargs=None, dtype='fp32', **states):
         self.scheduler = self.scheduler or memory.scheduler
         self.unet = self.unet or memory.unet
 
-        latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
-        latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+        with autocast(enabled=dtype == 'amp'):
+            latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
+            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-        if pooled_output is None:
-            noise_pred = self.unet(latent_model_input, t, prompt_embeds,
-                                   cross_attention_kwargs=cross_attention_kwargs, ).sample
-        else:
-            added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
-            # predict the noise residual
-            noise_pred = self.unet(latent_model_input, t, prompt_embeds,
-                                   cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+            if pooled_output is None:
+                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                                       cross_attention_kwargs=cross_attention_kwargs, ).sample
+            else:
+                added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
+                # predict the noise residual
+                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                                       cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
-        # perform guidance
-        if self.guidance_scale>1:
-            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+            # perform guidance
+            if self.guidance_scale>1:
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
 
         return {**states, 'noise_pred':noise_pred, 'latents': latents, 't':t, 'prompt_embeds':prompt_embeds, 'pooled_output':pooled_output,
-            'crop_info':crop_info, 'cross_attention_kwargs':cross_attention_kwargs}
+            'crop_info':crop_info, 'cross_attention_kwargs':cross_attention_kwargs, 'dtype':dtype}
 
 class SampleAction(BasicAction, MemoryMixin):
     @from_memory_context

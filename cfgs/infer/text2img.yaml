@@ -7,10 +7,12 @@ emb_dir: 'embs/'
 N_repeats: 1
 clip_skip: 0
 clip_final_norm: True
+encoder_attention_mask: True
 bs: 4
 num: 1
 seed: null
 dtype: 'fp16'
+amp: True
 
 condition: null
 

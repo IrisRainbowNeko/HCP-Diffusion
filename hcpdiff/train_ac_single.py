@@ -21,12 +21,6 @@ class TrainerSingleCard(Trainer):
 
         set_seed(self.cfgs.seed+self.local_rank)
 
-    def update_ema(self):
-        if hasattr(self, 'ema_unet'):
-            self.ema_unet.step(self.unet_raw.named_parameters())
-        if hasattr(self, 'ema_text_encoder'):
-            self.ema_text_encoder.step(self.TE_raw.named_parameters())
-
     @property
     def unet_raw(self):
         return self.TE_unet.unet

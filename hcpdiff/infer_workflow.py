@@ -35,7 +35,7 @@ class WorkflowRunner:
             for v in cfgs:
                 self.attach_memory(v)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def run(self, actions, states):
         N_steps = len(actions)
         for step, act in enumerate(actions):

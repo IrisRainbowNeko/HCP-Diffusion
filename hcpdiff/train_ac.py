@@ -70,8 +70,6 @@ class Trainer:
         loss_weights = [dataset.keywords['loss_weight'] for name, dataset in cfgs.data.items()]
         self.train_loader_group = DataGroup([self.build_data(dataset) for name, dataset in cfgs.data.items()], loss_weights)
 
-        self.TE_unet.freeze_model()
-
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
         self.build_optimizer_scheduler()
@@ -166,11 +164,11 @@ class Trainer:
             prepare_name_list.append('TE_unet.unet')
 
         if hasattr(self, 'optimizer'):
-            prepare_obj_list.extend([self.optimizer, self.lr_scheduler])
-            prepare_name_list.extend(['optimizer', 'lr_scheduler'])
+            prepare_obj_list.extend([self.optimizer, self.lr_scheduler] if self.lr_scheduler else [self.optimizer])
+            prepare_name_list.extend(['optimizer', 'lr_scheduler'] if self.lr_scheduler else ['optimizer'])
         if hasattr(self, 'optimizer_pt'):
-            prepare_obj_list.extend([self.optimizer_pt, self.lr_scheduler_pt])
-            prepare_name_list.extend(['optimizer_pt', 'lr_scheduler_pt'])
+            prepare_obj_list.extend([self.optimizer_pt, self.lr_scheduler_pt] if self.lr_scheduler_pt else [self.optimizer_pt])
+            prepare_name_list.extend(['optimizer_pt', 'lr_scheduler_pt'] if self.lr_scheduler_pt else ['optimizer_pt'])
 
         prepare_obj_list.extend(self.train_loader_group.loader_list)
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
@@ -237,10 +235,10 @@ class Trainer:
         self.TE_unet = wrapper_cls(unet, text_encoder, train_TE=self.train_TE)
 
     def build_ema(self):
-        if self.cfgs.model.ema_unet>0:
-            self.ema_unet = ModelEMA(self.TE_unet.unet.named_parameters(), self.cfgs.model.ema_unet)
-        if self.train_TE and self.cfgs.model.ema_text_encoder>0:
-            self.ema_text_encoder = ModelEMA(self.TE_unet.TE.named_parameters(), self.cfgs.model.ema_text_encoder)
+        if self.cfgs.model.ema is not None:
+            self.ema_unet = self.cfgs.model.ema(self.TE_unet.unet)
+            if self.train_TE:
+                self.ema_text_encoder = self.cfgs.model.ema(self.TE_unet.TE)
 
     def build_ckpt_manager(self):
         self.ckpt_manager = self.ckpt_manager_map[self.cfgs.ckpt_type]()
@@ -369,11 +367,7 @@ class Trainer:
                 self.scale_lr(parameters)
             assert isinstance(cfg_opt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
             self.optimizer = cfg_opt(params=parameters)
-
-            if isinstance(self.cfgs.train.scheduler, partial):
-                self.lr_scheduler = self.cfgs.train.scheduler(optimizer=self.optimizer)
-            else:
-                self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
+            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
         if len(parameters_pt)>0:  # do prompt-tuning
             cfg_opt_pt = self.cfgs.train.optimizer_pt
@@ -381,11 +375,7 @@ class Trainer:
                 self.scale_lr(parameters_pt)
             assert isinstance(cfg_opt_pt, partial), f'optimizer.type is not supported anymore, please use class path like "torch.optim.AdamW".'
             self.optimizer_pt = cfg_opt_pt(params=parameters_pt)
-
-            if isinstance(self.cfgs.train.scheduler_pt, partial):
-                self.lr_scheduler_pt = self.cfgs.train.scheduler_pt(optimizer=self.optimizer_pt)
-            else:
-                self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
+            self.lr_scheduler_pt = get_scheduler(self.cfgs.train.scheduler_pt, self.optimizer_pt)
 
     def train(self, loss_ema=0.93):
         total_batch_size = sum(self.batch_size_list)*self.world_size*self.cfgs.train.gradient_accumulation_steps
@@ -410,8 +400,9 @@ class Trainer:
                 if self.global_step%self.cfgs.train.save_step == 0:
                     self.save_model()
                 if self.global_step%self.min_log_step == 0:
-                    lr_model = self.lr_scheduler.get_last_lr()[0] if hasattr(self, 'lr_scheduler') else 0.
-                    lr_word = self.lr_scheduler_pt.get_last_lr()[0] if hasattr(self, 'lr_scheduler_pt') else 0.
+                    # get learning rate from optimizer
+                    lr_model = self.optimizer.param_groups[0]['lr'] if hasattr(self, 'optimizer') else 0.
+                    lr_word = self.optimizer_pt.param_groups[0]['lr'] if hasattr(self, 'optimizer_pt') else 0.
                     self.loggers.log(datas={
                         'Step':{'format':'[{}/{}]', 'data':[self.global_step, self.cfgs.train.train_steps]},
                         'Epoch':{'format':'[{}/{}]<{}/{}>', 'data':[self.global_step//self.steps_per_epoch, self.cfgs.train.train_epochs,
@@ -454,12 +445,12 @@ class Trainer:
         # (this is the forward diffusion process)
         return self.noise_scheduler.add_noise(latents, noise, timesteps), noise, timesteps
 
-    def forward(self, latents, prompt_ids, **kwargs):
+    def forward(self, latents, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
         noisy_latents, noise, timesteps = self.make_noise(latents)
 
         # CFG context for DreamArtist
         noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)
-        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, **kwargs)
+        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, attn_mask=attn_mask, position_ids=position_ids, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
         # Get the target for loss depending on the prediction type
@@ -476,15 +467,17 @@ class Trainer:
         with self.accelerator.accumulate(self.TE_unet):
             for idx, data in enumerate(data_list):
                 image = data.pop('img').to(self.device, dtype=self.weight_dtype)
-                att_mask = data.pop('mask').to(self.device) if 'mask' in data else None
+                img_mask = data.pop('mask').to(self.device) if 'mask' in data else None
                 prompt_ids = data.pop('prompt').to(self.device)
-                other_datas = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data.items()}
+                attn_mask = data.pop('attn_mask').to(self.device) if 'attn_mask' in data else None
+                position_ids = data.pop('position_ids').to(self.device) if 'position_ids' in data else None
+                other_datas = {k:v.to(self.device) for k, v in data.items() if k!='plugin_input'}
                 if 'plugin_input' in data:
                     other_datas['plugin_input'] = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data['plugin_input'].items()}
 
                 latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
-                model_pred, target, timesteps = self.forward(latents, prompt_ids, **other_datas)
-                loss = self.get_loss(model_pred, target, timesteps, att_mask)*self.train_loader_group.get_loss_weights(idx)
+                model_pred, target, timesteps = self.forward(latents, prompt_ids, attn_mask, position_ids, **other_datas)
+                loss = self.get_loss(model_pred, target, timesteps, img_mask)*self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):
@@ -495,15 +488,18 @@ class Trainer:
                         clip_param = self.TE_unet.module.trainable_parameters()
                     self.accelerator.clip_grad_norm_(clip_param, self.cfgs.train.max_grad_norm)
                 self.optimizer.step()
-                self.lr_scheduler.step()
+                if self.lr_scheduler:
+                    self.lr_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
             if hasattr(self, 'optimizer_pt'):  # prompt tuning
                 self.optimizer_pt.step()
-                self.lr_scheduler_pt.step()
+                if self.lr_scheduler_pt:
+                    self.lr_scheduler_pt.step()
                 self.optimizer_pt.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
-            self.update_ema()
+            if self.accelerator.sync_gradients:
+                self.update_ema()
         return loss.item()
 
     def get_loss(self, model_pred, target, timesteps, att_mask):
@@ -519,9 +515,9 @@ class Trainer:
 
     def update_ema(self):
         if hasattr(self, 'ema_unet'):
-            self.ema_unet.step(self.unet_raw.named_parameters())
+            self.ema_unet.update(self.unet_raw)
         if hasattr(self, 'ema_text_encoder'):
-            self.ema_text_encoder.step(self.TE_raw.named_parameters())
+            self.ema_text_encoder.update(self.TE_raw)
 
     def save_model(self, from_raw=False):
         unet_raw = self.unet_raw
