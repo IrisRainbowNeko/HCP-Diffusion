@@ -18,7 +18,7 @@ from omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
 class Visualizer:
-    dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
+    dtype_dict = {'fp32':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
     def __init__(self, cfgs):
         self.cfgs_raw = cfgs
@@ -192,7 +192,7 @@ class Visualizer:
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
-        with autocast(enabled=self.cfgs.dtype == 'amp'):
+        with autocast(enabled=self.cfgs.amp, dtype=self.dtype):
             emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
             if self.cfgs.encoder_attention_mask:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)

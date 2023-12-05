@@ -128,7 +128,7 @@ class ImagePreviewer(Visualizer):
 
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
-        with autocast(enabled=self.cfgs.dtype == 'amp'):
+        with autocast(enabled=self.cfgs.amp, dtype=self.dtype):
             emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
             if not self.cfgs.encoder_attention_mask:
                 attention_mask = None
