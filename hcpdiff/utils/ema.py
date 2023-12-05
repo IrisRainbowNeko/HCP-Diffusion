@@ -6,8 +6,8 @@ import numpy as np
 
 class ModelEMA:
     def __init__(self, model: nn.Module, decay_max=0.9997, inv_gamma=1., power=2/3, start_step=0, device='cpu'):
-        self.train_params = {name:p.data.clone().to(device) for name, p in model.named_parameters() if p.requires_grad}
-        self.train_params.update({name:p.clone().to(device) for name, p in model.named_buffers()})
+        self.train_params = {name:p.data.to(device) for name, p in model.named_parameters() if p.requires_grad}
+        self.train_params.update({name:p.to(device) for name, p in model.named_buffers()})
         self.decay_max = decay_max
         self.inv_gamma = inv_gamma
         self.power = power
