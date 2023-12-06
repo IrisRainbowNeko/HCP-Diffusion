@@ -48,5 +48,5 @@ class EDMLoss(MinSNRLoss):
         loss = super(MinSNRLoss, self).forward(input, target)
         sigma = self.sigma[timesteps[:loss.shape[0], ...].squeeze()]
         snr = self.all_snr[timesteps[:loss.shape[0], ...].squeeze()]
-        snr_weight = ((sigma**2+2**2)/(snr*(sigma*2)**2)).float()
+        snr_weight = ((sigma**2+self.gamma**2)/(snr*(sigma*self.gamma)**2)).float()
         return loss*snr_weight.view(-1, 1, 1, 1)
