@@ -20,3 +20,4 @@ xformers
 pytorch_lightning
 dghs-imgutils>=0.2.10
 easydict
+easydict
