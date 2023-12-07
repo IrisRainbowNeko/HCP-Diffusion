@@ -1,8 +1,10 @@
-from .base import BasicAction, from_memory_context, ExecAction, MemoryMixin
+import inspect
 from typing import Dict, Any, Union, List
+
 import torch
 from torch.cuda.amp import autocast
-import inspect
+
+from .base import BasicAction, from_memory_context, MemoryMixin
 
 try:
     from diffusers.utils import randn_tensor
@@ -11,12 +13,12 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 
 from hcpdiff.utils import prepare_seed
-from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
+from hcpdiff.utils.net_utils import get_dtype
 import random
 
 class InputFeederAction(BasicAction):
     @from_memory_context
-    def __init__(self, ex_inputs:Dict[str, Any], unet=None):
+    def __init__(self, ex_inputs: Dict[str, Any], unet=None):
         super().__init__()
         self.ex_inputs = ex_inputs
         self.unet = unet
@@ -29,7 +31,7 @@ class InputFeederAction(BasicAction):
 
 class SeedAction(BasicAction):
     @from_memory_context
-    def __init__(self, seed:Union[int, List[int]], bs:int=1):
+    def __init__(self, seed: Union[int, List[int]], bs: int = 1):
         super().__init__()
         self.seed = seed
         self.bs = bs
@@ -48,8 +50,9 @@ class SeedAction(BasicAction):
         return {**states, 'seeds':seeds, 'generator':G, 'device':device}
 
 class PrepareDiffusionAction(BasicAction, MemoryMixin):
-    def __init__(self, dtype='fp32'):
+    def __init__(self, dtype='fp32', amp=True):
         self.dtype = dtype
+        self.amp = amp
 
     def forward(self, memory, **states):
         dtype = get_dtype(self.dtype)
@@ -59,11 +62,11 @@ class PrepareDiffusionAction(BasicAction, MemoryMixin):
 
         device = memory.unet.device
         vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
-        return {**states, 'dtype': self.dtype, 'device':device, 'vae_scale_factor':vae_scale_factor}
+        return {**states, 'dtype':self.dtype, 'amp':self.amp, 'device':device, 'vae_scale_factor':vae_scale_factor}
 
 class MakeTimestepsAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, scheduler=None, N_steps:int=30, strength:float=None):
+    def __init__(self, scheduler=None, N_steps: int = 30, strength: float = None):
         self.scheduler = scheduler
         self.N_steps = N_steps
         self.strength = strength
@@ -71,10 +74,10 @@ class MakeTimestepsAction(BasicAction, MemoryMixin):
     def get_timesteps(self, timesteps, strength):
         # get the original timestep using init_timestep
         num_inference_steps = len(timesteps)
-        init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+        init_timestep = min(int(num_inference_steps*strength), num_inference_steps)
 
-        t_start = max(num_inference_steps - init_timestep, 0)
-        timesteps = timesteps[t_start * self.scheduler.order :]
+        t_start = max(num_inference_steps-init_timestep, 0)
+        timesteps = timesteps[t_start*self.scheduler.order:]
 
         return timesteps
 
@@ -92,9 +95,9 @@ class MakeLatentAction(BasicAction, MemoryMixin):
     @from_memory_context
     def __init__(self, scheduler=None, N_ch=4, height=512, width=512):
         self.scheduler = scheduler
-        self.N_ch=N_ch
-        self.height=height
-        self.width=width
+        self.N_ch = N_ch
+        self.height = height
+        self.width = width
 
     def forward(self, memory, generator, device, dtype, bs=None, latents=None, vae_scale_factor=8, start_timestep=None, **states):
         if bs is None:
@@ -118,21 +121,21 @@ class MakeLatentAction(BasicAction, MemoryMixin):
             latents = latents.to(device)
             latents = scheduler.add_noise(latents, noise, start_timestep)
 
-        return {**states, 'latents': latents, 'device':device, 'dtype':dtype, 'generator':generator}
+        return {**states, 'latents':latents, 'device':device, 'dtype':dtype, 'generator':generator}
 
 class NoisePredAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, unet=None, scheduler=None, guidance_scale:float=7.0):
-        self.guidance_scale=guidance_scale
+    def __init__(self, unet=None, scheduler=None, guidance_scale: float = 7.0):
+        self.guidance_scale = guidance_scale
         self.unet = unet
         self.scheduler = scheduler
 
     def forward(self, memory, t, latents, prompt_embeds, pooled_output=None, encoder_attention_mask=None, crop_info=None,
-                cross_attention_kwargs=None, dtype='fp32', **states):
+                cross_attention_kwargs=None, dtype='fp32', amp=None, **states):
         self.scheduler = self.scheduler or memory.scheduler
         self.unet = self.unet or memory.unet
 
-        with autocast(enabled=dtype == 'amp'):
+        with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
@@ -150,8 +153,8 @@ class NoisePredAction(BasicAction, MemoryMixin):
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
 
-        return {**states, 'noise_pred':noise_pred, 'latents': latents, 't':t, 'prompt_embeds':prompt_embeds, 'pooled_output':pooled_output,
-            'crop_info':crop_info, 'cross_attention_kwargs':cross_attention_kwargs, 'dtype':dtype}
+        return {**states, 'noise_pred':noise_pred, 'latents':latents, 't':t, 'prompt_embeds':prompt_embeds, 'pooled_output':pooled_output,
+            'crop_info':crop_info, 'cross_attention_kwargs':cross_attention_kwargs, 'dtype':dtype, 'amp':amp}
 
 class SampleAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -184,11 +187,11 @@ class SampleAction(BasicAction, MemoryMixin):
         # compute the previous noisy sample x_t -> x_t-1
         sc_out = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)
         latents = sc_out.prev_sample
-        return {**states, 'latents': latents, 't':t, 'generator':generator}
+        return {**states, 'latents':latents, 't':t, 'generator':generator}
 
 class DiffusionStepAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, unet=None, scheduler=None, guidance_scale:float=7.0):
+    def __init__(self, unet=None, scheduler=None, guidance_scale: float = 7.0):
         self.act_noise_pred = NoisePredAction(unet, scheduler, guidance_scale)
         self.act_sample = SampleAction(scheduler)
 
@@ -203,4 +206,4 @@ class X0PredAction(BasicAction):
         alpha_prod_t = alphas_cumprod[t.long()]
         beta_prod_t = 1-alpha_prod_t
         latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
-        return {**states, 'latents_x0': latents_x0, 'latents': latents, 'alphas_cumprod':alphas_cumprod, 't':t, 'noise_pred':noise_pred}
+        return {**states, 'latents_x0':latents_x0, 'latents':latents, 'alphas_cumprod':alphas_cumprod, 't':t, 'noise_pred':noise_pred}
