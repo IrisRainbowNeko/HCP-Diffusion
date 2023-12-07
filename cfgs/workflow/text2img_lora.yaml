@@ -21,19 +21,11 @@ prepare:
     cfg:
       - path: 'ckpts/nilu/text_encoder-1000.safetensors'
         alpha: 0.8
-        mask: [ 0.5, 1 ]
-      - path: 'ckpts/nilu/text_encoder-neg-1000.safetensors'
-        alpha: 0.8
-        mask: [ 0, 0.5 ]
   - _target_: hcpdiff.workflow.LoadLoraAction
     model: 'unet'
     cfg:
       - path: 'ckpts/nilu/unet-1000.safetensors'
         alpha: 0.8
-        mask: [ 0.5, 1 ]
-      - path: 'ckpts/nilu/unet-neg-1000.safetensors'
-        alpha: 0.8
-        mask: [ 0, 0.5 ]
 
   - _target_: hcpdiff.workflow.XformersEnableAction
   - _target_: hcpdiff.workflow.ExecAction
