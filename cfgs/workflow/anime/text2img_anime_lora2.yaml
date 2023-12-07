@@ -1,0 +1,115 @@
+dtype: fp16
+bs: 1
+seed:
+  - 758691538
+  - 328784502
+  - 1904963359
+  - 1136252527
+
+pretrained_model: 'Meina/MeinaMix_V11'
+prompt:
+  - 'best quality, masterpiece, highres, solo, {night:1.10}, {starry sky:1.10}, beach, beautiful detailed sky, {extremely detailed background:1.20}, {suzukaze_aoba_newgame-21560:1.15}, {standing:1.10}, looking at viewer, {bikini:1.30}, purple_hair, long_hair, twintails, purple_eyes, hair_ornament, flower, hair_flower, blush, ribbon, bangs, neck_ribbon, light smile'
+  - 'best quality, masterpiece, highres, solo, {suzukaze_aoba_newgame-21560:1.15}, purple_hair, long_hair, twintails, purple_eyes, hair_ornament, flower, hair_flower, blush, ribbon, bangs, neck_ribbon, 1girl, blunt_bangs, open_mouth, pink_ribbon, looking_at_viewer, anime_coloring, blurry, portrait'
+  - 'best quality, masterpiece, highres, solo, {suzukaze_aoba_newgame-21560:1.15}, purple_hair, long_hair, twintails, purple_eyes, hair_ornament, flower, hair_flower, blush, ribbon, bangs, neck_ribbon, 1girl, double_bun, hair_bun, upper_body, closed_mouth, japanese_clothes, kimono, looking_at_viewer, sweatdrop, short_hair'
+  - 'best quality, masterpiece, highres, solo, {suzukaze_aoba_newgame-21560:1.15}, purple_hair, long_hair, twintails, purple_eyes, hair_ornament, flower, hair_flower, blush, ribbon, bangs, neck_ribbon, 1girl, controller, game_controller, gamepad, open_mouth, barefoot, playstation_controller, sitting, :d, holding, looking_at_viewer, pajamas, smile, star_\(sky\), starry_sky, striped'
+neg_prompt:
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+N_repeats: 3
+
+clip_skip: 1 #动漫模型通常会跳过一个CLIP层
+models_dir: exps/newgame/ckpts
+emb_dir: ${models_dir}
+
+infer_args:
+  width: 512
+  height: 768  # image size
+  guidance_scale: 7.5  # scale, when higher, the images will tend to be more similar
+  num_inference_steps: 30  # how many steps
+
+output_dir: 'output/'
+lora:
+  alpha: 0.8
+  dir: ${models_dir}
+  step: 21560
+  text_encoder: ${lora.dir}/text_encoder-${lora.step}.safetensors
+  unet: ${lora.dir}/unet-${lora.step}.safetensors
+
+memory: { }
+
+prepare:
+  - _target_: hcpdiff.workflow.LoadModelsAction
+    pretrained_model: ${pretrained_model}
+    dtype: ${dtype}
+    scheduler: # DPM++ 2M Karras
+      _target_: diffusers.DPMSolverMultistepScheduler
+      beta_start: 0.00085
+      beta_end: 0.012
+      algorithm_type: dpmsolver++
+      beta_schedule: scaled_linear
+      use_karras_sigmas: true
+    vae: # use NAI's vae
+      _target_: diffusers.AutoencoderKL.from_pretrained
+      pretrained_model_name_or_path: deepghs/animefull-latest  # path to vae model
+      subfolder: vae
+  - _target_: hcpdiff.workflow.BuildModelLoaderAction
+
+  # load lora
+  - _target_: hcpdiff.workflow.LoadLoraAction
+    model: 'TE'
+    cfg:
+      - path: ${lora.text_encoder}
+        alpha: ${lora.alpha}
+  - _target_: hcpdiff.workflow.LoadLoraAction
+    model: 'unet'
+    cfg:
+      - path: ${lora.unet}
+        alpha: ${lora.alpha}
+  - _target_: hcpdiff.workflow.XformersEnableAction
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      from hcpdiff.utils.net_utils import to_cpu, to_cuda
+      to_cuda(memory.unet)
+      to_cuda(memory.text_encoder)
+      to_cuda(memory.vae)
+  - _target_: hcpdiff.workflow.PrepareDiffusionAction
+    dtype: ${dtype}
+  - _target_: hcpdiff.workflow.VaeOptimizeAction
+    slicing: True
+
+actions:
+  - _target_: hcpdiff.workflow.TextHookAction
+    N_repeats: ${N_repeats}
+    layer_skip: ${clip_skip}
+    emb_dir: ${emb_dir}
+
+  ## Text2Img
+  # encode text
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: ${prompt}
+    negative_prompt: ${neg_prompt}
+    bs: ${bs}
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: ${infer_args.num_inference_steps}
+  # text to image
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: ${infer_args.width}
+    height: ${infer_args.height}
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t #迭代timesteps，每一步的存成t到states里
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: ${infer_args.guidance_scale}
+
+  # decode to image
+  - _target_: hcpdiff.workflow.DecodeAction
+    vae: ${hcp.from_memory:vae}
+  - _target_: hcpdiff.workflow.SaveImageAction
+    save_root: ${output_dir}
+    image_type: png
