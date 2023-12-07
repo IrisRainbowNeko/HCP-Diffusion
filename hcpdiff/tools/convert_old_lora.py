@@ -10,3 +10,4 @@ def convert_state(lora_state: Dict[str, Any]):
         new_state['layer.bias'] = lora_state['layer.lora_up.bias']
     if 'alpha' in lora_state:
         new_state['alpha'] = lora_state['alpha']
+    return new_state
