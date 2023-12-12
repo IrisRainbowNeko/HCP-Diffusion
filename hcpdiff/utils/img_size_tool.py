@@ -22,7 +22,7 @@ import io
 import struct
 from PIL import Image
 
-FILE_UNKNOWN = "Sorry, don't know how to get size for this file."
+FILE_UNKNOWN = "Sorry, don't know how to get size for {}."
 
 class UnknownImageFormat(Exception):
     pass
@@ -229,7 +229,7 @@ def get_image_metadata_from_bytesio(input, size, file_path=None):
         input.seek(0)
         reserved = input.read(2)
         if 0 != struct.unpack("<H", reserved)[0]:
-            raise UnknownImageFormat(FILE_UNKNOWN)
+            raise UnknownImageFormat(FILE_UNKNOWN.format(file_path))
         format = input.read(2)
         assert 1 == struct.unpack("<H", format)[0]
         num = input.read(2)
@@ -243,6 +243,6 @@ def get_image_metadata_from_bytesio(input, size, file_path=None):
         width = ord(w)
         height = ord(h)
     else:
-        raise UnknownImageFormat(FILE_UNKNOWN)
+        raise UnknownImageFormat(FILE_UNKNOWN.format(file_path))
 
     return width, height

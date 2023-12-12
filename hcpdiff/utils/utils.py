@@ -160,3 +160,18 @@ def pad_attn_bias(x, attn_bias, block_size=8):
     x_padded = F.pad(x, (0, 0, 0, padding_l, 0, 0), mode='constant', value=0)
     attn_bias_padded = F.pad(attn_bias, (0, padding_l, 0, 0), mode='constant', value=0)
     return x_padded, attn_bias_padded
+
+def linear_interp(t, x):
+    '''
+    t_l ---------t_h
+           ^x
+    '''
+    x0 = x.floor().long()
+    x1 = x0 + 1
+
+    y0 = t[x0]
+    y1 = t[x1]
+
+    xd = (x - x0.float())
+
+    return y0 * (1 - xd) + y1 * xd

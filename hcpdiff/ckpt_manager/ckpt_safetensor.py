@@ -21,6 +21,8 @@ class CkptManagerSafe(CkptManagerPKL):
         if save_path is None:
             save_path = os.path.join(self.save_dir, f"{name}-{step}.safetensors")
         sd_unfold = self.unfold_dict(sd_model)
+
+        # support channel_last
         for k, v in sd_unfold.items():
             if not v.is_contiguous():
                 sd_unfold[k] = v.contiguous()
