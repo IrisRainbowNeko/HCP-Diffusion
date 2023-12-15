@@ -432,7 +432,7 @@ class Trainer:
 
     def forward(self, latents, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
         noisy_latents, sigma, timesteps = self.noise_sampler.add_noise_rand_t(latents)
-        noisy_latents = noisy_latents * self.noise_sampler.c_in(sigma)
+        noisy_latents = noisy_latents * self.noise_sampler.c_in(sigma).to(dtype=noisy_latents.dtype)
 
         # CFG context for DreamArtist
         noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)

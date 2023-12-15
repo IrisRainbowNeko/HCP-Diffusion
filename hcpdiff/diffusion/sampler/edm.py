@@ -37,7 +37,7 @@ class EDMSampler(BaseSampler):
         return self.sigma_data**2/(sigma**2+self.sigma_data**2)
 
     def add_noise(self, x, sigma):
-        return x+sigma*torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
+        return x+sigma.view(-1,1,1,1)*torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError

@@ -29,7 +29,9 @@ class BaseSampler:
     def add_noise_rand_t(self, x):
         bs = x.shape[0]
         sigma, timesteps = self.sigma_scheduler.sample_sigma(shape=(bs,))
-        noisy_x = self.add_noise(x, sigma)
+        sigma = sigma.view(-1,1,1,1).to(x.device)
+        timesteps = timesteps.to(x.device)
+        noisy_x = self.add_noise(x, sigma).to(dtype=x.dtype)
 
         # Sample a random timestep for each image
         timesteps = timesteps*self.num_timesteps
