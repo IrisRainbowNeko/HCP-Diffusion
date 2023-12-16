@@ -10,7 +10,7 @@ plugin.py
 
 import weakref
 import re
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Iterable
 
 import torch
 from torch import nn
@@ -54,6 +54,9 @@ class BasePluginBlock(nn.Module):
                     model_sd[k] = v
         return model_sd
 
+    def get_trainable_parameters(self) -> Iterable[nn.Parameter]:
+        return self.parameters()
+
 class WrapablePlugin:
     wrapable_classes = ()
 
@@ -71,7 +74,7 @@ class WrapablePlugin:
         if self not in memo:
             if remove_duplicate:
                 memo.add(self)
-            if (exclude_key is None or re.match(exclude_key, prefix)) and not isinstance(self, exclude_classes):
+            if (exclude_key is None or not re.search(exclude_key, prefix)) and not isinstance(self, exclude_classes):
                 yield prefix, self
                 for name, module in self._modules.items():
                     if module is None:
@@ -263,7 +266,10 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
 
     def __init__(self, name: str, host: nn.Module, host_model=None, parent_block: nn.Module = None, host_name: str = None):
         super().__init__(name)
-        self.host = weakref.ref(host)
+        if isinstance(host, self.container_cls):
+            self.host = weakref.ref(host._host)
+        else:
+            self.host = weakref.ref(host)
         self.parent_block = weakref.ref(parent_block)
         self.host_name = host_name
 
@@ -282,10 +288,31 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
         container.remove_plugin(self.name)
 
     def get_container(self, host, host_name, parent_block):
-        if isinstance(host, PatchPluginContainer):
+        if isinstance(host, self.container_cls):
             return host
         else:
             return self.container_cls(host_name, host, parent_block)
+
+    @classmethod
+    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(), **kwargs):  # -> Dict[str, SinglePluginBlock]:
+        '''
+        parent_block and other args required in __init__ will be put into kwargs, compatible with multiple models.
+        '''
+        plugin_block_dict = {}
+        if isinstance(host, cls.wrapable_classes):
+            plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
+        else:
+            named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
+                host, exclude_key=exclude_key or '_host', exclude_classes=exclude_classes)}
+            for layer_name, layer in named_modules.items():
+                if isinstance(layer, cls.wrapable_classes) or isinstance(layer, cls.container_cls):
+                    # For plugins that need parent_block
+                    if 'parent_block' in kwargs:
+                        parent_name, host_name = split_module_name(layer_name)
+                        kwargs['parent_block'] = named_modules[parent_name]
+                        kwargs['host_name'] = host_name
+                    plugin_block_dict[layer_name] = cls.wrap_layer(name, layer, **kwargs)
+        return plugin_block_dict
 
 class PluginGroup:
     def __init__(self, plugin_dict: Dict[str, BasePluginBlock]):
@@ -313,6 +340,9 @@ class PluginGroup:
         else:
             sd_model = model.state_dict()
             return {f'{k}.___.{ks}':sd_model[f'{k}.{v.name}.{ks}'] for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()}
+
+    def state_keys_raw(self):
+        return [f'{k}.{v.name}.{ks}' for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()]
 
     def empty(self):
         return len(self.plugin_dict) == 0

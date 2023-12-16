@@ -17,7 +17,7 @@ from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
 
 class TEEXHook:
-    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
+    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
         self.text_enc = text_enc
         self.tokenizer = tokenizer
 
@@ -26,6 +26,7 @@ class TEEXHook:
         self.clip_final_norm = clip_final_norm
         self.device = device
         self.attn_mult = None
+        self.use_attention_mask = use_attention_mask
 
         text_enc.register_forward_hook(self.forward_hook)
         text_enc.register_forward_pre_hook(self.forward_hook_input)
@@ -39,18 +40,23 @@ class TEEXHook:
             return_tensors="pt",
         )
         text_input_ids = text_inputs.input_ids
-
-        if hasattr(self.text_enc.config, "use_attention_mask") and self.text_enc.config.use_attention_mask:
-            attention_mask = text_inputs.attention_mask.to(self.device)
+        if self.use_attention_mask:
+            attention_mask = text_inputs.get('attention_mask', None)
         else:
             attention_mask = None
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(self.device)
+        position_ids = text_inputs.get('position_ids', None)
+        if position_ids is not None:
+            position_ids = position_ids.to(self.device)
 
         prompt_embeds, pooled_output = self.text_enc(
             text_input_ids.to(self.device),
             attention_mask=attention_mask,
+            position_ids=position_ids,
             output_hidden_states=True,
         )
-        return prompt_embeds, pooled_output
+        return prompt_embeds, pooled_output, attention_mask
 
     def forward_hook_input(self, host, feat_in):
         feat_re = rearrange(feat_in[0], 'b (r w) -> (b r) w', r=self.N_repeats)  # 使Attention mask的尺寸为N_word+2
@@ -61,7 +67,7 @@ class TEEXHook:
         if self.clip_final_norm:
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
-            encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state']  # avoid unused parameters, make gradient checkpointing happy
+            encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
 
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
         pooled_output = feat_out.pooler_output
@@ -84,7 +90,8 @@ class TEEXHook:
             for i, item in enumerate(attn_mult):
                 if len(item)>0:
                     original_mean = prompt_embeds[i, ...].mean()
-                    prompt_embeds[i, 1:len(item)+1, :] *= item.view(-1, 1).to(prompt_embeds.device)
+                    N_words = min(prompt_embeds.shape[1]-1, len(item))
+                    prompt_embeds[i, 1:len(item)+1, :] *= item[:N_words].view(-1, 1).to(prompt_embeds.device)
                     new_mean = prompt_embeds[i, ...].mean()
                     prompt_embeds[i, ...] *= original_mean/new_mean
         return prompt_embeds
@@ -140,9 +147,9 @@ class TEEXHook:
         layer.forward = forward
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda'):
-        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device)
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
+        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device, use_attention_mask=use_attention_mask)
 
     @classmethod
-    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm)
+    def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)

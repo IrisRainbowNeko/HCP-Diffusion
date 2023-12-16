@@ -7,8 +7,7 @@ cfg_net_tools.py
     :Created:     10/03/2023
     :Licence:     Apache-2.0
 """
-
-
+import warnings
 from typing import Dict, List, Tuple, Union, Any
 
 import re
@@ -16,11 +15,11 @@ import torch
 from torch import nn
 
 from .utils import net_path_join
-from hcpdiff.models.lora_base import LoraBlock, LoraGroup
-from hcpdiff.models import lora_layers
+from hcpdiff.models import LoraBlock, LoraGroup, lora_layer_map
 from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlock, PluginGroup, PatchPluginBlock
-from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
+from hcpdiff.ckpt_manager import auto_manager
 from .net_utils import split_module_name
+from hcpdiff.tools.convert_old_lora import convert_state
 
 def get_class_match_layer(class_name, block:nn.Module):
     if type(block).__name__==class_name:
@@ -76,17 +75,17 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
         return sorted(set(res), key=res.index)
 
 def get_lora_rank_and_cls(lora_state):
-    rank_groups = getattr(lora_state, 'layer.rank_groups', 1)
-    if rank_groups > 1:
-        if len(lora_state['layer.lora_down.weight'].shape) == 3:
-            rank = rank_groups * lora_state['layer.lora_down.weight'].shape[2]
-        else:
-            rank = lora_state['layer.lora_down.weight'].shape[0]
-        lora_layer_cls = lora_layers.layer_map['loha_group']
-    else:
+    if 'layer.lora_down.weight' in lora_state: # old format
+        warnings.warn("The old lora format is deprecated.", DeprecationWarning)
         rank = lora_state['layer.lora_down.weight'].shape[0]
-        lora_layer_cls = lora_layers.layer_map['lora']
-    return lora_layer_cls, rank, rank_groups
+        lora_layer_cls = lora_layer_map['lora']
+        return lora_layer_cls, rank, True
+    elif 'layer.W_down' in lora_state:
+        rank = lora_state['layer.W_down'].shape[0]
+        lora_layer_cls = lora_layer_map['lora']
+        return lora_layer_cls, rank, False
+    else:
+        raise ValueError('Unknown lora format.')
 
 def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
     named_modules = {k:v for k,v in model.named_modules()}
@@ -109,23 +108,14 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
         for lora_id, item in enumerate(cfg_lora):
             params_group = []
             for layer_name in get_match_layers(item.layers, named_modules):
+                parent_name, host_name = split_module_name(layer_name)
                 layer = named_modules[layer_name]
                 arg_dict = {k:v for k,v in item.items() if k!='layers'}
-                lora_block_dict = lora_layers.layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, **arg_dict)
+                lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, parent_block=named_modules[parent_name], host_name=host_name, **arg_dict)
 
-                block_branch = getattr(item, 'branch', None) # for DreamArtist-lora
                 for k,v in lora_block_dict.items():
                     block_path = net_path_join(layer_name, k)
-                    if block_branch is None:
-                        all_lora_blocks[block_path] = v
-                    elif block_branch=='p':
-                        all_lora_blocks[block_path] = v
-                        v.set_mask((0.5, 1))
-                    elif block_branch == 'n':
-                        all_lora_blocks_neg[block_path]=v
-                        v.set_mask((0, 0.5))
-                    else:
-                        raise NotImplementedError(f'Unsupported branch "{block_branch}"')
+                    all_lora_blocks[block_path] = v
                     v.requires_grad_(True)
                     v.train()
                     params_group.extend(v.parameters())
@@ -161,9 +151,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
             if train_plugin:
-                layer.requires_grad_(True)
                 layer.train()
-                params_group.extend(layer.parameters())
+                params = layer.get_trainable_parameters()
+                for p in params:
+                    p.requires_grad_(True)
+                    params_group.append(p)
             else:
                 layer.requires_grad_(False)
                 layer.eval()
@@ -178,9 +170,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 for k,v in blocks.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
-                        v.requires_grad_(True)
                         v.train()
-                        params_group.extend(v.parameters())
+                        params = v.get_trainable_parameters()
+                        for p in params:
+                            p.requires_grad_(True)
+                            params_group.append(p)
                     else:
                         v.requires_grad_(False)
                         v.eval()
@@ -194,9 +188,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
                 if train_plugin:
-                    layer.requires_grad_(True)
                     layer.train()
-                    params_group.extend(layer.parameters())
+                    params = layer.get_trainable_parameters()
+                    for p in params:
+                        p.requires_grad_(True)
+                        params_group.append(p)
                 else:
                     layer.requires_grad_(False)
                     layer.eval()
@@ -213,9 +209,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 for k,v in layers.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
-                        v.requires_grad_(True)
                         v.train()
-                        params_group.extend(v.parameters())
+                        params = v.get_trainable_parameters()
+                        for p in params:
+                            p.requires_grad_(True)
+                            params_group.append(p)
                     else:
                         v.requires_grad_(False)
                         v.eval()
@@ -226,21 +224,36 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
         all_plugin_group[plugin_name] = PluginGroup(all_plugin_blocks)
     return train_params, all_plugin_group
 
-@torch.no_grad()
-def load_hcpdiff(model:nn.Module, cfg_merge):
-    named_modules = {k: v for k, v in model.named_modules()}
-    named_params = {k: v for k, v in model.named_parameters()}
-    all_lora_blocks = {}
+class HCPModelLoader:
+    def __init__(self, host):
+        self.host = host
+        self.named_modules = {k:v for k, v in host.named_modules()}
+        self.named_params = {k:v for k, v in host.named_parameters()}
 
-    ckpt_manager_torch = CkptManagerPKL()
-    ckpt_manager_safe = CkptManagerSafe()
+    @torch.no_grad()
+    def load_part(self, cfg, base_model_alpha=0.0, load_ema=False):
+        if cfg is None:
+            return
+        for item in cfg:
+            part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base_ema' if load_ema else 'base']
+            layers = item.get('layers', 'all')
+            if layers == 'all':
+                for k, v in part_state.items():
+                    self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
+            else:
+                match_blocks = get_match_layers(layers, self.named_modules)
+                state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
+                for k, v in state_add.items():
+                    self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
 
-    def get_ckpt_manager(path:str):
-        return ckpt_manager_safe if path.endswith('.safetensors') else ckpt_manager_torch
+    @torch.no_grad()
+    def load_lora(self, cfg, base_model_alpha=1.0, load_ema=False):
+        if cfg is None:
+            return
 
-    if getattr(cfg_merge, "lora", None) is not None:
-        for lora_id, item in enumerate(cfg_merge.lora):
-            lora_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora']
+        all_lora_blocks = {}
+        for lora_id, item in enumerate(cfg):
+            lora_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora_ema' if load_ema else 'lora']
             lora_block_state = {}
             # get all layers in the lora_state
             for name, p in lora_state.items():
@@ -250,8 +263,9 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                     lora_block_state[prefix] = {}
                 lora_block_state[prefix][block_name] = p
             # get selected layers
-            if item.layers != 'all':
-                match_blocks = get_match_layers(item.layers, named_modules)
+            layers = item.get('layers', 'all')
+            if layers != 'all':
+                match_blocks = get_match_layers(layers, self.named_modules)
                 lora_state_new = {}
                 for k, v in lora_block_state.items():
                     for mk in match_blocks:
@@ -260,49 +274,48 @@ def load_hcpdiff(model:nn.Module, cfg_merge):
                             break
                 lora_block_state = lora_state_new
             # add lora to host and load weights
-            for host_name, lora_state in lora_block_state.items():
-                lora_layer_cls, rank, rank_groups = get_lora_rank_and_cls(lora_state)
+            for layer_name, lora_state in lora_block_state.items():
+                parent_name, host_name = split_module_name(layer_name)
+                lora_layer_cls, rank, old_format = get_lora_rank_and_cls(lora_state)
                 if 'alpha' in lora_state:
                     del lora_state['alpha']
-                if 'scale' in lora_state: # old format
-                    del lora_state['scale']
 
-                lora_block = lora_layer_cls.wrap_layer(lora_id, named_modules[host_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
-                                                        alpha=getattr(item, 'alpha', 1.0), bias='layer.lora_up.bias' in lora_state,
-                                                        rank_groups=rank_groups, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True))
-                all_lora_blocks[f'{host_name}.{lora_block.name}'] = lora_block
+                if old_format:
+                    lora_state = convert_state(lora_state)
+
+                lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
+                                                        alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
+                                                        parent_block=self.named_modules[parent_name], host_name=host_name)
+                all_lora_blocks[f'{layer_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
-                lora_block.set_mask(getattr(item, 'mask', None))
-                lora_block.to(model.device)
+                lora_block.to(self.host.device)
+        return LoraGroup(all_lora_blocks)
 
-    if getattr(cfg_merge, "part", None) is not None:
-        for item in cfg_merge.part:
-            part_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['base']
-            if item.layers == 'all':
-                for k, v in part_state.items():
-                    named_params[k].data = cfg_merge.base_model_alpha * named_params[k].data + item.alpha * v
-            else:
-                match_blocks = get_match_layers(item.layers, named_modules)
-                state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
-                for k, v in state_add.items():
-                    named_params[k].data = cfg_merge.base_model_alpha * named_params[k].data + item.alpha * v
+    @torch.no_grad()
+    def load_plugin(self, cfg, load_ema=False):
+        if cfg is None:
+            return
 
-    if getattr(cfg_merge, "plugin", None) is not None:
-        for name, item in cfg_merge.plugin.items():
-            plugin_state = get_ckpt_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin']
-            if item.layers != 'all':
-                match_blocks = get_match_layers(item.layers, named_modules)
-                plugin_state = {k: v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
+        for name, item in cfg.items():
+            plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin_ema' if load_ema else 'plugin']
+            layers = item.get('layers', 'all')
+            if layers != 'all':
+                match_blocks = get_match_layers(layers, self.named_modules)
+                plugin_state = {k:v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
             plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
-            plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()} # replace placeholder to target plugin name
-            model.load_state_dict(plugin_state, strict=False)
-            del item.layers
+            plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
+            self.host.load_state_dict(plugin_state, strict=False)
+            if 'layers' in item:
+                del item.layers
             del item.path
-            if hasattr(model, name): # MultiPluginBlock
-                getattr(model, name).set_hyper_params(**item)
+            if hasattr(self.host, name):  # MultiPluginBlock
+                getattr(self.host, name).set_hyper_params(**item)
             else:
                 for plugin_key in plugin_key_set:
-                    named_modules[plugin_key].set_hyper_params(**item)
+                    self.named_modules[plugin_key].set_hyper_params(**item)
 
-
-    return LoraGroup(all_lora_blocks)
+    def load_all(self, cfg_merge, load_ema=False):
+        self.load_part(cfg_merge.get('part', []), base_model_alpha=cfg_merge.get('base_model_alpha', 0.0), load_ema=load_ema)
+        lora_group = self.load_lora(cfg_merge.get('lora', []), base_model_alpha=cfg_merge.get('base_model_alpha', 1.0), load_ema=load_ema)
+        self.load_plugin(cfg_merge.get('plugin', {}), load_ema=load_ema)
+        return lora_group

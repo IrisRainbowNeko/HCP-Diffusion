@@ -15,7 +15,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(f'convert embedding')
-    ckpt_manager = auto_manager(args.embedding_path)()
+    ckpt_manager = auto_manager(args.embedding_path)
     embedding = ckpt_manager.load_ckpt(args.embedding_path)
 
     if not args.sdxl:

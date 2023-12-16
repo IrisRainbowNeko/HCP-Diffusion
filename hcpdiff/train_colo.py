@@ -27,7 +27,7 @@ from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
 from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
 from hcpdiff.utils.utils import load_config_with_cli
-from hcpdiff.utils.net_utils import auto_text_encoder, TEUnetWrapper
+from hcpdiff.utils.net_utils import auto_text_encoder_cls, TEUnetWrapper
 
 class TrainerColo(Trainer):
     def init_context(self, cfgs_raw):
@@ -57,8 +57,8 @@ class TrainerColo(Trainer):
 
     def build_unet_and_TE(self):
         # import correct text encoder class
-        text_encoder_cls = auto_text_encoder(self.cfgs.model.pretrained_model_name_or_path,
-                                                     self.cfgs.model.revision)
+        text_encoder_cls = auto_text_encoder_cls(self.cfgs.model.pretrained_model_name_or_path,
+                                                 self.cfgs.model.revision)
         with ColoInitContext(device=self.device):
             self.unet = UNet2DConditionModel.from_pretrained(
                 self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision,
@@ -135,17 +135,17 @@ class TrainerColo(Trainer):
         if len(parameters)>0: # do fine-tuning
             if self.cfgs.train.scale_lr:
                 self.scale_lr(parameters)
-            self.optimizer = GeminiAdamOptimizerP(self.TE_unet if self.train_TE else self.unet, parameters, lr=self.lr,
+            self.optimizer = GeminiAdamOptimizerP(self.TE_unet if self.train_TE else self.unet, parameters,
                                                   initial_scale=2 ** 5, clipping_norm=self.cfgs.train.max_grad_norm)
 
-            self.lr_scheduler = get_scheduler(optimizer=self.optimizer, **self.cfgs.train.scheduler)
+            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
         if len(parameters_pt)>0: # do prompt-tuning
             if self.cfgs.train.scale_lr_pt:
                 self.scale_lr(parameters_pt)
 
-            self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, lr=self.lr, weight_decay=cfg_opt.weight_decay_pt)
-            self.lr_scheduler_pt = get_scheduler(optimizer=self.optimizer_pt, **self.cfgs.train.scheduler_pt)
+            self.optimizer_pt = torch.optim.AdamW(params=parameters_pt, weight_decay=cfg_opt.weight_decay_pt)
+            self.lr_scheduler_pt = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
 
     def train_one_step(self, data_list):
         torch.cuda.reset_peak_memory_stats()

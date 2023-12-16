@@ -78,7 +78,7 @@ class EmbeddingPTHook(SinglePluginBlock):
         tokenizer.add_tokens(word_list)
         token_ids = tokenizer(' '.join(word_list)).input_ids[1:-1]
 
-        embedding_hook = cls(text_encoder.text_model.embeddings.token_embedding, **kwargs)
+        embedding_hook = cls(text_encoder.get_input_embeddings(), N_word=tokenizer.model_max_length-2, **kwargs)
         #text_encoder.text_model.embeddings.token_embedding = embedding_hook
         for tid, word in zip(token_ids, word_list):
             embedding_hook.add_emb(ex_words_emb[word], tid)

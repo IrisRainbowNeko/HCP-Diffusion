@@ -13,6 +13,8 @@ class LoraConverter:
     prefix_TE_xl_clip_B = 'lora_te1_'
     prefix_TE_xl_clip_bigG = 'lora_te2_'
 
+    lora_w_map = {'lora_down.weight': 'W_down', 'lora_up.weight':'W_up'}
+
     def __init__(self):
         self.com_name_unet_tmp = [x.replace('_', '%') for x in self.com_name_unet]
         self.com_name_TE_tmp = [x.replace('_', '%') for x in self.com_name_TE]
@@ -53,20 +55,36 @@ class LoraConverter:
             if lora_k == 'alpha':
                 sd_covert[f'{model_k}.___.{lora_k}'] = v
             else:
-                sd_covert[f'{model_k}.___.layer.{lora_k}'] = v
+                sd_covert[f'{model_k}.___.layer.{self.lora_w_map[lora_k]}'] = v
         return sd_covert
 
     def convert_to_webui_(self, state, prefix):
         sd_covert = {}
         for k, v in state.items():
-            model_k, lora_k = k.split('.___.' if ('alpha' in k or 'scale' in k) else '.___.layer.', 1)
+            if k.endswith('W_down'):
+                model_k, _ = k.split('.___.', 1)
+                lora_k = 'lora_down.weight'
+            elif k.endswith('W_up'):
+                model_k, _ = k.split('.___.', 1)
+                lora_k = 'lora_up.weight'
+            else:
+                model_k, lora_k = k.split('.___.', 1)
+
             sd_covert[f"{prefix}{model_k.replace('.', '_')}.{lora_k}"] = v
         return sd_covert
     
     def convert_to_webui_xl_(self, state, prefix):
         sd_convert = {}
         for k, v in state.items():
-            model_k, lora_k = k.split('.___.' if ('alpha' in k or 'scale' in k) else '.___.layer.', 1)
+            if k.endswith('W_down'):
+                model_k, _ = k.split('.___.', 1)
+                lora_k = 'lora_down.weight'
+            elif k.endswith('W_up'):
+                model_k, _ = k.split('.___.', 1)
+                lora_k = 'lora_up.weight'
+            else:
+                model_k, lora_k = k.split('.___.', 1)
+
             new_k = f"{prefix}{model_k.replace('.', '_')}.{lora_k}"
             if 'clip' in new_k:
                 new_k = new_k.replace('_clip_B', '1') if 'clip_B' in new_k else new_k.replace('_clip_bigG', '2')
@@ -89,7 +107,7 @@ class LoraConverter:
             if lora_k == 'alpha':
                 sd_covert[f'{model_k}.___.{lora_k}'] = v
             else:
-                sd_covert[f'{model_k}.___.layer.{lora_k}'] = v
+                sd_covert[f'{model_k}.___.layer.{self.lora_w_map[lora_k]}'] = v
         return sd_covert
 
     def convert_from_webui_xl_unet_(self, state, prefix, com_name, com_name_tmp):
@@ -157,7 +175,7 @@ class LoraConverter:
             if lora_k == 'alpha':
                 sd_covert[f'{new_k}.___.{lora_k}'] = v
             else:
-                sd_covert[f'{new_k}.___.layer.{lora_k}'] = v
+                sd_covert[f'{new_k}.___.layer.{self.lora_w_map[lora_k]}'] = v
 
         return sd_covert
 
@@ -172,9 +190,9 @@ class LoraConverter:
     def alpha_scale_from_webui(state):
         # Apply to "lora_down" and "lora_up" respectively to prevent overflow
         for k, v in state.items():
-            if 'lora_up' in k:
+            if 'W_up' in k:
                 state[k] = v*math.sqrt(v.shape[1])
-            elif 'lora_down' in k:
+            elif 'W_down' in k:
                 state[k] = v*math.sqrt(v.shape[0])
         return state
 
@@ -203,7 +221,7 @@ if __name__ == '__main__':
 
     # load lora model
     print('convert lora model')
-    ckpt_manager = auto_manager(args.lora_path)()
+    ckpt_manager = auto_manager(args.lora_path)
 
     if args.from_webui:
         state = ckpt_manager.load_ckpt(args.lora_path)

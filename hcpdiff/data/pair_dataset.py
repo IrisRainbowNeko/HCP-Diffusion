@@ -31,7 +31,7 @@ class TextImagePairDataset(Dataset):
 
     def __init__(self, tokenizer, tokenizer_repeats: int = 1, att_mask_encode: bool = False,
                  bucket: BaseBucket = None, source: Dict[str, DataSource] = None, return_path: bool = False,
-                 cache_path:str=None, **kwargs):
+                 cache_path:str=None, encoder_attention_mask=False, **kwargs):
         self.return_path = return_path
 
         self.tokenizer = tokenizer
@@ -41,6 +41,7 @@ class TextImagePairDataset(Dataset):
         self.source = ComposeDataSource(source)
         self.latents = None  # Cache latents for faster training. Works only without image argumentations.
         self.cache_path = cache_path
+        self.encoder_attention_mask = encoder_attention_mask
 
     def load_data(self, path:str, data_source:DataSource, size:Tuple[int]):
         image_dict = data_source.load_image(path)
@@ -92,9 +93,13 @@ class TextImagePairDataset(Dataset):
         prompt_ist = data_source.load_caption(img_name)
 
         # tokenize Sp or (Sn, Sp)
-        prompt_ids = self.tokenizer(prompt_ist, truncation=True, padding="max_length", return_tensors="pt",
-                                    max_length=self.tokenizer.model_max_length*self.tokenizer_repeats).input_ids.squeeze()
-        data['prompt'] = prompt_ids
+        tokens = self.tokenizer(prompt_ist, truncation=True, padding="max_length", return_tensors="pt",
+                                    max_length=self.tokenizer.model_max_length*self.tokenizer_repeats)
+        data['prompt'] = tokens.input_ids.squeeze()
+        if self.encoder_attention_mask and 'attention_mask' in tokens:
+            data['attn_mask'] = tokens.attention_mask.squeeze()
+        if 'position_ids' in tokens:
+            data['position_ids'] = tokens.position_ids.squeeze()
 
         if self.return_path:
             return data, path
@@ -106,14 +111,15 @@ class TextImagePairDataset(Dataset):
         '''
         batch: [{img:tensor, prompt:str, ..., plugin_input:{...}},{}]
         '''
-        if 'plugin_input' in batch[0]:
+        has_plugin_input = 'plugin_input' in batch[0]
+        if has_plugin_input:
             plugin_input = {k:[] for k in batch[0]['plugin_input'].keys()}
 
         datas = {k:[] for k in batch[0].keys() if k != 'plugin_input' and k != 'prompt'}
         sn_list, sp_list = [], []
 
         for data in batch:
-            if 'plugin_input' in data:
+            if has_plugin_input:
                 for k, v in data.pop('plugin_input').items():
                     plugin_input[k].append(v)
 
@@ -134,7 +140,7 @@ class TextImagePairDataset(Dataset):
 
         sn_list += sp_list
         datas['prompt'] = torch.stack(sn_list)
-        if 'plugin_input' in batch[0]:
+        if has_plugin_input:
             datas['plugin_input'] = {k:torch.stack(v) for k, v in plugin_input.items()}
 
         return datas

@@ -6,6 +6,7 @@ import torch
 import math
 from omegaconf import OmegaConf, ListConfig
 import hashlib
+import torch.nn.functional as F
 
 size_mul = {'K': 1<<10, 'M':1<<20, 'G':1<<30, 'T':1<<40}
 size_key = 'TGMK'
@@ -146,3 +147,16 @@ def format_number(num):
         return f'{num/1e3:.1f}K'
     else:
         return str(num)
+
+def is_list(v):
+    return OmegaConf.is_list(v) or isinstance(v, list)
+
+def pad_attn_bias(x, attn_bias, block_size=8):
+    # 计算k维度上的填充数量
+    original_l = x.size(1)
+    padding_l = (block_size-original_l%block_size)%block_size
+
+    # 在k维度上进行填充
+    x_padded = F.pad(x, (0, 0, 0, padding_l, 0, 0), mode='constant', value=0)
+    attn_bias_padded = F.pad(attn_bias, (0, padding_l, 0, 0), mode='constant', value=0)
+    return x_padded, attn_bias_padded
