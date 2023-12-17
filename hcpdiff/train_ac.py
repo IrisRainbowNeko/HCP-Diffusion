@@ -430,21 +430,23 @@ class Trainer:
             latents = image  # Cached latents
         return latents
 
-    def forward(self, latents, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
-        noisy_latents, sigma, timesteps = self.noise_sampler.add_noise_rand_t(latents)
-        noisy_latents = noisy_latents * self.noise_sampler.c_in(sigma).to(dtype=noisy_latents.dtype)
+    def forward(self, x_0, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
+        x_t, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
 
         # CFG context for DreamArtist
-        noisy_latents, timesteps = self.cfg_context.pre(noisy_latents, timesteps)
-        model_pred = self.TE_unet(prompt_ids, noisy_latents, timesteps, attn_mask=attn_mask, position_ids=position_ids, **kwargs)
+        # eps = F(x_t*c_in)
+        x_t_in = x_t*self.noise_sampler.c_in(sigma).to(dtype=x_t.dtype)
+        x_t_in, timesteps = self.cfg_context.pre(x_t_in, timesteps)
+        model_pred = self.TE_unet(prompt_ids, x_t_in, timesteps, attn_mask=attn_mask, position_ids=position_ids, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
         # Get the target for loss depending on the prediction type
         if self.cfgs.train.loss.type == "eps":
             target = noise
         elif self.cfgs.train.loss.type == "x0":
-            target = latents
-            model_pred = self.noise_sampler.get_x0(model_pred, noisy_latents, sigma)
+            target = x_0
+            # x^_0 = c_skip*x_t + c_out*eps
+            model_pred = self.noise_sampler.get_x0(model_pred, x_t, sigma)
         else:
             raise ValueError(f"Unknown loss type {self.cfgs.train.loss.type}")
         return model_pred, target, sigma

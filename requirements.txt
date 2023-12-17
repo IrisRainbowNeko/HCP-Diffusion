@@ -19,3 +19,4 @@ transformers>=4.25.1
 xformers
 pytorch_lightning
 easydict
+pytorch-msssim

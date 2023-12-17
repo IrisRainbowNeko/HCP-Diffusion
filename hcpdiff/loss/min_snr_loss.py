@@ -20,22 +20,19 @@ class SoftMinSNRLoss(MinSNRLoss):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
         loss = super(MinSNRLoss, self).forward(input, target)
-        snr = 1/sigma
-        snr_weight = (self.gamma**3/(snr**2 + self.gamma**3)).float()
+        snr_weight = (self.gamma**2/(sigma**2 + self.gamma**2)).float()
         return loss*snr_weight.view(-1, 1, 1, 1)
 
 class KDiffMinSNRLoss(MinSNRLoss):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
         loss = super(MinSNRLoss, self).forward(input, target)
-        snr = 1/sigma
-        snr_weight = 4*(((self.gamma*snr)**2/(snr**2 + self.gamma**2)**2)).float()
+        snr_weight = 4*((self.gamma*sigma)**2/(sigma**2 + self.gamma**2)**2).float()
         return loss*snr_weight.view(-1, 1, 1, 1)
 
 class EDMLoss(MinSNRLoss):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
         loss = super(MinSNRLoss, self).forward(input, target)
-        snr = 1/sigma
-        snr_weight = ((sigma**2+self.gamma**2)/(snr*(sigma*self.gamma)**2)).float()
+        snr_weight = ((sigma**2+self.gamma**2)/((sigma*self.gamma)**2)).float()
         return loss*snr_weight.view(-1, 1, 1, 1)
