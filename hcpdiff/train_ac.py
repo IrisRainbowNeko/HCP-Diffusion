@@ -495,10 +495,10 @@ class Trainer:
         # compute all losses
         loss_list = []
         for criterion in self.criterion_list:
+            loss_args = {}
             if getattr(criterion, 'need_sigma', False):
-                loss = criterion(model_pred.float(), target.float(), sigma)
-            else:
-                loss = criterion(model_pred.float(), target.float())
+                loss_args['sigma'] = sigma
+            loss = criterion(model_pred.float(), target.float(), **loss_args)
 
             if (att_mask is not None) and (loss.shape[2:] == att_mask.shape[2:]):
                 loss = loss*att_mask
