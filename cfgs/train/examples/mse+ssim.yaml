@@ -1,0 +1,18 @@
+_base_: [cfgs/train/examples/fine-tuning.yaml]
+
+train:
+  loss:
+    criterion: # mse + ssim
+      - _target_: hcpdiff.loss.EDMWeight
+        _partial_: True
+        gamma: 0.5
+        loss:
+          _target_: torch.nn.MSELoss
+          reduction: 'none'
+      - _target_: hcpdiff.loss.EDMWeight
+        _partial_: True
+        gamma: 0.5
+        weight: 0.5
+        loss:
+          _target_: hcpdiff.loss.SSIMLoss
+          reduction: 'none'

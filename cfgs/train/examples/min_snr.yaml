@@ -2,6 +2,10 @@ _base_: [cfgs/train/examples/fine-tuning.yaml]
 
 train:
   loss:
-    criterion: # min SNR loss
-      _target_: hcpdiff.loss.MinSNRLoss
-      gamma: 2.0
+    criterion: # min SNR weight * MSE loss
+      - _target_: hcpdiff.loss.MinSNRWeight
+        _partial_: True
+        gamma: 2.0
+        loss:
+          _target_: torch.nn.MSELoss
+          reduction: 'none' # support for attention mask

@@ -1,1 +1,2 @@
-from .min_snr_loss import MinSNRLoss, SoftMinSNRLoss, KDiffMinSNRLoss, EDMLoss
+from .min_snr import MinSNRWeight, SoftMinSNRWeight, KDiffMinSNRWeight, EDMWeight
+from .ssim import SSIMLoss, MS_SSIMLoss

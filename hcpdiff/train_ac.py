@@ -74,7 +74,7 @@ class Trainer:
         if self.cache_latents:
             self.vae = self.vae.to('cpu')
         self.build_optimizer_scheduler()
-        self.criterion = cfgs.train.loss.criterion()
+        self.criterion_list = [criterion() for criterion in cfgs.train.loss.criterion]
 
         self.cfg_scale = get_cfg_range(cfgs.train.cfg_scale)
         if self.cfg_scale[1] == 1.0:
@@ -493,10 +493,17 @@ class Trainer:
     def get_loss(self, model_pred, target, sigma, att_mask):
         if att_mask is None:
             att_mask = 1.0
-        if getattr(self.criterion, 'need_sigma', False):
-            loss = (self.criterion(model_pred.float(), target.float(), sigma)*att_mask).mean()
-        else:
-            loss = (self.criterion(model_pred.float(), target.float())*att_mask).mean()
+
+        # compute all losses
+        loss_list = []
+        for criterion in self.criterion_list:
+            if getattr(criterion, 'need_sigma', False):
+                loss = (criterion(model_pred.float(), target.float(), sigma)*att_mask).mean()
+            else:
+                loss = (criterion(model_pred.float(), target.float())*att_mask).mean()
+            loss_list.append(loss)
+        loss = sum(loss_list)
+
         if len(self.embedding_hook.emb_train)>0:
             loss = loss+0*sum([emb.mean() for emb in self.embedding_hook.emb_train])
         return loss
