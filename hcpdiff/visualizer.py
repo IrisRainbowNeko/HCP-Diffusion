@@ -14,6 +14,7 @@ from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list, pad_attn_bias
+from hcpdiff.deprecated.cfg_converter import InferCFGConverter
 from omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
@@ -240,6 +241,8 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='')
     args, cfg_args = parser.parse_known_args()
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
+
+    cfgs = InferCFGConverter().convert(cfgs) # support old cfgs format
 
     if cfgs.seed is not None:
         if is_list(cfgs.seed):
