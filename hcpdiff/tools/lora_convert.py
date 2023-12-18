@@ -4,6 +4,7 @@ from typing import List
 import math
 
 from hcpdiff.ckpt_manager import auto_manager
+from hcpdiff.deprecated import convert_to_webui_maybe_old, convert_to_webui_xl_maybe_old
 
 class LoraConverter:
     com_name_unet = ['down_blocks', 'up_blocks', 'mid_block', 'transformer_blocks', 'to_q', 'to_k', 'to_v', 'to_out', 'proj_in', 'proj_out', 'input_blocks', 'middle_block', 'output_blocks']
@@ -58,6 +59,7 @@ class LoraConverter:
                 sd_covert[f'{model_k}.___.layer.{self.lora_w_map[lora_k]}'] = v
         return sd_covert
 
+    @convert_to_webui_maybe_old
     def convert_to_webui_(self, state, prefix):
         sd_covert = {}
         for k, v in state.items():
@@ -72,7 +74,8 @@ class LoraConverter:
 
             sd_covert[f"{prefix}{model_k.replace('.', '_')}.{lora_k}"] = v
         return sd_covert
-    
+
+    @convert_to_webui_xl_maybe_old
     def convert_to_webui_xl_(self, state, prefix):
         sd_convert = {}
         for k, v in state.items():
@@ -237,7 +240,7 @@ if __name__ == '__main__':
         print('save unet lora to:', unet_path)
     elif args.to_webui:
         sd_unet = ckpt_manager.load_ckpt(args.lora_path)
-        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE)
+        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE) if args.lora_path_TE else {}
         state = converter.convert_to_webui(sd_unet['lora'], sd_TE['lora'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
         ckpt_manager._save_ckpt(state, save_path=args.dump_path)
         print('save lora to:', args.dump_path)
