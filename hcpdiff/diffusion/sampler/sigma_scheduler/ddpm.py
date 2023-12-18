@@ -113,6 +113,6 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
             max_rate = torch.full(shape, max_rate)
 
         t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
-        t_scale = (t*len(self.sigmas))
+        t_scale = (t*(len(self.sigmas)-1))
 
         return linear_interp(self.sigmas, t_scale), t

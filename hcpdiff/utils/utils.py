@@ -166,6 +166,8 @@ def linear_interp(t, x):
     t_l ---------t_h
            ^x
     '''
+    if (x>=len(t)).any():
+        x = x.clamp(max=len(t)-1e-6)
     x0 = x.floor().long()
     x1 = x0 + 1
 

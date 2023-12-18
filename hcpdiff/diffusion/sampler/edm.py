@@ -23,8 +23,8 @@ class EDM_DDPMSampler(BaseSampler):
         raise NotImplementedError
 
 class EDMSampler(BaseSampler):
-    def __init__(self, generator: torch.Generator = None, sigma_data: float = 0.5):
-        super().__init__(generator)
+    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None, sigma_data: float = 0.5):
+        super().__init__(sigma_scheduler, generator)
         self.sigma_data = sigma_data
 
     def c_in(self, sigma):
