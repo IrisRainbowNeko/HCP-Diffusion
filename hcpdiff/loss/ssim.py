@@ -10,7 +10,7 @@ class SSIMLoss(_Loss):
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         input = (input+1)/2
         target = (target+1)/2
-        return 1-self.ssim(input, target)
+        return 1-self.ssim(input, target).view(-1,1,1,1)
 
 class MS_SSIMLoss(_Loss):
     def __init__(self, size_average=None, reduce=None, reduction: str = 'mean'):
@@ -20,4 +20,4 @@ class MS_SSIMLoss(_Loss):
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         input = (input+1)/2
         target = (target+1)/2
-        return 1-self.ssim(input, target)
+        return 1-self.ssim(input, target).view(-1,1,1,1)

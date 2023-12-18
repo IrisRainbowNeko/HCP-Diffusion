@@ -491,17 +491,19 @@ class Trainer:
         return loss.item()
 
     def get_loss(self, model_pred, target, sigma, att_mask):
-        if att_mask is None:
-            att_mask = 1.0
-
         # compute all losses
         loss_list = []
         for criterion in self.criterion_list:
             if getattr(criterion, 'need_sigma', False):
-                loss = (criterion(model_pred.float(), target.float(), sigma)*att_mask).mean()
+                loss = criterion(model_pred.float(), target.float(), sigma)
             else:
-                loss = (criterion(model_pred.float(), target.float())*att_mask).mean()
-            loss_list.append(loss)
+                loss = criterion(model_pred.float(), target.float())
+
+            if (att_mask is not None) and (loss.shape[2:] == att_mask.shape[2:]):
+                loss = loss*att_mask
+            else:
+                warnings.warn(f'Loss {criterion} not support att_mask.')
+            loss_list.append(loss.mean())
         loss = sum(loss_list)
 
         if len(self.embedding_hook.emb_train)>0:
@@ -554,6 +556,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Stable Diffusion Training')
     parser.add_argument('--cfg', type=str, default=None, required=True)
     args, cfg_args = parser.parse_known_args()
+
+    warnings.filterwarnings("once", category=UserWarning)
 
     conf = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
     trainer = Trainer(conf)
