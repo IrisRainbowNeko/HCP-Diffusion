@@ -78,3 +78,4 @@ class InferCFGConverter:
                 cfg['amp'] = True
             else:
                 cfg['amp'] = False
+        return cfg
