@@ -214,17 +214,17 @@ class Visualizer:
                                pooled_output=pooled_output[-1], encoder_attention_mask=attention_mask, **kwargs).images
         return images
 
-    def inter_callback(self, i, t, num_t, latents):
+    def inter_callback(self, i, t, num_t, latents_x0, latents):
         images = None
         interrupt = False
         for interface in self.cfgs.interface:
             if interface.show_steps>0 and i%interface.show_steps == 0:
                 if self.need_inter_imgs and images is None:
-                    images = self.pipe.decode_latents(latents)
+                    images = self.pipe.decode_latents(latents_x0)
                     images = self.pipe.numpy_to_pil(images)
-                feed_back = interface.on_inter_step(i, num_t, t, latents, images)
+                feed_back = interface.on_inter_step(i, num_t, t, latents_x0, images)
                 interrupt |= bool(feed_back)
-        return interrupt
+        return None if interrupt else latents
 
     def save_images(self, images, prompt, negative_prompt='', seeds: List[int] = None):
         for interface in self.cfgs.interface:
