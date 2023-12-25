@@ -17,25 +17,17 @@ class HookPipe_T2I(StableDiffusionPipeline):
     def device(self) -> torch.device:
         return torch.device('cuda')
 
-    def proc_prompt(self, device, num_images_per_prompt, prompt_embeds = None, negative_prompt_embeds = None):
-        batch_size = prompt_embeds.shape[0]
-        prompt_embeds = prompt_embeds.to(dtype=self.text_encoder.dtype, device=device)
+    def proc_prompt(self, device, num_inference_steps, prompt_embeds = None, negative_prompt_embeds = None) -> List[torch.Tensor]:
+        if not isinstance(prompt_embeds, list): # to emb for each step
+            prompt_embeds = [prompt_embeds]*num_inference_steps
+        if not isinstance(negative_prompt_embeds, list): # to emb for each step
+            negative_prompt_embeds = [negative_prompt_embeds]*num_inference_steps
 
-        bs_embed, seq_len, _ = prompt_embeds.shape
-        # duplicate text embeddings for each generation per prompt, using mps friendly method
-        prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1)
-        prompt_embeds = prompt_embeds.view(bs_embed*num_images_per_prompt, seq_len, -1)
+        prompt_embeds = [p.to(dtype=self.text_encoder.dtype, device=device) for p in prompt_embeds]
+        negative_prompt_embeds = [p.to(dtype=self.text_encoder.dtype, device=device) for p in negative_prompt_embeds]
 
-        # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
-        seq_len = negative_prompt_embeds.shape[1]
-
-        negative_prompt_embeds = negative_prompt_embeds.to(dtype=self.text_encoder.dtype, device=device)
-
-        negative_prompt_embeds = negative_prompt_embeds.repeat(1, num_images_per_prompt, 1)
-        negative_prompt_embeds = negative_prompt_embeds.view(batch_size*num_images_per_prompt, seq_len, -1)
-
-        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
-        return prompt_embeds
+        prompt_embeds = [torch.cat([emb_neg, emb_pos]) for emb_pos, emb_neg in zip(prompt_embeds, negative_prompt_embeds)]
+        return prompt_embeds # List[emb_step_i]*num_inference_steps
 
     @torch.no_grad()
     def __call__(
@@ -46,7 +38,6 @@ class HookPipe_T2I(StableDiffusionPipeline):
         num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
         negative_prompt: Optional[Union[str, List[str]]] = None,
-        num_images_per_prompt: Optional[int] = 1,
         eta: float = 0.0,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
         latents: Optional[torch.FloatTensor] = None,
@@ -74,6 +65,8 @@ class HookPipe_T2I(StableDiffusionPipeline):
             batch_size = 1
         elif prompt is not None and isinstance(prompt, list):
             batch_size = len(prompt)
+        elif isinstance(prompt_embeds, list):
+            batch_size = prompt_embeds[0].shape[0]
         else:
             batch_size = prompt_embeds.shape[0]
 
@@ -84,7 +77,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
         do_classifier_free_guidance = guidance_scale>1.0
 
         # 3. Encode input prompt
-        prompt_embeds = self.proc_prompt(device, num_images_per_prompt,
+        prompt_embeds = self.proc_prompt(device, num_inference_steps,
                             prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds)
 
         # 4. Prepare timesteps
@@ -95,11 +88,11 @@ class HookPipe_T2I(StableDiffusionPipeline):
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
         latents = self.prepare_latents(
-            batch_size*num_images_per_prompt,
+            batch_size,
             num_channels_latents,
             height,
             width,
-            prompt_embeds.dtype,
+            prompt_embeds[0].dtype,
             device,
             generator,
             latents,
@@ -114,7 +107,7 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
             else:
                 crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
-            crop_info = crop_info.to(device).repeat(batch_size*num_images_per_prompt, 1)
+            crop_info = crop_info.to(device).repeat(batch_size, 1)
             pooled_output = pooled_output.to(device)
 
             if do_classifier_free_guidance:
@@ -129,12 +122,12 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
                 if pooled_output is None:
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds[i], encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, ).sample
                 else:
                     added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                     # predict the noise residual
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                    noise_pred = self.unet(latent_model_input, t, prompt_embeds[i], encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
                 # perform guidance
