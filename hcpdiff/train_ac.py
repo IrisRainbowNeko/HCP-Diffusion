@@ -510,7 +510,7 @@ class Trainer:
         else:
             loss = (self.criterion(model_pred.float(), target.float())*att_mask).mean()
         if len(self.embedding_hook.emb_train)>0:
-            loss = loss+0*sum([emb.mean() for emb in self.embedding_hook.emb_train])
+            loss = loss+sum([emb.mean() for emb in self.embedding_hook.emb_train])
         return loss
 
     def update_ema(self):
