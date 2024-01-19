@@ -1,0 +1,125 @@
+_base_:
+  - cfgs/train/examples/lora_conventional.yaml
+  - cfgs/train/dataset/regularization_dataset.yaml
+
+model:
+  pretrained_model_name_or_path: 'deepghs/animefull-latest'
+  clip_skip: 1
+
+train:
+  train_steps: 5000
+  save_step: 100
+
+  scheduler:
+    num_training_steps: ${train.train_steps}
+
+character_name: virtuosa_arknights
+dataset_dir: '/nfs3/lora_datasets/virtuosa_arknights'
+reg_dataset_dir: '/nfs3/lora_datasets/reg_all'
+# if exp_dir is not set, a random time-based directory will be used
+exp_dir: 'exps/virtuosa_t4_r16_w1_p0.3_initc_dunet0.01_note'
+
+tag_dropout: 0.3
+
+unet_rank: 0.01
+text_encoder_rank: 4
+
+tokenizer_pt:
+  emb_dir: 'embs/' #自定义word目录
+  replace: False #训练后是否替换原有word
+  train:
+    - name: ${character_name}
+      lr: 0.003
+
+lora_unet:
+  - lr: 1e-4
+    rank: ${unet_rank}
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff$'
+
+# lora_text_encoder:
+#   - lr: 1e-5
+#     rank: ${text_encoder_rank}
+#     layers:
+#       - 're:.*self_attn$'
+#       - 're:.*mlp$'
+
+data:
+  dataset1:
+    batch_size: 4
+    cache_latents: True
+
+    source:
+      data_source1:
+        img_root: ${dataset_dir}
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: ${dataset_dir}  # path to image captions (file_words)
+
+        word_names:
+          pt1: ${character_name}
+
+        text_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: ${tag_dropout}
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names: ${....word_names}
+
+    # support images with any size, not recommended for anime training
+    # bucket:
+    #   _target_: hcpdiff.data.bucket.RatioSizeBucket.from_files # aspect ratio bucket
+    #   target_area: ---
+    #   max_area: ${hcp.eval:"768*768"}
+    #   num_bucket: 10
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"512*512"}
+      num_bucket: 5
+
+  dataset_class:
+    batch_size: 16
+    cache_latents: True
+    loss_weight: 1.0
+    cache_path: '/nfs3/lora_datasets/reg_all.bin'
+
+    source:
+      data_source1:
+        img_root: ${reg_dataset_dir}
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: ${reg_dataset_dir}
+
+        word_names:
+          pt1: ''
+
+        text_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: ${tag_dropout}
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names: ${....word_names}
+
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"512*512"}
+      num_bucket: 20
+
+logger:
+  - _target_: hcpdiff.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+  - _target_: hcpdiff.loggers.TBLogger
+    _partial_: True
+    out_path: 'tblog/'
+    log_step: 5
+#  - _target_: hcpdiff.loggers.WanDBLogger
+#    _partial_: True
+#    out_path: null
+#    log_step: 5
+
+
