@@ -30,6 +30,13 @@ infer_args:
   height: 1536  # image size
   guidance_scale: 7  # scale, when higher, the images will tend to be more similar
   num_inference_steps: 30  # how many steps
+  scheduler: # DPM++ 2M Karras
+    _target_: diffusers.DPMSolverMultistepScheduler
+    beta_start: 0.00085
+    beta_end: 0.012
+    algorithm_type: dpmsolver++
+    beta_schedule: scaled_linear
+    use_karras_sigmas: true
 
 output_dir: 'output/'
 lora:
@@ -45,13 +52,7 @@ prepare:
   - _target_: hcpdiff.workflow.LoadModelsAction
     pretrained_model: ${pretrained_model}
     dtype: ${dtype}
-    scheduler: # DPM++ 2M Karras
-      _target_: diffusers.DPMSolverMultistepScheduler
-      beta_start: 0.00085
-      beta_end: 0.012
-      algorithm_type: dpmsolver++
-      beta_schedule: scaled_linear
-      use_karras_sigmas: true
+    scheduler: ${infer_args.scheduler}
     vae: # use NAI's vae
       _target_: diffusers.AutoencoderKL.from_pretrained
       pretrained_model_name_or_path: deepghs/animefull-latest  # path to vae model

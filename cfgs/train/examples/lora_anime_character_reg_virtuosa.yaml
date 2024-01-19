@@ -16,6 +16,7 @@ train:
 character_name: virtuosa_arknights
 dataset_dir: '/nfs3/lora_datasets/virtuosa_arknights'
 reg_dataset_dir: '/nfs3/lora_datasets/reg_all'
+reg_dataset_cache_path: '/nfs3/lora_datasets/reg_all.bin'
 # if exp_dir is not set, a random time-based directory will be used
 exp_dir: 'exps/virtuosa_t4_r16_w1_p0.3_initc_dunet0.01_note'
 
@@ -68,12 +69,6 @@ data:
             - _target_: hcpdiff.utils.caption_tools.TemplateFill
               word_names: ${....word_names}
 
-    # support images with any size, not recommended for anime training
-    # bucket:
-    #   _target_: hcpdiff.data.bucket.RatioSizeBucket.from_files # aspect ratio bucket
-    #   target_area: ---
-    #   max_area: ${hcp.eval:"768*768"}
-    #   num_bucket: 10
     bucket:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
       target_area: ${hcp.eval:"512*512"}
@@ -83,7 +78,7 @@ data:
     batch_size: 16
     cache_latents: True
     loss_weight: 1.0
-    cache_path: '/nfs3/lora_datasets/reg_all.bin'
+    cache_path: ${reg_dataset_cache_path}
 
     source:
       data_source1:
