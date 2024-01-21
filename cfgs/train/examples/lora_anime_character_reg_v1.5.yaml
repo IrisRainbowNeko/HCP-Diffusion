@@ -7,8 +7,8 @@ model:
   clip_skip: 1
 
 train:
-  train_steps: 5000
-  save_step: 100
+  train_steps: 10000
+  save_step: 200
   scheduler:
     num_training_steps: ${train.train_steps}
 
@@ -31,7 +31,7 @@ tag_dropout: 0.3
 pt:
   emb_dir: 'embs/'
   lr: 0.03
-unet:
+unet_:
   lr: 1e-4
   rank: 0.01
 
@@ -43,11 +43,12 @@ tokenizer_pt:
       lr: ${pt.lr}
 
 lora_unet:
-  - lr: ${unet.lr}
-    rank: ${unet.rank}
+  - lr: ${unet_.lr}
+    rank: ${unet_.rank}
     layers:
       - 're:.*\.attn.?$'
       - 're:.*\.ff$'
+lora_text_encoder: []
 
 data:
   dataset1:
