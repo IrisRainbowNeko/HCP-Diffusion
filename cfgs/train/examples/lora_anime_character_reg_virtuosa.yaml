@@ -18,7 +18,7 @@ dataset_dir: '/nfs3/lora_datasets/virtuosa_arknights'
 reg_dataset_dir: '/nfs3/lora_datasets/reg_all'
 reg_dataset_cache_path: '/nfs3/lora_datasets/reg_all.bin'
 # if exp_dir is not set, a random time-based directory will be used
-exp_dir: 'exps/virtuosa_t4_r16_w1_p0.3_initc_dunet0.01_note'
+exp_dir: 'exps/virtuosa_t4_r16_w1_p0.3_initc_dunet0.01_notet'
 
 tag_dropout: 0.3
 
@@ -38,6 +38,7 @@ lora_unet:
     layers:
       - 're:.*\.attn.?$'
       - 're:.*\.ff$'
+lora_text_encoder: []
 
 # lora_text_encoder:
 #   - lr: 1e-5
