@@ -7,14 +7,14 @@ model:
   clip_skip: 1
 
 train:
-  train_steps: 10000
+  train_steps: 6000
   save_step: 200
   scheduler:
     num_training_steps: ${train.train_steps}
 
 character_name: amiya_arknights
 # if exp_dir is not set, a random time-based directory will be used
-exp_dir: 'exps/amiya_t4_r16_w1_p0.3_initc_dunet0.01_note_640'
+exp_dir: 'exps/amiya_t4_r1_w1_p0.3_initc_dunet0.01_note_640'
 
 dataset:
   dir: '/nfs3/lora_datasets/amiya_arknights'
@@ -23,7 +23,7 @@ dataset:
 reg_dataset:
   dir: '/nfs3/lora_datasets/reg_all'
   cache: '/nfs3/lora_datasets/reg_all.bin'
-  bs: 16
+  bs: 1
   loss_weight: 1.0
   resolution: 640
 
