@@ -1,0 +1,82 @@
+dtype: fp16
+bs: 1
+seed: 42
+
+pretrained_model: 'KBlueLeaf/kohaku-xl-beta7.1'
+prompt: '1girl loli loli solo wings dragon-horns dragon-wings cup red-hair purple-eyes sitting crossed-legs flower teacup looking-at-viewer red-flower white-dress dress one-side-up small-breasts holding breasts barefoot table navel stomach underboob bare-shoulders holding-cup short-hair bangs teapot sleeveless-dress cloudy-sky river forest tree sunset expressionless smile sideboob'
+neg_prompt: 'bad-anatomy watermarks text blurry'
+N_repeats: 3
+
+clip_skip: 1 #动漫模型通常会跳过一个CLIP层
+
+infer_args:
+  width: 576
+  height: 960  # image size
+  guidance_scale: 5  # scale, when higher, the images will tend to be more similar
+  num_inference_steps: 20  # how many steps
+
+output_dir: 'output/'
+
+memory: { }
+
+prepare:
+  - _target_: hcpdiff.workflow.LoadModelsAction
+    pretrained_model: ${pretrained_model}
+    dtype: ${dtype}
+    scheduler: # DPM++ 2M Karras
+      _target_: diffusers.DPMSolverMultistepScheduler
+      beta_start: 0.00085
+      beta_end: 0.012
+      algorithm_type: dpmsolver++
+      beta_schedule: scaled_linear
+      use_karras_sigmas: true
+    vae: # use NAI's vae
+      _target_: diffusers.AutoencoderKL.from_pretrained
+      pretrained_model_name_or_path: stabilityai/stable-diffusion-xl-base-1.0  # path to vae model
+      subfolder: vae
+  - _target_: hcpdiff.workflow.XformersEnableAction
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      from hcpdiff.utils.net_utils import to_cpu, to_cuda
+      to_cuda(memory.unet)
+      to_cuda(memory.text_encoder)
+      to_cuda(memory.vae)
+  - _target_: hcpdiff.workflow.PrepareDiffusionAction
+    dtype: ${dtype}
+  - _target_: hcpdiff.workflow.VaeOptimizeAction
+    slicing: True
+
+actions:
+  - _target_: hcpdiff.workflow.TextHookAction
+    N_repeats: ${N_repeats}
+    layer_skip: ${clip_skip}
+    TE_final_norm: false
+
+  ## Text2Img
+  # encode text
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: ${prompt}
+    negative_prompt: ${neg_prompt}
+    bs: ${bs}
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: ${infer_args.num_inference_steps}
+  # text to image
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: ${infer_args.width}
+    height: ${infer_args.height}
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t #迭代timesteps，每一步的存成t到states里
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: ${infer_args.guidance_scale}
+
+  # decode to image
+  - _target_: hcpdiff.workflow.DecodeAction
+    vae: ${hcp.from_memory:vae}
+  - _target_: hcpdiff.workflow.SaveImageAction
+    save_root: ${output_dir}
+    image_type: png

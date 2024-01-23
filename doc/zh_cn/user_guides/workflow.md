@@ -4,7 +4,7 @@
 
 ```bash
 # 运行workflow
-python -m hcpdiff.infer_workflow --cfg cfgs/workflow/highres_fix.yaml
+accelerate launch -m hcpdiff.infer_workflow --cfg cfgs/workflow/highres_fix.yaml
 ```
 
 ## 配置基础结构

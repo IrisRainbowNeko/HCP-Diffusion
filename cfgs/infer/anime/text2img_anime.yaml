@@ -1,4 +1,4 @@
-_base_: [cfgs/infer/text2img.yaml]
+_base_: [ cfgs/infer/text2img.yaml ]
 
 pretrained_model: 'deepghs/animefull-latest'  # animefull-latest model
 prompt: 'masterpiece, best quality, 1girl, solo, tohsaka rin'  # image of 远坂凛(tohsaka rin)
@@ -13,9 +13,25 @@ infer_args:
   num_inference_steps: 30  # how many steps
 
 new_components:
-  scheduler:
-    _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
+#  scheduler: # Euler a
+#    _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
+#    beta_start: 0.00085
+#    beta_end: 0.012
+#    beta_schedule: 'scaled_linear'
+  scheduler: # DPM++ 2M Karras
+    _target_: diffusers.DPMSolverMultistepScheduler
     beta_start: 0.00085
     beta_end: 0.012
-    beta_schedule: 'scaled_linear'
+    algorithm_type: dpmsolver++
+    beta_schedule: scaled_linear
+    use_karras_sigmas: true
+  vae: # use NAI's vae
+    _target_: diffusers.AutoencoderKL.from_pretrained
+    pretrained_model_name_or_path: deepghs/animefull-latest  # path to vae model
+    subfolder: vae
 
+output_dir: 'output/'
+interface:
+  - _target_: hcpdiff.vis.DiskInterface
+    show_steps: 0
+    save_root: '${output_dir}'

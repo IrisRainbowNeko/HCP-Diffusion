@@ -1,7 +1,7 @@
-torch>=1.12.0
+torch>=1.12.0,<2.1
 torchvision>=0.13.0
 accelerate>=0.15.0
-diffusers>=0.17.1
+diffusers>=0.17.1,<0.25
 safetensors
 einops>=0.6.0
 hydra-core
@@ -18,4 +18,5 @@ tqdm
 transformers>=4.25.1
 xformers
 pytorch_lightning
+dghs-imgutils>=0.2.10
 easydict

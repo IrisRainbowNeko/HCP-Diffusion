@@ -1,0 +1,122 @@
+_base_:
+  - cfgs/train/examples/lora_conventional.yaml
+  - cfgs/train/dataset/regularization_dataset.yaml
+
+model:
+  pretrained_model_name_or_path: 'deepghs/animefull-latest'
+  clip_skip: 1
+
+train:
+  train_steps: 10000
+  save_step: 200
+  scheduler:
+    num_training_steps: ${train.train_steps}
+
+character_name: tohsaka_rin_fatestaynightufotable
+# if exp_dir is not set, a random time-based directory will be used
+exp_dir: 'exps/tohsaka_rin_t4_r1_w1_p0.3_initc_dunet0.01_note_720br'
+
+dataset:
+  dir: '/nfs3/lora_datasets/tohsaka_rin_fatestaynightufotable'
+  bs: 4
+  resolution: 720
+  num_bucket: 5
+reg_dataset:
+  dir: '/nfs3/lora_datasets/reg_all'
+  cache: '/nfs3/lora_datasets/reg_all.bin'
+  bs: 1
+  loss_weight: 1.0
+  resolution: 720
+  num_bucket: 20
+
+tag_dropout: 0.2
+pt:
+  emb_dir: 'embs/'
+  lr: 0.03
+unet_:
+  lr: 1e-4
+  rank: 0.01
+
+tokenizer_pt:
+  emb_dir: ${pt.emb_dir}
+  replace: False
+  train:
+    - name: ${character_name}
+      lr: ${pt.lr}
+
+lora_unet:
+  - lr: ${unet_.lr}
+    rank: ${unet_.rank}
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff$'
+lora_text_encoder: []
+
+data:
+  dataset1:
+    batch_size: ${dataset.bs}
+    cache_latents: True
+
+    source:
+      data_source1:
+        img_root: ${dataset.dir}
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: ${dataset.dir}  # path to image captions (file_words)
+
+        word_names:
+          pt1: ${character_name}
+
+        text_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: ${tag_dropout}
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names: ${....word_names}
+
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"${dataset.resolution}*${dataset.resolution}"}
+      num_bucket: ${dataset.num_bucket}
+
+  dataset_class:
+    batch_size: ${reg_dataset.bs}
+    cache_latents: True
+    loss_weight: ${reg_dataset.loss_weight}
+    cache_path: ${reg_dataset.cache}
+
+    source:
+      data_source1:
+        img_root: ${reg_dataset.dir}
+        prompt_template: 'prompt_tuning_template/object_caption.txt'
+        caption_file: ${reg_dataset.dir}
+
+        word_names:
+          pt1: ''
+
+        text_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagDropout
+              p: ${tag_dropout}
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names: ${....word_names}
+
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"${reg_dataset.resolution}*${reg_dataset.resolution}"}
+      num_bucket: ${reg_dataset.num_bucket}
+
+logger:
+  - _target_: hcpdiff.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+  - _target_: hcpdiff.loggers.TBLogger
+    _partial_: True
+    out_path: 'tblog/'
+    log_step: 5
+
+

@@ -30,6 +30,7 @@ exp_dir: 'exps/2023-07-26-01-05-35'  # experiment directory
 model_steps: 1000  # steps of selected model
 emb_dir: '${exp_dir}/ckpts/'
 output_dir: 'output/'
+encoder_attention_mask: false
 
 merge:
   alpha: 0.85 # lora权重, default: 0.85
