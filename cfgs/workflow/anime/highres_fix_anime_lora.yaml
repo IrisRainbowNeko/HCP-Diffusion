@@ -1,41 +1,65 @@
 dtype: fp16
 bs: 1
 seed:
-  - 42
-  - 42
-  - 42
-  - 42
+  - 4222
+  - 4222
+  - 4222
+  - 4222
+  - 4222
+  - 4222
+  - 4222
+  - 4222
 
 pretrained_model: 'Meina/MeinaMix_V11'
+# pretrained_model: 'KBlueLeaf/kohaku-v4-rev1.2'
 prompt:
-  - 'masterpiece, best quality, 1girl, solo, {ling_arknights-4400:1.2}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair'
-  - 'best quality, masterpiece, highres, solo, {ling_arknights-4400:1.15}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair, 1girl, black_gloves, black_shorts, boots, coat, dragon_girl, elbow_gloves, gloves, holding, looking_at_viewer, open_clothes, open_coat, shirt, short_shorts, shorts, thigh_strap, white_coat, white_footwear, white_shirt, bare_legs, dragon_tail, full_body, gourd, holding_staff, lantern, long_sleeves, staff, ankle_boots, closed_mouth, one_eye_closed, simple_background, wide_sleeves'
-  - 'best quality, masterpiece, highres, solo, {night:1.10}, {starry sky:1.10}, beach, beautiful detailed sky, {extremely detailed background:1.20}, {ling_arknights-4400:0.8}, {standing:1.10}, looking at viewer, {bikini:1.30}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair, light smile'
-  - 'best quality, masterpiece, highres, solo, {black business suit:1.40}, {tie:1.20}, {sunglasses:1.25}, {white gloves:1.15}, {white shirt:1.10}, {black skirt:1.15}, {smoking:1.20}, handsome, {ling_arknights-4400:1.15}, blue_hair, horns, long_hair, pointy_ears, dragon_horns, blue_eyes, jewelry, earrings, smile, bangs, breasts, multicolored_hair, very_long_hair, braid, necktie, yellow_necktie, large_breasts, parted_lips, streaked_hair'
+  - '{safe}, best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, full_body'
+  - '{safe}, best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, upper_body, cowboy_shot, looking_at_viewer'
+  - '{safe}, best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, portrait, looking_at_viewer'
+  - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, jacket, long_sleeves, red_scarf, scarf, solo, thighhighs, white_thighhighs, blue_skirt, looking_at_viewer, pleated_skirt, shirt, skirt, white_shirt, animal_ear_legwear, official_alternate_costume, open_clothes, blush, holding, outdoors, short_hair, standing, blue_jacket, brown_footwear, feet_out_of_frame, full_body, ground_vehicle, motor_vehicle, off_shoulder, open_jacket, parted_lips, puffy_sleeves, shoes, sleeves_past_wrists, white_background'
+  - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, black_gloves, holding_cup, long_sleeves, open_coat, sitting, smile, solo, white_coat, white_shirt, yellow_necktie, black_shorts, jewelry, looking_at_viewer, parted_lips, short_shorts, thigh_strap, wide_sleeves, feet_out_of_frame, elbow_gloves, detached_collar, gourd, underbust'
+  - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, holding, jewelry, solo, white_dress, looking_at_viewer, wide_sleeves, smile, detached_sleeves, cowboy_shot, white_background, elbow_gloves, long_sleeves, parted_lips, simple_background, closed_mouth'
+  # - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, bandeau, belt, black_belt, coat, cowboy_shot, looking_at_viewer, midriff, navel, open_clothes, open_coat, short_shorts, shorts, smile, solo, standing, stomach, strapless, white_coat, white_shorts, long_sleeves, tube_top, wide_sleeves, :d, crop_top, holding, open_mouth, hand_on_hip, hand_up, simple_background, thighs, white_background, cleavage, jacket, jewelry, medium_breasts, small_breasts'
+  # - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, bare_shoulders, bead_bracelet, beads, china_dress, chinese_clothes, dress, folding_fan, hand_fan, holding, jewelry, looking_at_viewer, official_alternate_costume, sleeveless, sleeveless_dress, solo, white_dress, bracelet, holding_fan, smile, folded_fan, medium_breasts, thighs, dragon_tail, cowboy_shot, :d, open_mouth'
+  # - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, official_alternate_costume, solo, ears_through_headwear, hat, jacket, long_sleeves, white_headwear, backpack, bag, baseball_cap, closed_mouth, holding, looking_at_viewer, open_clothes, white_jacket, outdoors, plant, smile, upper_body, white_background, white_coat'
+  # - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, 1girl, bare_shoulders, solo, hat, looking_at_viewer, ears_through_headwear, flower, short_sleeves, collarbone, shirt, straw_hat, day, hat_flower, outdoors, puffy_short_sleeves, puffy_sleeves, blue_sky, blush, breasts, jewelry, short_shorts, shorts, smile, cloud, navel, pink_shirt, red_flower, sky, thighs, blue_shorts, off-shoulder_shirt, off_shoulder, ribbon, ring, thighlet, brown_headwear, choker, cowboy_shot, ocean, plaid, stomach, closed_mouth, holding, midriff, multiple_rings, sun_hat'
+  - 'best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, {night:1.10}, {starry sky:1.10}, beach, beautiful detailed sky, {extremely detailed background:1.20}, {standing:1.10}, looking at viewer, {bikini:1.30}, light smile'
+  - 'nsfw, best quality, masterpiece, highres, solo, {ling_arknights-${lora.step}:0.9}, {simple background:1.10}, {standing:1.15}, upper_body, {nude:1.40}, {completely nude:1.20}, mature, nipples, {pussy:1.15}, {pussy juice:1.30}, looking at viewer, {embarrassed:1.10}'
 neg_prompt:
-  - 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-  - 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-  - 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-  - 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+  - 'nsfw, {worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - 'nsfw, {worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - 'nsfw, {worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
+  - '{worst quality, low quality:1.40}, {zombie, sketch, interlocked fingers, comic:1.10}, {full body:1.10}, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, white border, {english text, chinese text:1.05}'
 N_repeats: 3
 
 clip_skip: 1 #动漫模型通常会跳过一个CLIP层
-models_dir: exps/ling/ckpts
+models_dir: exps/ling_t4_r1_w1_p0.3_initc_dunet0.01_note_720/ckpts
 emb_dir: ${models_dir}
 
 infer_args:
   init_width: 512
   init_height: 768
-  width: 1024
-  height: 1536  # image size
-  guidance_scale: 7.5  # scale, when higher, the images will tend to be more similar
+  width: 832
+  height: 1216  # image size
+  guidance_scale: 7  # scale, when higher, the images will tend to be more similar
   num_inference_steps: 30  # how many steps
+  scheduler: # DPM++ 2M Karras
+    _target_: diffusers.DPMSolverMultistepScheduler
+    beta_start: 0.00085
+    beta_end: 0.012
+    algorithm_type: dpmsolver++
+    beta_schedule: scaled_linear
+    use_karras_sigmas: true
 
 output_dir: 'output/'
 lora:
   alpha: 0.8
   dir: ${models_dir}
-  step: 4400
+  step: 10000
   text_encoder: ${lora.dir}/text_encoder-${lora.step}.safetensors
   unet: ${lora.dir}/unet-${lora.step}.safetensors
 
@@ -45,13 +69,7 @@ prepare:
   - _target_: hcpdiff.workflow.LoadModelsAction
     pretrained_model: ${pretrained_model}
     dtype: ${dtype}
-    scheduler: # DPM++ 2M Karras
-      _target_: diffusers.DPMSolverMultistepScheduler
-      beta_start: 0.00085
-      beta_end: 0.012
-      algorithm_type: dpmsolver++
-      beta_schedule: scaled_linear
-      use_karras_sigmas: true
+    scheduler: ${infer_args.scheduler}
     vae: # use NAI's vae
       _target_: diffusers.AutoencoderKL.from_pretrained
       pretrained_model_name_or_path: deepghs/animefull-latest  # path to vae model
@@ -59,11 +77,11 @@ prepare:
   - _target_: hcpdiff.workflow.BuildModelLoaderAction
 
   # load lora
-  - _target_: hcpdiff.workflow.LoadLoraAction
-    model: 'TE'
-    cfg:
-      - path: ${lora.text_encoder}
-        alpha: ${lora.alpha}
+  # - _target_: hcpdiff.workflow.LoadLoraAction
+  #   model: 'TE'
+  #   cfg:
+  #     - path: ${lora.text_encoder}
+  #       alpha: ${lora.alpha}
   - _target_: hcpdiff.workflow.LoadLoraAction
     model: 'unet'
     cfg:
@@ -121,7 +139,7 @@ actions:
   # only part of timesteps
   - _target_: hcpdiff.workflow.ExecAction
     prog: |-
-      states['timesteps'] = states['timesteps'][int(30*(1-0.6)):]
+      states['timesteps'] = states['timesteps'][int(${infer_args.num_inference_steps}*(1-0.6)):]
       states['start_timestep'] = states['timesteps'][:1]
   - _target_: hcpdiff.workflow.MakeLatentAction
     width: ${infer_args.width}
