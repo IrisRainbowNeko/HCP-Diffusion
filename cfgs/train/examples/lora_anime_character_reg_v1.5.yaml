@@ -14,18 +14,18 @@ train:
 
 character_name: amiya_arknights
 # if exp_dir is not set, a random time-based directory will be used
-exp_dir: 'exps/amiya_t4_r1_w1_p0.3_initc_dunet0.01_note_640'
+exp_dir: 'exps/amiya_t4_r1_w1_p0.3_initc_dunet0.01_note_720'
 
 dataset:
   dir: '/nfs3/lora_datasets/amiya_arknights'
   bs: 4
-  resolution: 640
+  resolution: 720
 reg_dataset:
   dir: '/nfs3/lora_datasets/reg_all'
   cache: '/nfs3/lora_datasets/reg_all.bin'
   bs: 1
   loss_weight: 1.0
-  resolution: 640
+  resolution: 720
 
 tag_dropout: 0.2
 pt:
