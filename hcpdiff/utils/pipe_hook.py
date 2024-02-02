@@ -2,10 +2,10 @@ from typing import Union, List, Optional, Callable, Dict, Any
 
 import PIL
 import torch
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipelineLegacy
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_inpaint_legacy import preprocess_mask, preprocess_image
+from .inpaint_pipe import preprocess_mask, preprocess_image, StableDiffusionInpaintPipelineLegacy
 from einops import repeat
 
 class HookPipe_T2I(StableDiffusionPipeline):
