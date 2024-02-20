@@ -1,4 +1,5 @@
 dtype: fp16
+amp: fp16
 bs: 2
 seed: 42
 
@@ -22,6 +23,7 @@ prepare:
       to_cuda(memory.vae)
   - _target_: hcpdiff.workflow.PrepareDiffusionAction
     dtype: ${dtype}
+    amp: ${amp}
   - _target_: hcpdiff.workflow.VaeOptimizeAction
     slicing: True
 

@@ -1,12 +1,12 @@
 from typing import List, Union
 
 import torch
-from torch.cuda.amp import autocast
-
 from hcpdiff.models import TokenizerHook
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
-from .base import BasicAction, from_memory_context, MemoryMixin
 from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
+from torch.cuda.amp import autocast
+
+from .base import BasicAction, from_memory_context, MemoryMixin
 
 class TextHookAction(BasicAction, MemoryMixin):
     @from_memory_context
@@ -43,12 +43,13 @@ class TextEncodeAction(BasicAction, MemoryMixin):
 
         self.te_hook = te_hook
 
-    def forward(self, memory, dtype: str, device, **states):
+    def forward(self, memory, dtype: str, device, amp=None, **states):
         te_hook = self.te_hook or memory.te_hook
-        with autocast(enabled=dtype == 'amp'):
+        with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
             # emb = emb.to(dtype=get_dtype(dtype), device=device)
-        return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'device':device, 'dtype':dtype}
+        return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'amp':amp,
+            'device':device, 'dtype':dtype}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
     @from_memory_context
@@ -56,7 +57,7 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         super().__init__(prompt, negative_prompt, bs, te_hook)
         self.token_ex = token_ex
 
-    def forward(self, memory, dtype: str, device, **states):
+    def forward(self, memory, dtype: str, device, amp=None, **states):
         te_hook = self.te_hook or memory.te_hook
         token_ex = self.token_ex or memory.token_ex
 
@@ -66,9 +67,8 @@ class AttnMultTextEncodeAction(TextEncodeAction):
 
         mult_p, clean_text_p = token_ex.parse_attn_mult(self.prompt)
         mult_n, clean_text_n = token_ex.parse_attn_mult(self.negative_prompt)
-        with autocast(enabled=dtype == 'amp'):
+        with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
-            # emb = emb.to(dtype=dtype, device=device)
             emb_n, emb_p = emb.chunk(2)
         emb_p = te_hook.mult_attn(emb_p, mult_p)
         emb_n = te_hook.mult_attn(emb_n, mult_n)
@@ -77,4 +77,4 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             to_cpu(memory.text_encoder)
 
         return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
-            'device':device, 'dtype':dtype, 'encoder_attention_mask': attention_mask}
+            'device':device, 'dtype':dtype, 'amp':amp, 'encoder_attention_mask':attention_mask}

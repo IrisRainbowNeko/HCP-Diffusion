@@ -31,12 +31,12 @@ from omegaconf import OmegaConf
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
+from hcpdiff.deprecated.cfg_converter import TrainCFGConverter
 from hcpdiff.loggers import LoggerGroup
 from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper
 from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
 from hcpdiff.models.compose import SDXLTextEncoder
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
-from hcpdiff.utils.ema import ModelEMA
 from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer_cls, auto_text_encoder_cls, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd, format_number
 from hcpdiff.visualizer import Visualizer
@@ -51,6 +51,7 @@ class Trainer:
     ckpt_manager_map = {'torch':CkptManagerPKL, 'safetensors':CkptManagerSafe}
 
     def __init__(self, cfgs_raw):
+        cfgs_raw = TrainCFGConverter().convert(cfgs_raw)  # support old cfgs format
         cfgs = hydra.utils.instantiate(cfgs_raw)
         self.cfgs = cfgs
 
@@ -471,7 +472,7 @@ class Trainer:
                 prompt_ids = data.pop('prompt').to(self.device)
                 attn_mask = data.pop('attn_mask').to(self.device) if 'attn_mask' in data else None
                 position_ids = data.pop('position_ids').to(self.device) if 'position_ids' in data else None
-                other_datas = {k:v.to(self.device) for k, v in data.items() if k!='plugin_input'}
+                other_datas = {k:v.to(self.device) for k, v in data.items() if k != 'plugin_input'}
                 if 'plugin_input' in data:
                     other_datas['plugin_input'] = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data['plugin_input'].items()}
 

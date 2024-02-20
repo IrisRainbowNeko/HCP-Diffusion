@@ -23,6 +23,7 @@ Welcome to HCP-Diffusion documentation!
 
    tutorial/lora_anime.md
    tutorial/DA.md
+   tutorial/controlnet.md
 
 .. toctree::
    :maxdepth: 1
