@@ -194,6 +194,10 @@ class Visualizer:
         mult_p, clean_text_p = self.token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.amp, dtype=self.dtype):
+            if hasattr(self.pipe.text_encoder, 'input_feeder'):
+                for feeder in self.pipe.text_encoder.input_feeder:
+                    feeder(ex_input_dict)
+
             emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
             if self.cfgs.encoder_attention_mask:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)
@@ -214,17 +218,17 @@ class Visualizer:
                                pooled_output=pooled_output[-1], encoder_attention_mask=attention_mask, **kwargs).images
         return images
 
-    def inter_callback(self, i, t, num_t, latents):
+    def inter_callback(self, i, t, num_t, latents_x0, latents):
         images = None
         interrupt = False
         for interface in self.cfgs.interface:
             if interface.show_steps>0 and i%interface.show_steps == 0:
                 if self.need_inter_imgs and images is None:
-                    images = self.pipe.decode_latents(latents)
+                    images = self.pipe.decode_latents(latents_x0)
                     images = self.pipe.numpy_to_pil(images)
-                feed_back = interface.on_inter_step(i, num_t, t, latents, images)
+                feed_back = interface.on_inter_step(i, num_t, t, latents_x0, images)
                 interrupt |= bool(feed_back)
-        return interrupt
+        return None if interrupt else latents
 
     def save_images(self, images, prompt, negative_prompt='', seeds: List[int] = None):
         for interface in self.cfgs.interface:
@@ -237,7 +241,7 @@ class Visualizer:
         self.save_images(images, prompt, negative_prompt, seeds=seeds)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Stable Diffusion Training')
+    parser = argparse.ArgumentParser(description='HCP Diffusion Inference')
     parser.add_argument('--cfg', type=str, default='')
     args, cfg_args = parser.parse_known_args()
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg

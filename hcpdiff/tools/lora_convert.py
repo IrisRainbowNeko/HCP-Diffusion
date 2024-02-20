@@ -240,7 +240,7 @@ if __name__ == '__main__':
         print('save unet lora to:', unet_path)
     elif args.to_webui:
         sd_unet = ckpt_manager.load_ckpt(args.lora_path)
-        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE) if args.lora_path_TE else {}
+        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE) if args.lora_path_TE else {'lora':{}}
         state = converter.convert_to_webui(sd_unet['lora'], sd_TE['lora'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
         ckpt_manager._save_ckpt(state, save_path=args.dump_path)
         print('save lora to:', args.dump_path)
