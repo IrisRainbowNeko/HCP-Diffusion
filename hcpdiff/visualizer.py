@@ -241,7 +241,7 @@ class Visualizer:
         self.save_images(images, prompt, negative_prompt, seeds=seeds)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Stable Diffusion Training')
+    parser = argparse.ArgumentParser(description='HCP Diffusion Inference')
     parser.add_argument('--cfg', type=str, default='')
     args, cfg_args = parser.parse_known_args()
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg

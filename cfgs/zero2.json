@@ -17,13 +17,13 @@
             "pin_memory": true
         },
         "allgather_partitions": true,
-        "allgather_bucket_size": 2e8,
+        "allgather_bucket_size": 5e8,
         "overlap_comm": true,
         "reduce_scatter": true,
-        "reduce_bucket_size": 2e8,
+        "reduce_bucket_size": 5e8,
         "contiguous_gradients": true
     },
-    "gradient_accumulation_steps": 1,
+    "gradient_accumulation_steps": "auto",
     "gradient_clipping": "auto",
     "steps_per_print": 2000,
     "train_batch_size": "auto",
