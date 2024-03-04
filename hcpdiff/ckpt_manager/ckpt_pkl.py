@@ -32,30 +32,31 @@ class CkptManagerPKL(CkptManagerBase):
         if key is None:
             return state
         else:
-            return {k: v for k, v in state.items() if key not in k}
+            return {k:v for k, v in state.items() if key not in k}
 
     def save_model(self, model: nn.Module, name, step, model_ema=None, exclude_key=None):
         sd_model = {
-            'base': self.exclude_state(LoraBlock.extract_trainable_state_without_lora(model), exclude_key),
+            'base':self.exclude_state(LoraBlock.extract_trainable_state_without_lora(model), exclude_key),
         }
         if model_ema is not None:
             sd_ema, sd_ema_lora = split_state(model_ema.state_dict())
             sd_model['base_ema'] = self.exclude_state(sd_ema, exclude_key)
-        self._save_ckpt(sd_model, name, step)
+        if len(sd_model)>0:
+            self._save_ckpt(sd_model, name, step)
 
-    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name:str, step:int, model_ema=None):
+    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema=None):
         if len(plugins)>0:
-            sd_plugin={}
+            sd_plugin = {}
             for plugin_name, plugin in plugins.items():
                 sd_plugin['plugin'] = plugin.state_dict(host_model if self.plugin_from_raw else None)
                 if model_ema is not None:
                     sd_plugin['plugin_ema'] = plugin.state_dict(model_ema)
                 self._save_ckpt(sd_plugin, f'{name}-{plugin_name}', step)
 
-    def save_model_with_lora(self, model: nn.Module, lora_blocks: LoraGroup, name:str, step:int, model_ema=None,
+    def save_model_with_lora(self, model: nn.Module, lora_blocks: LoraGroup, name: str, step: int, model_ema=None,
                              exclude_key=None):
         sd_model = {
-            'base': self.exclude_state(BasePluginBlock.extract_state_without_plugin(model, trainable=True), exclude_key),
+            'base':self.exclude_state(BasePluginBlock.extract_state_without_plugin(model, trainable=True), exclude_key),
         } if model is not None else {}
         if (lora_blocks is not None) and (not lora_blocks.empty()):
             sd_model['lora'] = lora_blocks.state_dict(model if self.plugin_from_raw else None)
@@ -68,7 +69,8 @@ class CkptManagerPKL(CkptManagerBase):
             if (lora_blocks is not None) and (not lora_blocks.empty()):
                 sd_model['lora_ema'] = lora_blocks.state_dict(model_ema)
 
-        self._save_ckpt(sd_model, name, step)
+        if len(sd_model)>0:
+            self._save_ckpt(sd_model, name, step)
 
     def _save_ckpt(self, sd_model, name=None, step=None, save_path=None):
         if save_path is None:
@@ -122,9 +124,9 @@ class CkptManagerPKL(CkptManagerBase):
         if TE is not None:
             # exclude_key: embeddings should not save with text-encoder
             self.save_model_with_lora(TE, lora_TE[0], model_ema=getattr(self, 'ema_text_encoder', None),
-                                                   name='text_encoder', step=step, exclude_key='emb_ex.')
+                                      name='text_encoder', step=step, exclude_key='emb_ex.')
             self.save_plugins(TE, all_plugin_TE, name='text_encoder', step=step,
-                                           model_ema=getattr(self, 'ema_text_encoder', None))
+                              model_ema=getattr(self, 'ema_text_encoder', None))
 
         if lora_unet[1] is not None:
             self.save_model_with_lora(None, lora_unet[1], name='unet-neg', step=step)
