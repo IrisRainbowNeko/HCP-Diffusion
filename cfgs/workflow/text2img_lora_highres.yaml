@@ -10,12 +10,10 @@ prepare:
     pretrained_model: 'ckpts/MeinaMix_V11'
     dtype: ${dtype}
     scheduler:
-      _target_: diffusers.DPMSolverMultistepScheduler # change Sampler
+      _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
       beta_start: 0.00085
       beta_end: 0.012
       beta_schedule: 'scaled_linear'
-      algorithm_type: 'dpmsolver++'
-      use_karras_sigmas: True
   - _target_: hcpdiff.workflow.BuildModelLoaderAction
 
   # load lora
@@ -48,7 +46,6 @@ actions:
   - _target_: hcpdiff.workflow.TextHookAction
     N_repeats: 1
     layer_skip: 1
-    emb_dir: 'ckpts/ling'
   # encode text
   - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
     prompt: 'masterpiece, best quality, ling_arknights-4400, 1girl, cat ears, outside'
@@ -69,6 +66,32 @@ actions:
     actions:
       - _target_: hcpdiff.workflow.DiffusionStepAction
         guidance_scale: 7.0
+
+  ### highres fix ###
+  # image to image
+  - _target_: hcpdiff.workflow.LatentResizeAction
+    width: 1024
+    height: 1024
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 30
+  # only part of timesteps
+  - _target_: hcpdiff.workflow.ExecAction
+    prog: |-
+      states['timesteps'] = states['timesteps'][int(30*(1-0.6)):]
+      states['start_timestep'] = states['timesteps'][:1]
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 1024
+    height: 1024
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: 7.0
+  ### highres fix ###
+
   # decode to image
   - _target_: hcpdiff.workflow.DecodeAction
     vae: ${hcp.from_memory:vae}

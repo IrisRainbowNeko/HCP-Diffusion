@@ -81,8 +81,8 @@ class BuildPluginAction(BasicAction, MemoryMixin):
                 'plugin_TE':hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
         else:
             plugin_cfg = self.plugin_cfg
-        all_plugin_group_unet = make_plugin(memory.unet, plugin_cfg['plugin_unet'])
-        all_plugin_group_TE = make_plugin(memory.text_encoder, plugin_cfg['plugin_TE'])
+        _, all_plugin_group_unet = make_plugin(memory.unet, plugin_cfg['plugin_unet'])
+        _, all_plugin_group_TE = make_plugin(memory.text_encoder, plugin_cfg['plugin_TE'])
 
         if 'plugin_dict' not in memory:
             memory.plugin_dict = {}

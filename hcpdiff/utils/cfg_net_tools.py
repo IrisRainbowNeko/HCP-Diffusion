@@ -230,6 +230,10 @@ class HCPModelLoader:
         self.named_modules = {k:v for k, v in host.named_modules()}
         self.named_params = {k:v for k, v in host.named_parameters()}
 
+    def update(self):
+        self.named_modules = {k:v for k, v in self.host.named_modules()}
+        self.named_params = {k:v for k, v in self.host.named_parameters()}
+
     @torch.no_grad()
     def load_part(self, cfg, base_model_alpha=0.0, load_ema=False):
         if cfg is None:
