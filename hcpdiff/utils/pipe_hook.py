@@ -4,7 +4,7 @@ import PIL
 import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 from diffusers.image_processor import VaeImageProcessor
-from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from .inpaint_pipe import preprocess_mask, preprocess_image, StableDiffusionInpaintPipelineLegacy
 from einops import repeat
 
