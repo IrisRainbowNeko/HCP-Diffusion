@@ -71,8 +71,7 @@ class EndDiffusion(BasicAction, MemoryMixin):
 
 class BuildPluginAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, model: str, cfg):
-        self.model = model
+    def __init__(self, cfg):
         self.plugin_cfg = cfg
 
     def forward(self, memory, **states):
