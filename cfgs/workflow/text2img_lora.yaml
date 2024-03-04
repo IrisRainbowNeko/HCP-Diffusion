@@ -5,6 +5,7 @@ seed: 42
 memory: { }
 
 prepare:
+  # load base sd model
   - _target_: hcpdiff.workflow.LoadModelsAction
     pretrained_model: 'ckpts/any5'
     dtype: ${dtype}
@@ -17,16 +18,19 @@ prepare:
 
   # load lora
   - _target_: hcpdiff.workflow.LoadLoraAction
-    model: 'TE'
+    name: lora-nilu-te
+    model: TE
     cfg:
       - path: 'ckpts/nilu/text_encoder-1000.safetensors'
         alpha: 0.8
   - _target_: hcpdiff.workflow.LoadLoraAction
-    model: 'unet'
+    name: lora-nilu-unet
+    model: unet
     cfg:
       - path: 'ckpts/nilu/unet-1000.safetensors'
         alpha: 0.8
 
+  # prepare model; optimize speed and VRAM
   - _target_: hcpdiff.workflow.XformersEnableAction
   - _target_: hcpdiff.workflow.ExecAction
     prog: |-

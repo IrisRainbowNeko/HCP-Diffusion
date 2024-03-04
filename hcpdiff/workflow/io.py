@@ -69,20 +69,24 @@ class LoadPartAction(BasicAction, MemoryMixin):
 
 class LoadLoraAction(BasicAction, MemoryMixin):
     @from_memory_context
-    def __init__(self, model: str, cfg):
+    def __init__(self, name:str, model: str, cfg, base_model_alpha=1.0, load_ema=False):
+        self.name = name
         self.model = model
-        self.cfg = cfg
+        self.cfg_lora = cfg
+        self.base_model_alpha = base_model_alpha
+        self.load_ema = load_ema
 
     def forward(self, memory, **states):
         model_loader = memory[f"model_loader_{self.model}"]
-        lora_group = model_loader.load_lora(self.cfg)
+        lora_group = model_loader.load_lora(self.cfg_lora)
 
         if 'lora_dict' not in memory:
             memory.lora_dict = {}
-        if path in memory.lora_dict:
-            warnings.warn(f"Lora {path} already loaded, and will be replaced!")
-            memory.lora_dict[path].remove()
-        memory.lora_dict[path] = lora_group
+        # remove if exist
+        if self.name in memory.lora_dict:
+            warnings.warn(f"Lora {self.name} already loaded, and will be replaced!")
+            memory.lora_dict[self.name].remove()
+        memory.lora_dict[self.name] = lora_group
         return states
 
 class LoadPluginAction(BasicAction, MemoryMixin):
