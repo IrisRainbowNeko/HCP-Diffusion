@@ -76,38 +76,13 @@ class LoadLoraAction(BasicAction, MemoryMixin):
     def forward(self, memory, **states):
         model_loader = memory[f"model_loader_{self.model}"]
         lora_group = model_loader.load_lora(self.cfg)
+
         if 'lora_dict' not in memory:
             memory.lora_dict = {}
         if path in memory.lora_dict:
             warnings.warn(f"Lora {path} already loaded, and will be replaced!")
             memory.lora_dict[path].remove()
         memory.lora_dict[path] = lora_group
-        return states
-
-class BuildPluginAction(BasicAction, MemoryMixin):
-    @from_memory_context
-    def __init__(self, model: str, cfg):
-        self.model = model
-        self.cfg = cfg
-
-    def forward(self, memory, **states):
-        if isinstance(self.cfg_merge.plugin_cfg, str):
-            plugin_cfg = load_config(self.cfg_merge.plugin_cfg)
-            plugin_cfg = {'plugin_unet':hydra.utils.instantiate(plugin_cfg['plugin_unet']),
-                'plugin_TE':hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
-        else:
-            plugin_cfg = self.cfg_merge.plugin_cfg
-        all_plugin_group_unet = make_plugin(memory.unet, plugin_cfg['plugin_unet'])
-        all_plugin_group_TE = make_plugin(memory.text_encoder, plugin_cfg['plugin_TE'])
-
-        if 'plugin_dict' not in memory:
-            memory.plugin_dict = {}
-
-        for name, plugin_group in all_plugin_group_unet.items():
-            memory.plugin_dict[name] = plugin_group
-        for name, plugin_group in all_plugin_group_TE.items():
-            memory.plugin_dict[name] = plugin_group
-
         return states
 
 class LoadPluginAction(BasicAction, MemoryMixin):
