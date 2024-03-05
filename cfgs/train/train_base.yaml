@@ -44,14 +44,14 @@ train:
     _partial_: True
     weight_decay: 5e-4
 
-  scale_lr: True # auto scale lr with total batch size
+  scale_lr: False # auto scale lr with total batch size
   scheduler:
     name: 'one_cycle'
     num_warmup_steps: 200
     num_training_steps: 1000
     scheduler_kwargs: {} # args for scheduler
 
-  scale_lr_pt: True
+  scale_lr_pt: False
   scheduler_pt: ${.scheduler}
 
 logger:
