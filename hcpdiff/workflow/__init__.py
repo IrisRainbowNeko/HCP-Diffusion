@@ -1,4 +1,4 @@
-from .base import BasicAction, MemoryMixin, from_memory, ExecAction, LoopAction
+from .base import BasicAction, from_memory, ExecAction, LoopAction
 from .diffusion import InputFeederAction, PrepareDiffusionAction, MakeLatentAction, NoisePredAction, SampleAction, DiffusionStepAction, \
     X0PredAction, SeedAction, MakeTimestepsAction
 from .text import TextEncodeAction, TextHookAction, AttnMultTextEncodeAction
