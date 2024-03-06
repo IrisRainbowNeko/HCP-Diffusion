@@ -11,6 +11,12 @@ from functools import partial
 
 dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
+try:
+    dtype_dict['fp8_e4m3'] = torch.float8_e4m3fn
+    dtype_dict['fp8_e5m2'] = torch.float8_e5m2
+except:
+    pass
+
 def get_scheduler(cfg, optimizer):
     if cfg is None:
         return None
