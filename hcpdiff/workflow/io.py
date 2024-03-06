@@ -8,9 +8,9 @@ from hcpdiff.utils import auto_text_encoder, auto_tokenizer, to_validate_file
 from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import get_dtype
-from .base import BasicAction, from_memory_context, MemoryMixin
+from .base import BasicAction, from_memory_context, feedback_input
 
-class LoadModelsAction(BasicAction, MemoryMixin):
+class LoadModelsAction(BasicAction):
     @from_memory_context
     def __init__(self, pretrained_model: str, dtype: str, unet=None, text_encoder=None, tokenizer=None, vae=None, scheduler=None):
         self.pretrained_model = pretrained_model
@@ -22,6 +22,7 @@ class LoadModelsAction(BasicAction, MemoryMixin):
         self.vae = vae
         self.scheduler = scheduler
 
+    @feedback_input
     def forward(self, memory, **states):
         memory.unet = self.unet or UNet2DConditionModel.from_pretrained(self.pretrained_model, subfolder="unet", torch_dtype=self.dtype)
         memory.text_encoder = self.text_encoder or auto_text_encoder(self.pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype)
@@ -29,7 +30,6 @@ class LoadModelsAction(BasicAction, MemoryMixin):
         memory.vae = self.vae or AutoencoderKL.from_pretrained(self.pretrained_model, subfolder="vae", torch_dtype=self.dtype)
         memory.scheduler = self.scheduler or PNDMScheduler.from_pretrained(self.pretrained_model, subfolder="scheduler", torch_dtype=self.dtype)
 
-        return states
 
 class SaveImageAction(BasicAction):
     @from_memory_context
@@ -40,6 +40,7 @@ class SaveImageAction(BasicAction):
 
         os.makedirs(save_root, exist_ok=True)
 
+    @feedback_input
     def forward(self, images, prompt, negative_prompt, seeds=None, **states):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
@@ -48,15 +49,14 @@ class SaveImageAction(BasicAction):
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
 
-        return {**states, 'images':images, 'prompt':prompt, 'negative_prompt':negative_prompt, 'seeds':seeds}
+class BuildModelLoaderAction(BasicAction):
 
-class BuildModelLoaderAction(BasicAction, MemoryMixin):
     def forward(self, memory, **states):
         memory.model_loader_unet = HCPModelLoader(memory.unet)
         memory.model_loader_TE = HCPModelLoader(memory.text_encoder)
         return states
 
-class LoadPartAction(BasicAction, MemoryMixin):
+class LoadPartAction(BasicAction):
     @from_memory_context
     def __init__(self, model: str, cfg):
         self.model = model
@@ -67,7 +67,7 @@ class LoadPartAction(BasicAction, MemoryMixin):
         model_loader.load_part(self.cfg)
         return states
 
-class LoadLoraAction(BasicAction, MemoryMixin):
+class LoadLoraAction(BasicAction):
     @from_memory_context
     def __init__(self, name:str, model: str, cfg, base_model_alpha=1.0, load_ema=False):
         self.name = name
@@ -89,7 +89,7 @@ class LoadLoraAction(BasicAction, MemoryMixin):
         memory.lora_dict[self.name] = lora_group
         return states
 
-class LoadPluginAction(BasicAction, MemoryMixin):
+class LoadPluginAction(BasicAction):
     @from_memory_context
     def __init__(self, model: str, cfg):
         self.model = model
@@ -100,7 +100,7 @@ class LoadPluginAction(BasicAction, MemoryMixin):
         model_loader.load_plugin(self.cfg)
         return states
 
-class RemoveLoraAction(BasicAction, MemoryMixin):
+class RemoveLoraAction(BasicAction):
     @from_memory_context
     def __init__(self, path_list: List[str]):
         self.path_list = path_list
@@ -114,7 +114,7 @@ class RemoveLoraAction(BasicAction, MemoryMixin):
                 warnings.warn(f"Lora {path} not loaded!")
         return states
 
-class RemovePluginAction(BasicAction, MemoryMixin):
+class RemovePluginAction(BasicAction):
     @from_memory_context
     def __init__(self, name_list: List[str]):
         self.name_list = name_list

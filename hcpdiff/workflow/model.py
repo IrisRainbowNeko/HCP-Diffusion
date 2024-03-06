@@ -6,9 +6,9 @@ from hcpdiff.utils.utils import size_to_int, int_to_size
 from hcpdiff.utils import load_config
 from hcpdiff.utils.cfg_net_tools import make_plugin
 import hydra
-from .base import BasicAction, from_memory_context, MemoryMixin
+from .base import BasicAction, from_memory_context, feedback_input
 
-class VaeOptimizeAction(BasicAction, MemoryMixin):
+class VaeOptimizeAction(BasicAction):
     @from_memory_context
     def __init__(self, vae=None, slicing=True, tiling=False):
         super().__init__()
@@ -25,13 +25,14 @@ class VaeOptimizeAction(BasicAction, MemoryMixin):
             vae.enable_slicing()
         return states
 
-class BuildOffloadAction(BasicAction, MemoryMixin):
+class BuildOffloadAction(BasicAction):
     @from_memory_context
     def __init__(self, max_VRAM: str, max_RAM: str):
         super().__init__()
         self.max_VRAM = max_VRAM
         self.max_RAM = max_RAM
 
+    @feedback_input
     def forward(self, memory, dtype: str, **states):
         torch_dtype = get_dtype(dtype)
         vram = size_to_int(self.max_VRAM)
@@ -40,36 +41,35 @@ class BuildOffloadAction(BasicAction, MemoryMixin):
 
         device_map = infer_auto_device_map(memory.vae, max_memory={0:int_to_size(vram >> 5), "cpu":self.max_RAM}, dtype=torch_dtype)
         memory.vae = dispatch_model(memory.vae, device_map)
-        return {'dtype':dtype, **states}
 
-class XformersEnableAction(BasicAction, MemoryMixin):
+class XformersEnableAction(BasicAction):
     def forward(self, memory, **states):
         if is_xformers_available():
             memory.unet.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
         return states
 
-class StartTextEncode(BasicAction, MemoryMixin):
+class StartTextEncode(BasicAction):
     def forward(self, memory, **states):
         to_cuda(memory.text_encoder)
         return states
 
-class EndTextEncode(BasicAction, MemoryMixin):
+class EndTextEncode(BasicAction):
     def forward(self, memory, **states):
         to_cpu(memory.text_encoder)
         return states
 
-class StartDiffusion(BasicAction, MemoryMixin):
+class StartDiffusion(BasicAction):
     def forward(self, memory, **states):
         to_cuda(memory.unet)
         return states
 
-class EndDiffusion(BasicAction, MemoryMixin):
+class EndDiffusion(BasicAction):
     def forward(self, memory, **states):
         to_cpu(memory.unet)
         return states
 
-class BuildPluginAction(BasicAction, MemoryMixin):
+class BuildPluginAction(BasicAction):
     @from_memory_context
     def __init__(self, cfg):
         self.plugin_cfg = cfg

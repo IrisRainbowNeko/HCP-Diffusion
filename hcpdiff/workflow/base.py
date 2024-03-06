@@ -2,19 +2,33 @@ from typing import List, Dict
 from tqdm.auto import tqdm
 
 class from_memory:
-    #TODO: add memory for all from_memory in cfg
     def __init__(self, memory, mem_name):
         self.mem_name = mem_name
         self.memory = memory
 
     def __call__(self):
-        memory = self.memory # use in eval
+        memory = self.memory  # use in eval
         return eval(f'memory.{self.mem_name}')
 
 def from_memory_context(fun):
     def f(*args, **kwargs):
         filter_kwargs = {k: (v() if isinstance(v, from_memory) else v) for k,v in kwargs.items()}
         return fun(*args, **filter_kwargs)
+    return f
+
+def feedback_input(fun, exclude_keys=('memory',)):
+    def f(*args, **states):
+        output = fun(*args, **states)
+        for key in exclude_keys:
+            if key in states:
+                del states[key]
+        if output is not None:
+            for key in exclude_keys:
+                if key in output:
+                    del output[key]
+            states.update(output)
+        return states
+
     return f
 
 class BasicAction:
@@ -27,19 +41,16 @@ class BasicAction:
     def forward(self, *args, **kwargs):
         raise NotImplementedError()
 
-class MemoryMixin:
-    pass
-
-class ExecAction(BasicAction, MemoryMixin):
-    def __init__(self, prog:str):
+class ExecAction(BasicAction):
+    def __init__(self, prog: str):
         self.prog = prog
 
     def forward(self, memory, **states):
         exec(self.prog)
         return states
 
-class LoopAction(BasicAction, MemoryMixin):
-    def __init__(self, loop_value:Dict[str, str], actions:List[BasicAction]):
+class LoopAction(BasicAction):
+    def __init__(self, loop_value: Dict[str, str], actions: List[BasicAction]):
         self.loop_value = loop_value
         self.actions = actions
 
@@ -48,12 +59,9 @@ class LoopAction(BasicAction, MemoryMixin):
         pbar = tqdm(zip(*loop_data), total=len(loop_data[0]))
         N_steps = len(self.actions)
         for data in pbar:
-            feed_data = {k:v for k,v in zip(self.loop_value.values(), data)}
+            feed_data = {k:v for k, v in zip(self.loop_value.values(), data)}
             states.update(feed_data)
             for step, act in enumerate(self.actions):
                 pbar.set_description(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
-                if isinstance(act, MemoryMixin):
-                    states = act(memory=memory, **states)
-                else:
-                    states = act(**states)
+                states = act(memory=memory, **states)
         return states

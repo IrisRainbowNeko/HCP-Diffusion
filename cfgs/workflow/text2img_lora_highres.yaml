@@ -1,21 +1,13 @@
+_base_:
+  - cfgs/workflow/highres_fix_latent.yaml
+
 dtype: fp16
+amp: fp16
 bs: 2
 seed: 42
 
-memory: { }
-
-prepare:
-  # load base sd model
-  - _target_: hcpdiff.workflow.LoadModelsAction
-    pretrained_model: 'ckpts/MeinaMix_V11'
-    dtype: ${dtype}
-    scheduler:
-      _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
-      beta_start: 0.00085
-      beta_end: 0.012
-      beta_schedule: 'scaled_linear'
+load_lora:
   - _target_: hcpdiff.workflow.BuildModelLoaderAction
-
   # load lora
   - _target_: hcpdiff.workflow.LoadLoraAction
     name: lora-ling-te
@@ -30,71 +22,16 @@ prepare:
       - path: 'ckpts/ling/unet-4400.safetensors'
         alpha: 0.8
 
-  # prepare model; optimize speed and VRAM
-  - _target_: hcpdiff.workflow.XformersEnableAction
-  - _target_: hcpdiff.workflow.ExecAction
-    prog: |-
-      from hcpdiff.utils.net_utils import to_cpu, to_cuda
-      to_cuda(memory.unet)
-      to_cuda(memory.vae)
-  - _target_: hcpdiff.workflow.PrepareDiffusionAction
-    dtype: ${dtype}
-  - _target_: hcpdiff.workflow.VaeOptimizeAction
-    slicing: True
-
 actions:
-  - _target_: hcpdiff.workflow.TextHookAction
-    N_repeats: 1
-    layer_skip: 1
-  # encode text
-  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
-    prompt: 'masterpiece, best quality, ling_arknights-4400, 1girl, cat ears, outside'
-    negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-    bs: ${bs}
-  # prepare seed
-  - _target_: hcpdiff.workflow.SeedAction
-    seed: ${seed}
-  - _target_: hcpdiff.workflow.MakeTimestepsAction
-    N_steps: 30
-  # text to image
-  - _target_: hcpdiff.workflow.MakeLatentAction
-    width: 512
-    height: 512
-  - _target_: hcpdiff.workflow.LoopAction
-    loop_value:
-      timesteps: t #迭代timesteps，每一步的存成t到states里
-    actions:
-      - _target_: hcpdiff.workflow.DiffusionStepAction
-        guidance_scale: 7.0
-
+  - build_model
+  - load_lora
+  - optimize_model
+  - text
+  - config_diffusion
+  - diffusion
   ### highres fix ###
-  # image to image
-  - _target_: hcpdiff.workflow.LatentResizeAction
-    width: 1024
-    height: 1024
-  - _target_: hcpdiff.workflow.SeedAction
-    seed: ${seed}
-  - _target_: hcpdiff.workflow.MakeTimestepsAction
-    N_steps: 30
-  # only part of timesteps
-  - _target_: hcpdiff.workflow.ExecAction
-    prog: |-
-      states['timesteps'] = states['timesteps'][int(30*(1-0.6)):]
-      states['start_timestep'] = states['timesteps'][:1]
-  - _target_: hcpdiff.workflow.MakeLatentAction
-    width: 1024
-    height: 1024
-  - _target_: hcpdiff.workflow.LoopAction
-    loop_value:
-      timesteps: t
-    actions:
-      - _target_: hcpdiff.workflow.DiffusionStepAction
-        guidance_scale: 7.0
+  - resize
+  - config_diffusion
+  - highres_diffusion
   ### highres fix ###
-
-  # decode to image
-  - _target_: hcpdiff.workflow.DecodeAction
-    vae: ${hcp.from_memory:vae}
-  - _target_: hcpdiff.workflow.SaveImageAction
-    save_root: output_pipe/
-    image_type: png
+  - decode

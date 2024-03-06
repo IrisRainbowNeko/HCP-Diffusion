@@ -1,27 +1,12 @@
-dtype: bf16
+_base_:
+  - cfgs/workflow/highres_fix_latent.yaml
+
+dtype: fp16
+amp: fp16
 bs: 2
 seed: 42
 
-memory: { }
-
-prepare:
-  # load base sd model
-  - _target_: hcpdiff.workflow.LoadModelsAction
-    pretrained_model: 'ckpts/MeinaMix_V11'
-    dtype: ${dtype}
-    scheduler:
-      _target_: diffusers.DPMSolverMultistepScheduler # change Sampler
-      beta_start: 0.00085
-      beta_end: 0.012
-      beta_schedule: 'scaled_linear'
-      algorithm_type: 'dpmsolver++'
-      use_karras_sigmas: True
-
-    # load anime vae
-#    vae:
-#      _target_: diffusers.AutoencoderKL.from_pretrained
-#      pretrained_model_name_or_path: 'ckpts/cf2.5_vae' # path to vae model
-
+build_plugin:
   # build plugin (lokr)
   - _target_: hcpdiff.workflow.BuildPluginAction
     #cfg: 'cfgs/plugins/lokr.yaml'
@@ -50,9 +35,8 @@ prepare:
             - 're:.*self_attn$'
             - 're:.*mlp$'
 
-  # after build plugin
+load_plugin:
   - _target_: hcpdiff.workflow.BuildModelLoaderAction
-
   # load plugin ckpts (lokr)
   - _target_: hcpdiff.workflow.LoadPluginAction
     model: TE
@@ -65,71 +49,18 @@ prepare:
       lokr:
         path: 'ckpts/tohsaka_rin-lokr/unet-lokr-8000.safetensors'
 
-  # prepare model; optimize speed and VRAM
-  - _target_: hcpdiff.workflow.XformersEnableAction
-  - _target_: hcpdiff.workflow.ExecAction
-    prog: |-
-      from hcpdiff.utils.net_utils import to_cpu, to_cuda
-      to_cuda(memory.unet)
-      to_cuda(memory.vae)
-  - _target_: hcpdiff.workflow.PrepareDiffusionAction
-    dtype: ${dtype}
-  - _target_: hcpdiff.workflow.VaeOptimizeAction
-    slicing: True
 
 actions:
-  - _target_: hcpdiff.workflow.TextHookAction
-    N_repeats: 1
-    layer_skip: 1
-  # encode text
-  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
-    prompt: 'masterpiece, best quality, tohsaka_rin_fatestaynightufotable, 1girl, outside'
-    negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-    bs: ${bs}
-  # prepare seed
-  - _target_: hcpdiff.workflow.SeedAction
-    seed: ${seed}
-  - _target_: hcpdiff.workflow.MakeTimestepsAction
-    N_steps: 30
-  # text to image
-  - _target_: hcpdiff.workflow.MakeLatentAction
-    width: 512
-    height: 512
-  - _target_: hcpdiff.workflow.LoopAction
-    loop_value:
-      timesteps: t #迭代timesteps，每一步的存成t到states里
-    actions:
-      - _target_: hcpdiff.workflow.DiffusionStepAction
-        guidance_scale: 7.0
-
+  - build_model
+  - build_plugin
+  - load_plugin
+  - optimize_model
+  - text
+  - config_diffusion
+  - diffusion
   ### highres fix ###
-  # image to image
-  - _target_: hcpdiff.workflow.LatentResizeAction
-    width: 1024
-    height: 1024
-  - _target_: hcpdiff.workflow.SeedAction
-    seed: ${seed}
-  - _target_: hcpdiff.workflow.MakeTimestepsAction
-    N_steps: 30
-  # only part of timesteps
-  - _target_: hcpdiff.workflow.ExecAction
-    prog: |-
-      states['timesteps'] = states['timesteps'][int(30*(1-0.6)):]
-      states['start_timestep'] = states['timesteps'][:1]
-  - _target_: hcpdiff.workflow.MakeLatentAction
-    width: 1024
-    height: 1024
-  - _target_: hcpdiff.workflow.LoopAction
-    loop_value:
-      timesteps: t
-    actions:
-      - _target_: hcpdiff.workflow.DiffusionStepAction
-        guidance_scale: 7.0
+  - resize
+  - config_diffusion
+  - highres_diffusion
   ### highres fix ###
-
-  # decode to image
-  - _target_: hcpdiff.workflow.DecodeAction
-    vae: ${hcp.from_memory:vae}
-  - _target_: hcpdiff.workflow.SaveImageAction
-    save_root: output_pipe/
-    image_type: png
+  - decode

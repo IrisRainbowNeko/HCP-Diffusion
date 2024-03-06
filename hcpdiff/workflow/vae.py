@@ -1,4 +1,4 @@
-from .base import BasicAction, from_memory_context
+from .base import BasicAction, from_memory_context, feedback_input
 from diffusers import AutoencoderKL
 from diffusers.image_processor import VaeImageProcessor
 from typing import Dict, Any
@@ -15,6 +15,7 @@ class EncodeAction(BasicAction):
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor) if image_processor is None else image_processor
         self.offload = offload
 
+    @feedback_input
     def forward(self, images, dtype:str, device, generator, bs=None, **states):
         if bs is None:
             if 'prompt' in states:
@@ -45,7 +46,7 @@ class EncodeAction(BasicAction):
             init_latents = self.vae.config.scaling_factor * init_latents.to(dtype=get_dtype(dtype))
             if self.offload:
                 to_cpu(self.vae)
-        return {**states, 'latents':init_latents, 'dtype':dtype, 'device':device, 'bs':bs}
+        return {'latents':init_latents}
 
 class DecodeAction(BasicAction):
     @from_memory_context
@@ -59,6 +60,7 @@ class DecodeAction(BasicAction):
         self.output_type = output_type
         self.decode_key = decode_key
 
+    @feedback_input
     def forward(self, **states):
         latents = states[self.decode_key]
         if self.offload:
@@ -70,4 +72,4 @@ class DecodeAction(BasicAction):
 
         do_denormalize = [True]*image.shape[0]
         image = self.image_processor.postprocess(image, output_type=self.output_type, do_denormalize=do_denormalize)
-        return {**states, 'images':image}
+        return {'images':image}

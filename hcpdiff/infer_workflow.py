@@ -6,7 +6,6 @@ from omegaconf import OmegaConf, DictConfig
 from easydict import EasyDict
 
 from hcpdiff.utils.utils import load_config_with_cli
-from .workflow import MemoryMixin
 from copy import deepcopy
 
 class WorkflowRunner:
@@ -18,10 +17,11 @@ class WorkflowRunner:
         self.attach_memory(self.cfgs)
 
     def start(self):
-        prepare_actions = hydra.utils.instantiate(self.cfgs.prepare)
-        states = self.run(prepare_actions, {'cfgs': self.cfgs_raw})
-        actions = hydra.utils.instantiate(self.cfgs.actions)
-        states = self.run(actions, states)
+        states = {'cfgs': self.cfgs_raw}
+        for action_name in self.cfgs.actions:
+            cfg_action = self.resolve_action_ref(self.cfgs[action_name])
+            actions = hydra.utils.instantiate(cfg_action)
+            states = self.run(actions, states)
 
     def attach_memory(self, cfgs):
         if OmegaConf.is_dict(cfgs):
@@ -35,16 +35,23 @@ class WorkflowRunner:
             for v in cfgs:
                 self.attach_memory(v)
 
+    def resolve_action_ref(self, cfgs, cfg_action):
+        new_cfg_action = []
+        for act in cfg_action:
+            if isinstance(act, str):
+                new_cfg_action.extend(cfgs[act])
+            else:
+                new_cfg_action.append(act)
+        return new_cfg_action
+
+
     @torch.inference_mode()
     def run(self, actions, states):
         N_steps = len(actions)
         for step, act in enumerate(actions):
             print(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
-            if isinstance(act, MemoryMixin):
-                states = act(memory=self.memory, **states)
-            else:
-                states = act(**states)
-            print(f'states: {", ".join(states.keys())}')
+            states = act(memory=self.memory, **states)
+            #print(f'states: {", ".join(states.keys())}')
         return states
 
 if __name__ == '__main__':

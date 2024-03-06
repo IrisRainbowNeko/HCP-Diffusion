@@ -6,9 +6,9 @@ from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
 from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
 from torch.cuda.amp import autocast
 
-from .base import BasicAction, from_memory_context, MemoryMixin
+from .base import BasicAction, from_memory_context, feedback_input
 
-class TextHookAction(BasicAction, MemoryMixin):
+class TextHookAction(BasicAction):
     @from_memory_context
     def __init__(self, TE=None, tokenizer=None, emb_dir: str = 'embs/', N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True):
         super().__init__()
@@ -30,7 +30,7 @@ class TextHookAction(BasicAction, MemoryMixin):
         memory.token_ex = TokenizerHook(self.tokenizer)
         return states
 
-class TextEncodeAction(BasicAction, MemoryMixin):
+class TextEncodeAction(BasicAction):
     @from_memory_context
     def __init__(self, prompt: Union[List, str], negative_prompt: Union[List, str], bs: int = None, te_hook=None):
         super().__init__()
@@ -43,13 +43,13 @@ class TextEncodeAction(BasicAction, MemoryMixin):
 
         self.te_hook = te_hook
 
+    @feedback_input
     def forward(self, memory, dtype: str, device, amp=None, **states):
         te_hook = self.te_hook or memory.te_hook
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
             # emb = emb.to(dtype=get_dtype(dtype), device=device)
-        return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'amp':amp,
-            'device':device, 'dtype':dtype}
+        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
     @from_memory_context
@@ -57,6 +57,7 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         super().__init__(prompt, negative_prompt, bs, te_hook)
         self.token_ex = token_ex
 
+    @feedback_input
     def forward(self, memory, dtype: str, device, amp=None, **states):
         te_hook = self.te_hook or memory.te_hook
         token_ex = self.token_ex or memory.token_ex
@@ -76,5 +77,5 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         if offload:
             to_cpu(memory.text_encoder)
 
-        return {**states, 'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
-            'device':device, 'dtype':dtype, 'amp':amp, 'encoder_attention_mask':attention_mask}
+        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
+             'encoder_attention_mask':attention_mask}
