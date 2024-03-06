@@ -49,6 +49,17 @@ load_plugin:
       lokr:
         path: 'ckpts/tohsaka_rin-lokr/unet-lokr-8000.safetensors'
 
+text:
+  - _target_: hcpdiff.workflow.TextHookAction
+    N_repeats: 1
+    layer_skip: 1
+  # encode text
+  - _target_:  hcpdiff.workflow.StartTextEncode
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: 'masterpiece, best quality, tohsaka_rin_fatestaynightufotable, cat ears, outside'
+    negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+    bs: ${bs}
+  - _target_:  hcpdiff.workflow.EndTextEncode
 
 actions:
   - build_model

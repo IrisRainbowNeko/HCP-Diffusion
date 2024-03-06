@@ -7,6 +7,7 @@ from easydict import EasyDict
 
 from hcpdiff.utils.utils import load_config_with_cli
 from copy import deepcopy
+import hcpdiff.workflow
 
 class WorkflowRunner:
     def __init__(self, cfgs):
@@ -19,7 +20,7 @@ class WorkflowRunner:
     def start(self):
         states = {'cfgs': self.cfgs_raw}
         for action_name in self.cfgs.actions:
-            cfg_action = self.resolve_action_ref(self.cfgs[action_name])
+            cfg_action = self.resolve_action_ref(self.cfgs, self.cfgs[action_name])
             actions = hydra.utils.instantiate(cfg_action)
             states = self.run(actions, states)
 
