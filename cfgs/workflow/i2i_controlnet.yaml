@@ -1,0 +1,41 @@
+_base_:
+  - cfgs/workflow/text2img.yaml
+
+dtype: fp16
+amp: fp16
+bs: 2
+seed: 42
+
+build_plugin:
+  # build plugin (lokr)
+  - _target_: hcpdiff.workflow.BuildPluginAction
+    cfg: 'cfgs/plugins/plugin_controlnet.yaml'
+
+load_plugin:
+  - _target_: hcpdiff.workflow.BuildModelLoaderAction
+  # load plugin ckpts
+    model: unet
+    cfg:
+      controlnet1:
+        path: 'ckpts/controlnet.ckpt'
+
+load_image:
+  - _target_: hcpdiff.workflow.LoadImageAction
+    image_path: 'test.png'
+  # feed image to controlnet
+  - _target_: hcpdiff.workflow.FeedtoCNetAction
+    width: 512
+    height: 512
+  - _target_: hcpdiff.workflow.EncodeAction
+    vae: ${hcp.from_memory:vae}
+
+actions:
+  - build_model
+  - build_plugin
+  - load_plugin
+  - optimize_model
+  - text
+  - load_image
+  - config_diffusion
+  - diffusion
+  - decode

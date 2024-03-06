@@ -3,8 +3,8 @@ from .diffusion import InputFeederAction, PrepareDiffusionAction, MakeLatentActi
     X0PredAction, SeedAction, MakeTimestepsAction
 from .text import TextEncodeAction, TextHookAction, AttnMultTextEncodeAction
 from .vae import EncodeAction, DecodeAction
-from .io import LoadModelsAction, SaveImageAction, BuildModelLoaderAction, LoadPartAction, LoadLoraAction, LoadPluginAction
-from .utils import LatentResizeAction, ImageResizeAction
+from .io import LoadModelsAction, SaveImageAction, BuildModelLoaderAction, LoadPartAction, LoadLoraAction, LoadPluginAction, LoadImageAction
+from .utils import LatentResizeAction, ImageResizeAction, FeedtoCNetAction
 from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction, StartTextEncode, StartDiffusion, EndTextEncode, EndDiffusion, \
     BuildPluginAction
 

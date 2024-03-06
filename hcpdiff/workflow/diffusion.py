@@ -29,7 +29,6 @@ class InputFeederAction(BasicAction):
             for feeder in self.unet.input_feeder:
                 feeder(self.ex_inputs)
 
-
 class SeedAction(BasicAction):
     @from_memory_context
     def __init__(self, seed: Union[int, List[int]], bs: int = 1):
@@ -90,10 +89,12 @@ class MakeTimestepsAction(BasicAction):
 
         self.scheduler.set_timesteps(self.N_steps, device=device)
         timesteps = self.scheduler.timesteps
+        alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
         if self.strength:
             timesteps = self.get_timesteps(timesteps, self.strength)
-        alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
-        return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod}
+            return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod, 'start_timestep':timesteps[:1]}
+        else:
+            return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod}
 
 class MakeLatentAction(BasicAction):
     @from_memory_context
@@ -200,7 +201,6 @@ class DiffusionStepAction(BasicAction):
     def __init__(self, unet=None, scheduler=None, guidance_scale: float = 7.0):
         self.act_noise_pred = NoisePredAction(unet, scheduler, guidance_scale)
         self.act_sample = SampleAction(scheduler)
-
 
     def forward(self, memory, **states):
         states = self.act_noise_pred(memory=memory, **states)

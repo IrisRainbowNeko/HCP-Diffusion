@@ -21,10 +21,9 @@ resize:
 highres_diffusion:
   # image to image
   # only part of timesteps
-  - _target_: hcpdiff.workflow.ExecAction
-    prog: |-
-      states['timesteps'] = states['timesteps'][int(30*(1-0.6)):]
-      states['start_timestep'] = states['timesteps'][:1]
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 30
+    strength: 0.6
   - _target_: hcpdiff.workflow.MakeLatentAction
     width: 1024
     height: 1536

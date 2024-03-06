@@ -7,7 +7,8 @@ class ControlNetProcessor:
     def __init__(self, image):
         self.image_path = image
 
-    def prepare_cond_image(self, image, width, height, batch_size, device):
+    @staticmethod
+    def prepare_cond_image(image, width, height, batch_size, device):
         if not isinstance(image, torch.Tensor):
             if isinstance(image, Image.Image):
                 image = [image]

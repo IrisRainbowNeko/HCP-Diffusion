@@ -12,8 +12,9 @@ class from_memory:
 
 def from_memory_context(fun):
     def f(*args, **kwargs):
-        filter_kwargs = {k: (v() if isinstance(v, from_memory) else v) for k,v in kwargs.items()}
+        filter_kwargs = {k:(v() if isinstance(v, from_memory) else v) for k, v in kwargs.items()}
         return fun(*args, **filter_kwargs)
+
     return f
 
 def feedback_input(fun, exclude_keys=('memory',)):
@@ -26,6 +27,14 @@ def feedback_input(fun, exclude_keys=('memory',)):
             for key in exclude_keys:
                 if key in output:
                     del output[key]
+
+            if '_ex_input' in output:
+                if '_ex_input' not in states:
+                    states['_ex_input'] = output['_ex_input']
+                else:
+                    states['_ex_input'].update(output['_ex_input'])
+                del output['_ex_input']
+
             states.update(output)
         return states
 

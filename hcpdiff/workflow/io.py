@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Union
 import warnings
 
 from diffusers import UNet2DConditionModel, AutoencoderKL, PNDMScheduler
@@ -9,6 +9,7 @@ from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import get_dtype
 from .base import BasicAction, from_memory_context, feedback_input
+from PIL import Image
 
 class LoadModelsAction(BasicAction):
     @from_memory_context
@@ -30,6 +31,19 @@ class LoadModelsAction(BasicAction):
         memory.vae = self.vae or AutoencoderKL.from_pretrained(self.pretrained_model, subfolder="vae", torch_dtype=self.dtype)
         memory.scheduler = self.scheduler or PNDMScheduler.from_pretrained(self.pretrained_model, subfolder="scheduler", torch_dtype=self.dtype)
 
+class LoadImageAction(BasicAction):
+    @from_memory_context
+    def __init__(self, image_path: Union[str, List[str]], key_target: str = 'images'):
+        self.image_path = image_path
+        self.key_target = key_target
+
+    @feedback_input
+    def forward(self, **states):
+        if isinstance(self.image_path, str):
+            images = Image.open(self.image_path).convert('RGB')
+        else:
+            images = [Image.open(path).convert('RGB') for path in self.image_path]
+        return {self.key_target:images}
 
 class SaveImageAction(BasicAction):
     @from_memory_context
@@ -69,7 +83,7 @@ class LoadPartAction(BasicAction):
 
 class LoadLoraAction(BasicAction):
     @from_memory_context
-    def __init__(self, name:str, model: str, cfg, base_model_alpha=1.0, load_ema=False):
+    def __init__(self, name: str, model: str, cfg, base_model_alpha=1.0, load_ema=False):
         self.name = name
         self.model = model
         self.cfg_lora = cfg

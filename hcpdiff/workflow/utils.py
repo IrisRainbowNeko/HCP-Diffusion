@@ -4,6 +4,7 @@ from .base import BasicAction, from_memory_context, feedback_input
 from torch import nn
 from PIL import Image
 from typing import List
+from hcpdiff.data.data_processor import ControlNetProcessor
 
 class LatentResizeAction(BasicAction):
     @from_memory_context
@@ -30,6 +31,21 @@ class ImageResizeAction(BasicAction):
         self.mode = self.mode_map[mode]
 
     @feedback_input
-    def forward(self, images:List[Image.Image], **states):
+    def forward(self, images: List[Image.Image], **states):
         images = [image.resize(self.size, resample=self.mode) for image in images]
         return {'images':images}
+
+class FeedtoCNetAction(BasicAction):
+    @from_memory_context
+    def __init__(self, width=1024, height=1024):
+        self.size = (width, height)
+
+    @feedback_input
+    def forward(self, images: List[Image.Image], bs, device, latents=None, **states):
+        if latents is not None:
+            width, height = latents.shape[3], latents.shape[2]
+        else:
+            width, height = self.size
+
+        images = ControlNetProcessor.prepare_cond_image(images, width, height, bs, device)
+        return {'_ex_input':{'cond':images}}
