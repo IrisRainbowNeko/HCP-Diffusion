@@ -8,7 +8,11 @@ from .io import LoadModelsAction, SaveImageAction, BuildModelLoaderAction, LoadP
 from .utils import LatentResizeAction, ImageResizeAction, FeedtoCNetAction
 from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction, StartTextEncode, StartDiffusion, EndTextEncode, EndDiffusion, \
     BuildPluginAction
-from .fast import SFastCompileAction
+
+try:
+    from .fast import SFastCompileAction
+except:
+    print('stable fast not installed.')
 
 from omegaconf import OmegaConf
 
