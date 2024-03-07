@@ -8,6 +8,7 @@ from .io import LoadModelsAction, SaveImageAction, BuildModelLoaderAction, LoadP
 from .utils import LatentResizeAction, ImageResizeAction, FeedtoCNetAction
 from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction, StartTextEncode, StartDiffusion, EndTextEncode, EndDiffusion, \
     BuildPluginAction
+from .fast import SFastCompileAction
 
 from omegaconf import OmegaConf
 
