@@ -2,11 +2,12 @@ from hcpdiff.workflow import *
 from hcpdiff.workflow.base import feedback_input
 from diffusers import EulerAncestralDiscreteScheduler
 import torch
+from easydict import EasyDict
 
 dtype = 'fp32'
 amp = 'fp32'
 
-memory = {}
+memory = EasyDict()
 
 @feedback_input
 def move_model(memory, **states):
@@ -57,7 +58,7 @@ def diffusion():
 def decode():
     return [
         DecodeAction(vae=memory.vae),
-        SaveImageAction(save_root='output_pipe/', image_type='png')
+        SaveImageAction(save_root='output_pipe/', image_type='png', save_cfg=False)
     ]
 
 @torch.inference_mode()
@@ -70,10 +71,10 @@ def run(actions, states):
     return states
 
 if __name__ == '__main__':
-    states = {'cfgs': {}}
-    run(build_model(), states)
-    run(optimize_model(), states)
-    run(text(), states)
-    run(config_diffusion(), states)
-    run(diffusion(), states)
-    run(decode(), states)
+    states = dict(cfgs={})
+    states = run(build_model(), states)
+    states = run(optimize_model(), states)
+    states = run(text(), states)
+    states = run(config_diffusion(), states)
+    states = run(diffusion(), states)
+    states = run(decode(), states)
