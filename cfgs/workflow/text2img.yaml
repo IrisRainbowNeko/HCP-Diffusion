@@ -5,28 +5,6 @@ seed: 42
 
 memory: { }
 
-prepare:
-  - _target_: hcpdiff.workflow.LoadModelsAction
-    pretrained_model: 'ckpts/any5'
-    dtype: ${dtype}
-    scheduler:
-      _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
-      beta_start: 0.00085
-      beta_end: 0.012
-      beta_schedule: 'scaled_linear'
-  - _target_: hcpdiff.workflow.XformersEnableAction
-  - _target_: hcpdiff.workflow.ExecAction
-    prog: |-
-      from hcpdiff.utils.net_utils import to_cpu, to_cuda
-      to_cuda(memory.unet)
-      to_cuda(memory.text_encoder)
-      to_cuda(memory.vae)
-  - _target_: hcpdiff.workflow.PrepareDiffusionAction
-    dtype: ${dtype}
-    amp: ${amp}
-  - _target_: hcpdiff.workflow.VaeOptimizeAction
-    slicing: True
-
 build_model:
   - _target_: hcpdiff.workflow.LoadModelsAction
     pretrained_model: 'ckpts/any5'

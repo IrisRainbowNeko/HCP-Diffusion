@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Callable
 from tqdm.auto import tqdm
 
 class from_memory:
@@ -56,6 +56,14 @@ class ExecAction(BasicAction):
 
     def forward(self, memory, **states):
         exec(self.prog)
+        return states
+
+class LambdaAction(BasicAction):
+    def __init__(self, func: Callable):
+        self.func = func
+
+    def forward(self, memory, **states):
+        states = self.func(memory=memory, **states)
         return states
 
 class LoopAction(BasicAction):
