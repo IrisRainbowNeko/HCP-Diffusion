@@ -10,6 +10,7 @@ from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import get_dtype
 from .base import BasicAction, from_memory_context, feedback_input
 from PIL import Image
+from omegaconf import OmegaConf
 
 class LoadModelsAction(BasicAction):
     @from_memory_context
@@ -47,21 +48,27 @@ class LoadImageAction(BasicAction):
 
 class SaveImageAction(BasicAction):
     @from_memory_context
-    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95):
+    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95, save_cfg=True):
         self.save_root = save_root
         self.image_type = image_type
         self.quality = quality
+        self.save_cfg = save_cfg
 
         os.makedirs(save_root, exist_ok=True)
 
     @feedback_input
-    def forward(self, images, prompt, negative_prompt, seeds=None, **states):
+    def forward(self, images, prompt, negative_prompt, cfgs, seeds=None, **states):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
             img_path = os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
+
+            if self.save_cfg:
+                with open(os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info.yaml"), 'w', encoding='utf-8') as f:
+                    cfgs.seed = seeds[bid]
+                    f.write(OmegaConf.to_yaml(cfgs))
 
 class BuildModelLoaderAction(BasicAction):
 
@@ -140,4 +147,15 @@ class RemovePluginAction(BasicAction):
                 del memory.plugin_dict[name]
             else:
                 warnings.warn(f"Plugin {name} not loaded!")
+        return states
+
+class FeedInputAction(BasicAction):
+    @from_memory_context
+    def __init__(self, model):
+        self.model = model
+
+    def forward(self, memory, _ex_input=None, **states):
+        if hasattr(self.model, 'input_feeder') and _ex_input is not None:
+            for feeder in self.model.input_feeder:
+                feeder(_ex_input)
         return states

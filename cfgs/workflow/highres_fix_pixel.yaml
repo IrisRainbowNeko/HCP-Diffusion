@@ -18,21 +18,17 @@ resize:
   - _target_: hcpdiff.workflow.EncodeAction
     vae: ${hcp.from_memory:vae}
 
-highres_diffusion:
-  # image to image
+config_highres:
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
   # only part of timesteps
   - _target_: hcpdiff.workflow.MakeTimestepsAction
     N_steps: 30
     strength: 0.6
   - _target_: hcpdiff.workflow.MakeLatentAction
     width: 1024
-    height: 1536
-  - _target_: hcpdiff.workflow.LoopAction
-    loop_value:
-      timesteps: t
-    actions:
-      - _target_: hcpdiff.workflow.DiffusionStepAction
-        guidance_scale: 7.0
+    height: 1024
 
 actions:
   - build_model
@@ -42,7 +38,7 @@ actions:
   - diffusion
   ### highres fix ###
   - resize
-  - config_diffusion
-  - highres_diffusion
+  - config_highres
+  - diffusion
   ### highres fix ###
   - decode

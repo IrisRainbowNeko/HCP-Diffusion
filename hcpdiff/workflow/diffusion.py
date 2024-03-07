@@ -6,15 +6,18 @@ from torch.cuda.amp import autocast
 
 from .base import BasicAction, from_memory_context, feedback_input
 
+
+
+from hcpdiff.utils import prepare_seed
+from hcpdiff.utils.net_utils import get_dtype
+import random
+import warnings
+
 try:
     from diffusers.utils import randn_tensor
 except:
     # new version of diffusers
     from diffusers.utils.torch_utils import randn_tensor
-
-from hcpdiff.utils import prepare_seed
-from hcpdiff.utils.net_utils import get_dtype
-import random
 
 class InputFeederAction(BasicAction):
     @from_memory_context
@@ -98,7 +101,7 @@ class MakeTimestepsAction(BasicAction):
 
 class MakeLatentAction(BasicAction):
     @from_memory_context
-    def __init__(self, scheduler=None, N_ch=4, height=512, width=512):
+    def __init__(self, scheduler=None, N_ch=4, height=None, width=None):
         self.scheduler = scheduler
         self.N_ch = N_ch
         self.height = height
@@ -111,7 +114,12 @@ class MakeLatentAction(BasicAction):
                 bs = len(states['prompt'])
         scheduler = self.scheduler or memory.scheduler
 
-        shape = (bs, self.N_ch, self.height//vae_scale_factor, self.width//vae_scale_factor)
+        if latents is None:
+            shape = (bs, self.N_ch, self.height//vae_scale_factor, self.width//vae_scale_factor)
+        else:
+            if self.height is not None:
+                warnings.warn('latents exist! User-specified width and height will be ignored!')
+            shape = latents.shape
         if isinstance(generator, list) and len(generator) != bs:
             raise ValueError(
                 f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"

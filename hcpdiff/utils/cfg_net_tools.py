@@ -301,7 +301,10 @@ class HCPModelLoader:
             return
 
         for name, item in cfg.items():
-            plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin_ema' if load_ema else 'plugin']
+            plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')
+            if 'plugin_ema' in plugin_state or 'plugin' in plugin_state:
+                plugin_state = plugin_state['plugin_ema' if load_ema else 'plugin']
+
             layers = item.get('layers', 'all')
             if layers != 'all':
                 match_blocks = get_match_layers(layers, self.named_modules)

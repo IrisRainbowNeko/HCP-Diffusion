@@ -57,6 +57,8 @@ text:
     layer_skip: 1
   # encode text
   - _target_:  hcpdiff.workflow.StartTextEncode
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:text_encoder}
   - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
     prompt: 'masterpiece, best quality, 1girl, cat ears, outside'
     negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
@@ -69,12 +71,14 @@ config_diffusion:
     seed: ${seed}
   - _target_: hcpdiff.workflow.MakeTimestepsAction
     N_steps: 30
-
-diffusion:
-  # text to image
   - _target_: hcpdiff.workflow.MakeLatentAction
     width: 512
     height: 512
+
+diffusion:
+  # text to image
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:unet}
   - _target_: hcpdiff.workflow.LoopAction
     loop_value:
       timesteps: t #迭代timesteps，每一步的存成t到states里

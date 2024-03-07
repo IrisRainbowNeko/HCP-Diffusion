@@ -9,7 +9,7 @@ seed: 42
 
 load_image:
   - _target_: hcpdiff.workflow.LoadImageAction
-    image_path: 'test.png'
+    image_path: 'img_test/11.png'
   # maybe need resize
   #  - _target_: hcpdiff.workflow.ImageResizeAction
   #    width: 512
@@ -24,12 +24,13 @@ config_diffusion:
   - _target_: hcpdiff.workflow.MakeTimestepsAction
     N_steps: 30
     strength: 0.6 # image to image strength
+  - load_image
+  - _target_: hcpdiff.workflow.MakeLatentAction
 
 actions:
   - build_model
   - optimize_model
   - text
-  - load_image
   - config_diffusion
   - diffusion
   - decode

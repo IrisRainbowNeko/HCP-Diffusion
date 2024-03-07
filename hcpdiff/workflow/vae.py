@@ -16,12 +16,14 @@ class EncodeAction(BasicAction):
         self.offload = offload
 
     @feedback_input
-    def forward(self, images, dtype:str, device, generator, bs=None, **states):
+    def forward(self, images, dtype: str, device, generator, bs=None, **states):
         if bs is None:
             if 'prompt' in states:
                 bs = len(states['prompt'])
 
         image = self.image_processor.preprocess(images)
+        if bs is not None and image.shape[0] != bs:
+            image = image.repeat(bs//image.shape[0], 1, 1, 1)
         image = image.to(device=device, dtype=self.vae.dtype)
 
         if image.shape[1] == 4:
@@ -37,13 +39,13 @@ class EncodeAction(BasicAction):
 
             elif isinstance(generator, list):
                 init_latents = [
-                    self.vae.encode(image[i : i + 1]).latent_dist.sample(generator[i]) for i in range(bs)
+                    self.vae.encode(image[i: i+1]).latent_dist.sample(generator[i]) for i in range(bs)
                 ]
                 init_latents = torch.cat(init_latents, dim=0)
             else:
                 init_latents = self.vae.encode(image).latent_dist.sample(generator)
 
-            init_latents = self.vae.config.scaling_factor * init_latents.to(dtype=get_dtype(dtype))
+            init_latents = self.vae.config.scaling_factor*init_latents.to(dtype=get_dtype(dtype))
             if self.offload:
                 to_cpu(self.vae)
         return {'latents':init_latents}

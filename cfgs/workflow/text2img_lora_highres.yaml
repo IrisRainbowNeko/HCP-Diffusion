@@ -31,7 +31,7 @@ actions:
   - diffusion
   ### highres fix ###
   - resize
-  - config_diffusion
-  - highres_diffusion
+  - config_highres
+  - diffusion
   ### highres fix ###
   - decode

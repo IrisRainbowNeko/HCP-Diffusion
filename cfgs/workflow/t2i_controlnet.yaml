@@ -14,20 +14,17 @@ build_plugin:
 load_plugin:
   - _target_: hcpdiff.workflow.BuildModelLoaderAction
   # load plugin ckpts
+  - _target_: hcpdiff.workflow.LoadPluginAction
     model: unet
     cfg:
       controlnet1:
         path: 'ckpts/controlnet.ckpt'
 
-load_image:
+load_cond_image:
   - _target_: hcpdiff.workflow.LoadImageAction
-    image_path: 'test.png'
+    image_path: 'img_test/canny1.png'
   # feed image to controlnet
   - _target_: hcpdiff.workflow.FeedtoCNetAction
-    width: 512
-    height: 512
-  - _target_: hcpdiff.workflow.EncodeAction
-    vae: ${hcp.from_memory:vae}
 
 actions:
   - build_model
@@ -35,7 +32,7 @@ actions:
   - load_plugin
   - optimize_model
   - text
-  - load_image
   - config_diffusion
+  - load_cond_image
   - diffusion
   - decode
