@@ -65,6 +65,9 @@ class PrepareDiffusionAction(BasicAction):
         memory.text_encoder.to(dtype=dtype)
         memory.vae.to(dtype=dtype)
 
+        memory.text_encoder.eval()
+        memory.unet.eval()
+
         device = memory.unet.device
         vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
         return {'dtype':self.dtype, 'amp':self.amp, 'device':device, 'vae_scale_factor':vae_scale_factor}
@@ -108,7 +111,8 @@ class MakeLatentAction(BasicAction):
         self.width = width
 
     @feedback_input
-    def forward(self, memory, generator, device, dtype, bs=None, latents=None, vae_scale_factor=8, start_timestep=None, **states):
+    def forward(self, memory, generator, device, dtype, bs=None, latents=None, vae_scale_factor=8, start_timestep=None,
+                pooled_output=None, crop_coord=None, **states):
         if bs is None:
             if 'prompt' in states:
                 bs = len(states['prompt'])
@@ -135,7 +139,23 @@ class MakeLatentAction(BasicAction):
             latents = latents.to(device)
             latents = scheduler.add_noise(latents, noise, start_timestep)
 
-        return {'latents':latents}
+        output = {'latents':latents}
+
+        # SDXL inputs
+        if pooled_output is not None:
+            width, height = shape[3]*vae_scale_factor, shape[2]*vae_scale_factor
+            if crop_coord is None:
+                crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
+            else:
+                crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
+            crop_info = crop_info.to(device).repeat(bs, 1)
+            output['text_embeds'] = pooled_output[-1].to(device)
+
+            if 'negative_prompt' in states:
+                output['crop_info'] = torch.cat([crop_info, crop_info], dim=0)
+
+        return output
+
 
 class NoisePredAction(BasicAction):
     @from_memory_context
@@ -145,7 +165,7 @@ class NoisePredAction(BasicAction):
         self.scheduler = scheduler
 
     @feedback_input
-    def forward(self, memory, t, latents, prompt_embeds, pooled_output=None, encoder_attention_mask=None, crop_info=None,
+    def forward(self, memory, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
                 cross_attention_kwargs=None, dtype='fp32', amp=None, **states):
         self.scheduler = self.scheduler or memory.scheduler
         self.unet = self.unet or memory.unet
@@ -154,11 +174,11 @@ class NoisePredAction(BasicAction):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-            if pooled_output is None:
+            if text_embeds is None:
                 noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                        cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
-                added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
+                added_cond_kwargs = {"text_embeds":text_embeds, "time_ids":crop_info}
                 # predict the noise residual
                 noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                        cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample

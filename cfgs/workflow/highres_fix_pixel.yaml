@@ -15,6 +15,7 @@ resize:
     save_root: output_pipe/
     image_type: webp
   - _target_: hcpdiff.workflow.ImageResizeAction
+    mode: lanczos
   - _target_: hcpdiff.workflow.EncodeAction
     vae: ${hcp.from_memory:vae}
 

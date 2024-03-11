@@ -65,12 +65,13 @@ class ComposeEmbPTHook(nn.Module):
 
             # slice of nn.Parameter cannot return grad. Split the tensor
             ex_words_emb = {}
-            emb_dims = [x.embedding_dim for x in text_encoder.get_input_embeddings()]
-            for file in os.listdir(emb_dir):
-                if file.endswith('.pt'):
-                    emb = load_emb(os.path.join(emb_dir, file)).to(device)
-                    emb = ParameterGroup([nn.Parameter(item, requires_grad=False) for item in emb.split(emb_dims, dim=1)])
-                    ex_words_emb[file[:-3]] = emb
+            if emb_dir is not None and os.path.exists(emb_dir):
+                emb_dims = [x.embedding_dim for x in text_encoder.get_input_embeddings()]
+                for file in os.listdir(emb_dir):
+                    if file.endswith('.pt'):
+                        emb = load_emb(os.path.join(emb_dir, file)).to(device)
+                        emb = ParameterGroup([nn.Parameter(item, requires_grad=False) for item in emb.split(emb_dims, dim=1)])
+                        ex_words_emb[file[:-3]] = emb
             return cls.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs), ex_words_emb
         else:
             return EmbeddingPTHook.hook_from_dir(emb_dir, tokenizer, text_encoder, log, device, **kwargs)
@@ -100,8 +101,8 @@ class ComposeTEEXHook:
 
     def encode_prompt_to_emb(self, prompt):
         emb_list = [tehook.encode_prompt_to_emb(prompt) for name, tehook in self.tehook_list]
-        encoder_hidden_states, pooled_output = list(zip(*emb_list))
-        return torch.cat(encoder_hidden_states, dim=self.cat_dim), pooled_output
+        encoder_hidden_states, pooled_output, attention_mask = list(zip(*emb_list))
+        return torch.cat(encoder_hidden_states, dim=self.cat_dim), pooled_output, attention_mask[0]
 
     def enable_xformers(self):
         for name, tehook in self.tehook_list:

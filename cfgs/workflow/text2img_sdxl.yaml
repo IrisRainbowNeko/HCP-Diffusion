@@ -1,0 +1,65 @@
+_base_:
+  - cfgs/workflow/text2img.yaml
+
+dtype: fp16
+amp: fp16
+bs: 1
+seed: 42
+
+pretrained_model: 'ckpts/Kohaku-XL-Delta'
+
+build_model:
+  - _target_: hcpdiff.workflow.LoadModelsAction
+    pretrained_model: ${pretrained_model}
+    dtype: ${dtype}
+    scheduler:
+      _target_: hcpdiff.workflow.dpm.DPMSde # change Sampler
+      beta_start: 0.00085
+      beta_end: 0.012
+      beta_schedule: 'scaled_linear'
+      algorithm_type: 'dpmsolver++'
+      use_karras_sigmas: True
+
+config_diffusion:
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 25
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 896
+    height: 1344
+
+text:
+  - _target_: hcpdiff.workflow.TextHookAction
+    N_repeats: 1
+    layer_skip: 1
+    TE_final_norm: false
+  # encode text
+  - _target_:  hcpdiff.workflow.StartTextEncode
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:text_encoder}
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: '1girl, fukuro daizi, kz oji, henreader, aki99, {ama mitsuki:1.2}, masterpiece, newest, absurdres, solo, dragon girl, dragon tail, dragon wings, dragon horns, white dress'
+    negative_prompt: 'low quality, worst quality, normal quality, text, signature, jpeg artifacts, bad anatomy, old, early, mini skirt, nsfw, chibi'
+    bs: ${bs}
+  - _target_:  hcpdiff.workflow.EndTextEncode
+
+diffusion:
+  # text to image
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:unet}
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t #迭代timesteps，每一步的存成t到states里
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: 7.0
+
+actions:
+  - build_model
+  - optimize_model
+  - text
+  - config_diffusion
+  - diffusion
+  - decode

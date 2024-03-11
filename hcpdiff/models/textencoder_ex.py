@@ -15,6 +15,7 @@ from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
 from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
+from transformers import CLIPTextModelWithProjection
 
 class TEEXHook:
     def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
@@ -25,7 +26,6 @@ class TEEXHook:
         self.clip_skip = clip_skip
         self.clip_final_norm = clip_final_norm
         self.device = device
-        self.attn_mult = None
         self.use_attention_mask = use_attention_mask
 
         text_enc.register_forward_hook(self.forward_hook)
@@ -49,6 +49,10 @@ class TEEXHook:
         position_ids = text_inputs.get('position_ids', None)
         if position_ids is not None:
             position_ids = position_ids.to(self.device)
+
+        # align with sd-webui
+        if isinstance(self.text_enc, CLIPTextModelWithProjection):
+            self.text_enc.text_projection.weight.data = self.text_enc.text_projection.weight.data.t()
 
         prompt_embeds, pooled_output = self.text_enc(
             text_input_ids.to(self.device),

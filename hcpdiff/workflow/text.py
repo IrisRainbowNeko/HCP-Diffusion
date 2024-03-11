@@ -10,7 +10,7 @@ from .base import BasicAction, from_memory_context, feedback_input
 
 class TextHookAction(BasicAction):
     @from_memory_context
-    def __init__(self, TE=None, tokenizer=None, emb_dir: str = 'embs/', N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True):
+    def __init__(self, TE=None, tokenizer=None, emb_dir: str = None, N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True):
         super().__init__()
         self.TE = TE
         self.tokenizer = tokenizer
@@ -47,9 +47,11 @@ class TextEncodeAction(BasicAction):
     def forward(self, memory, dtype: str, device, amp=None, **states):
         te_hook = self.te_hook or memory.te_hook
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
-            emb, pooled_output = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
-            # emb = emb.to(dtype=get_dtype(dtype), device=device)
-        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb}
+            emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
+        if not isinstance(te_hook, ComposeTEEXHook):
+            pooled_output = None
+        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'encoder_attention_mask':attention_mask,
+            'pooled_output':pooled_output}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
     @from_memory_context
@@ -78,4 +80,4 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             to_cpu(memory.text_encoder)
 
         return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
-             'encoder_attention_mask':attention_mask}
+            'encoder_attention_mask':attention_mask, 'pooled_output':pooled_output}

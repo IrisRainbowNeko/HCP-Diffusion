@@ -1,19 +1,23 @@
-dtype: fp16
+dtype: fp32
 amp: fp16
 bs: 2
 seed: 42
+
+pretrained_model: 'ckpts/any5'
 
 memory: { }
 
 build_model:
   - _target_: hcpdiff.workflow.LoadModelsAction
-    pretrained_model: 'ckpts/any5'
+    pretrained_model: ${pretrained_model}
     dtype: ${dtype}
     scheduler:
-      _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
+      _target_: diffusers.DPMSolverMultistepScheduler # change Sampler
       beta_start: 0.00085
       beta_end: 0.012
       beta_schedule: 'scaled_linear'
+      algorithm_type: 'sde-dpmsolver++'
+      use_karras_sigmas: True
 
 optimize_model:
   - _target_: hcpdiff.workflow.XformersEnableAction
@@ -48,7 +52,7 @@ config_diffusion:
   - _target_: hcpdiff.workflow.SeedAction
     seed: ${seed}
   - _target_: hcpdiff.workflow.MakeTimestepsAction
-    N_steps: 30
+    N_steps: 25
   - _target_: hcpdiff.workflow.MakeLatentAction
     width: 512
     height: 512
