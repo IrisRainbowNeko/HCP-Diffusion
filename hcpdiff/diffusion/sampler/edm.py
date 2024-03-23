@@ -19,7 +19,7 @@ class EDM_DDPMSampler(BaseSampler):
 
     def add_noise(self, x, sigma):
         x = x.clone()
-        x[sigma>self.sigma_thr, ...] = 0.
+        x[sigma.view(-1)>self.sigma_thr, ...] = 0.
         return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
@@ -42,7 +42,7 @@ class EDMSampler(BaseSampler):
 
     def add_noise(self, x, sigma):
         x = x.clone()
-        x[sigma>self.sigma_thr, ...] = 0.
+        x[sigma.view(-1)>self.sigma_thr, ...] = 0.
         return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
