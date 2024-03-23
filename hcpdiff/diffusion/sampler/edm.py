@@ -18,10 +18,9 @@ class EDM_DDPMSampler(BaseSampler):
         return 1.
 
     def add_noise(self, x, sigma):
-        if sigma>self.sigma_thr:
-            return sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
-        else:
-            return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
+        x = x.clone()
+        x[sigma>self.sigma_thr, ...] = 0.
+        return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
@@ -42,10 +41,9 @@ class EDMSampler(BaseSampler):
         return self.sigma_data**2/(sigma**2+self.sigma_data**2)
 
     def add_noise(self, x, sigma):
-        if sigma>self.sigma_thr:
-            return sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
-        else:
-            return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
+        x = x.clone()
+        x[sigma>self.sigma_thr, ...] = 0.
+        return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
