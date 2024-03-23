@@ -9,7 +9,7 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
         super().__init__()
         self.num_timesteps = num_timesteps
         self.betas = self.make_betas(beta_schedule, linear_start, linear_end, num_timesteps)
-        alphas = 1.0 - self.betas
+        alphas = 1.0-self.betas
         self.alphas_cumprod = torch.cumprod(alphas, dim=0)
         self.sigmas = ((1-self.alphas_cumprod)/self.alphas_cumprod).sqrt()
 
@@ -21,7 +21,7 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
     def sigma_max(self):
         return self.sigmas[-1]
 
-    def get_sigma(self, t:Union[float, torch.Tensor]):
+    def get_sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor(t)
         return self.sigmas[(t*len(self.sigmas)).long()]
@@ -33,7 +33,7 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
             max_rate = torch.full(shape, max_rate)
 
         t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
-        t_scale = (t*len(self.sigmas)).long()
+        t_scale = (t*(self.num_timesteps-1e-5)).long()  # [0, num_timesteps-1)
         return self.sigmas[t_scale], t
 
     @staticmethod
@@ -88,20 +88,20 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
             return torch.linspace(beta_start, beta_end, num_train_timesteps, dtype=torch.float32)
         elif beta_schedule == "scaled_linear":
             # this schedule is very specific to the latent diffusion model.
-            return torch.linspace(beta_start**0.5, beta_end**0.5, num_train_timesteps, dtype=torch.float32) ** 2
+            return torch.linspace(beta_start**0.5, beta_end**0.5, num_train_timesteps, dtype=torch.float32)**2
         elif beta_schedule == "squaredcos_cap_v2":
             # Glide cosine schedule
             return DDPMDiscreteSigmaScheduler.betas_for_alpha_bar(num_train_timesteps)
         elif beta_schedule == "sigmoid":
             # GeoDiff sigmoid schedule
             betas = torch.linspace(-6, 6, num_train_timesteps)
-            return torch.sigmoid(betas) * (beta_end - beta_start) + beta_start
+            return torch.sigmoid(betas)*(beta_end-beta_start)+beta_start
         else:
             raise NotImplementedError(f"{beta_schedule} does is not implemented.")
 
 class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
 
-    def get_sigma(self, t:Union[float, torch.Tensor]):
+    def get_sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor(t)
         return linear_interp(self.sigmas, t)
@@ -113,6 +113,6 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
             max_rate = torch.full(shape, max_rate)
 
         t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
-        t_scale = (t*(len(self.sigmas)-1))
+        t_scale = (t*(self.num_timesteps-1-1e-5))  # [0, num_timesteps-1)
 
         return linear_interp(self.sigmas, t_scale), t

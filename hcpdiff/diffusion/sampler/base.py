@@ -28,13 +28,14 @@ class BaseSampler:
 
     def add_noise_rand_t(self, x):
         bs = x.shape[0]
+        # timesteps: [0, 1]
         sigma, timesteps = self.sigma_scheduler.sample_sigma(shape=(bs,))
         sigma = sigma.view(-1,1,1,1).to(x.device)
         timesteps = timesteps.to(x.device)
         noisy_x = self.add_noise(x, sigma).to(dtype=x.dtype)
 
         # Sample a random timestep for each image
-        timesteps = timesteps*self.num_timesteps
+        timesteps = timesteps*(self.num_timesteps-1)
         return noisy_x, sigma, timesteps
 
     def denoise(self, x, sigma, eps=None, generator=None):
