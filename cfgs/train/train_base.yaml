@@ -29,9 +29,11 @@ train:
 
   loss:
     criterion:
-      - _target_: torch.nn.MSELoss
-        _partial_: True
-        reduction: 'none' # support for attention mask
+      - _target_: hcpdiff.loss.WeightedLoss
+        loss:
+          _target_: torch.nn.MSELoss
+          _partial_: True
+          reduction: 'none' # support for attention mask
     type: 'x0' # 'eps' or 'x0'
 
   optimizer:
