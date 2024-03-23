@@ -53,8 +53,10 @@ class TrainCFGConverter:
             cfg_model['vae'] = None
 
     def convert_loss(self, cfg_train:DictConfig):
-        if cfg_train['loss']['criterion']['_target_']=='hcpdiff.loss.MSELoss':
-            cfg_train['loss']['criterion']['_target_'] = 'torch.nn.MSELoss'
+        if '_target_' in cfg_train['loss']['criterion']:
+            if cfg_train['loss']['criterion']['_target_']=='hcpdiff.loss.MSELoss':
+                cfg_train['loss']['criterion']['_target_'] = 'torch.nn.MSELoss'
+            cfg_train['loss']['criterion'] = ListConfig([cfg_train['loss']['criterion']])
 
     def convert(self, cfg:DictConfig):
         self.convert_model(cfg['model'])
