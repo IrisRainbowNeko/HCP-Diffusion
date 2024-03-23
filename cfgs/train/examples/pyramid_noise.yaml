@@ -1,0 +1,11 @@
+_base_: [cfgs/train/examples/fine-tuning.yaml]
+
+model:
+  noise_scheduler:
+    _target_: hcpdiff.diffusion.noise.PyramidNoiseScheduler
+    level: 6
+    discount: 0.4
+    base_scheduler:
+      _target_: hcpdiff.diffusion.sampler.EDM_DDPMSampler
+      sigma_scheduler:
+        _target_: hcpdiff.diffusion.sampler.DDPMContinuousSigmaScheduler
