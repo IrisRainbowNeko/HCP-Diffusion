@@ -24,5 +24,5 @@ class EDMSigmaScheduler(SigmaScheduler):
         if isinstance(max_rate, float):
             max_rate = torch.full(shape, max_rate)
 
-        t = torch.lerp(min_rate, max_rate, torch.randn_like(min_rate))
+        t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
         return self.get_sigma(t), t

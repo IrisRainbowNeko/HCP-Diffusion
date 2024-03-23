@@ -116,3 +116,7 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
         t_scale = (t*(self.num_timesteps-1-1e-5))  # [0, num_timesteps-1)
 
         return linear_interp(self.sigmas, t_scale), t
+
+if __name__ == '__main__':
+    sigma_scheduler = DDPMDiscreteSigmaScheduler()
+    print(sigma_scheduler.sigma_min, sigma_scheduler.sigma_max)
