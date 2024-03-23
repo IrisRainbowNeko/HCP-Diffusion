@@ -1,0 +1,15 @@
+_base_:
+  - cfgs/workflow/t2i_controlnet.yaml
+  - cfgs/workflow/img2img.yaml
+
+
+actions:
+  - build_model
+  - build_plugin
+  - load_plugin
+  - optimize_model
+  - text
+  - config_diffusion
+  - load_cond_image
+  - diffusion
+  - decode

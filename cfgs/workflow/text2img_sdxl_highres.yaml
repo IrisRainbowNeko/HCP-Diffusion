@@ -1,0 +1,71 @@
+_base_:
+  - cfgs/workflow/highres_fix_pixel.yaml
+  - cfgs/workflow/text2img_sdxl.yaml
+
+
+dtype: fp16
+amp: fp16
+bs: 2
+seed: 42
+
+pretrained_model: 'ckpts/Kohaku-XL-Delta'
+
+config_diffusion:
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 25
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 600
+    height: 896
+
+config_highres:
+  # prepare seed
+  - _target_: hcpdiff.workflow.SeedAction
+    seed: ${seed}
+  - _target_: hcpdiff.workflow.MakeTimestepsAction
+    N_steps: 30
+    strength: 0.55
+  - _target_: hcpdiff.workflow.MakeLatentAction
+    width: 896
+    height: 1344
+
+resize:
+  # decode and resize image
+  - _target_: hcpdiff.workflow.DecodeAction
+    vae: ${hcp.from_memory:vae}
+    offload: false
+  - _target_: hcpdiff.workflow.SaveImageAction
+    save_root: output_pipe/
+    image_type: webp
+  - _target_: hcpdiff.workflow.ImageResizeAction
+    mode: lanczos
+    width: 896
+    height: 1344
+  - _target_: hcpdiff.workflow.EncodeAction
+    vae: ${hcp.from_memory:vae}
+
+diffusion:
+  # text to image
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:unet}
+  - _target_: hcpdiff.workflow.LoopAction
+    loop_value:
+      timesteps: t #迭代timesteps，每一步的存成t到states里
+    actions:
+      - _target_: hcpdiff.workflow.DiffusionStepAction
+        guidance_scale: 5.0
+
+actions:
+  - build_model
+  - optimize_model
+  - text
+  - config_diffusion
+  - diffusion
+  ### highres fix ###
+  - resize
+  - config_highres
+  - diffusion
+  ### highres fix ###
+  - decode

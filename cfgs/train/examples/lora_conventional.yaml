@@ -5,36 +5,32 @@ _base_:
 
 lora_unet:
   -
-    lr: 1e-4
-    rank: 8
-    layers:
-      - 're:.*\.attn.?$'
-      - 're:.*\.ff$'
-
-lora_text_encoder:
-  - lr: 1e-5
+    lr: 0.0006
     rank: 4
+    alpha: 2
     layers:
-      - 're:.*self_attn$'
-      - 're:.*mlp$'
+       - 're:.*\.attn.?$'
+       - 're:.*\.ff$'
 
-tokenizer_pt:
-  train: null
 
 train:
-  gradient_accumulation_steps: 1
-  save_step: 100
+  train_steps: null
+  train_epochs: 20
+
+  optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: True
+    weight_decay: 0.1
+    betas: [0.9, 0.99]
 
   scheduler:
-    name: 'constant_with_warmup'
-    num_warmup_steps: 50
-    num_training_steps: 1000
+    name: 'constant'
+    num_warmup_steps: 0
+    num_training_steps: 100000
 
 model:
   pretrained_model_name_or_path: 'runwayml/stable-diffusion-v1-5'
   tokenizer_repeats: 1
-  ema_unet: 0
-  ema_text_encoder: 0
 
 data:
   dataset1:
@@ -47,10 +43,18 @@ data:
         prompt_template: 'prompt_tuning_template/object.txt'
         caption_file: null # path to image captions (file_words)
 
-        word_names:
-          pt1: pt-cat1
+        text_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagErase
+              p: 0.05
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                pt1: pt-cat1
+
 
     bucket:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
-      target_area: ${hcp.eval:"512*512"}
-      num_bucket: 5
+      target_area: ${hcp.eval:"512*768"}
+      num_bucket: 10

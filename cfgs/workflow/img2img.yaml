@@ -6,20 +6,26 @@ amp: fp16
 bs: 2
 seed: 42
 
-resize:
-  # image to image
-  - _target_: hcpdiff.workflow.LatentResizeAction
 
-config_highres:
+load_image:
+  - _target_: hcpdiff.workflow.LoadImageAction
+    image_path: 'img_test/11.png'
+  # maybe need resize
+  #  - _target_: hcpdiff.workflow.ImageResizeAction
+  #    width: 512
+  #    height: 512
+  - _target_: hcpdiff.workflow.EncodeAction
+    vae: ${hcp.from_memory:vae}
+
+config_diffusion:
   # prepare seed
   - _target_: hcpdiff.workflow.SeedAction
     seed: ${seed}
   - _target_: hcpdiff.workflow.MakeTimestepsAction
     N_steps: 30
-    strength: 0.6
+    strength: 0.6 # image to image strength
+  - load_image
   - _target_: hcpdiff.workflow.MakeLatentAction
-    width: 1024
-    height: 1024
 
 actions:
   - build_model
@@ -27,9 +33,4 @@ actions:
   - text
   - config_diffusion
   - diffusion
-  ### highres fix ###
-  - resize
-  - config_highres
-  - diffusion
-  ### highres fix ###
   - decode

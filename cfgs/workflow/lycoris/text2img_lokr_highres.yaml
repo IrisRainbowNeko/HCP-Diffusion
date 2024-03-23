@@ -1,0 +1,77 @@
+_base_:
+  - cfgs/workflow/highres_fix_latent.yaml
+
+dtype: fp16
+amp: fp16
+bs: 2
+seed: 42
+
+build_plugin:
+  # build plugin (lokr)
+  - _target_: hcpdiff.workflow.BuildPluginAction
+    #cfg: 'cfgs/plugins/lokr.yaml'
+    cfg:
+      plugin_unet:
+        lokr:
+          _target_: lycoris.hcp.LokrBlock.wrap_model
+          _partial_: True
+          lr: 1e-4
+          dim: 10000
+          alpha: 0
+          factor: 8
+          layers:
+            - 're:.*\.attn.?$'
+            - 're:.*\.ff$'
+
+      plugin_TE:
+        lokr:
+          _target_: lycoris.hcp.LokrBlock.wrap_model
+          _partial_: True
+          lr: 1e-4
+          dim: 10000
+          alpha: 0
+          factor: 8
+          layers:
+            - 're:.*self_attn$'
+            - 're:.*mlp$'
+
+load_plugin:
+  - _target_: hcpdiff.workflow.BuildModelLoaderAction
+  # load plugin ckpts (lokr)
+  - _target_: hcpdiff.workflow.LoadPluginAction
+    model: TE
+    cfg:
+      lokr:
+        path: 'ckpts/tohsaka_rin-lokr/text_encoder-lokr-8000.safetensors'
+  - _target_: hcpdiff.workflow.LoadPluginAction
+    model: unet
+    cfg:
+      lokr:
+        path: 'ckpts/tohsaka_rin-lokr/unet-lokr-8000.safetensors'
+
+text:
+  - _target_: hcpdiff.workflow.TextHookAction
+    N_repeats: 1
+    layer_skip: 1
+  # encode text
+  - _target_:  hcpdiff.workflow.StartTextEncode
+  - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
+    prompt: 'masterpiece, best quality, tohsaka_rin_fatestaynightufotable, cat ears, outside'
+    negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+    bs: ${bs}
+  - _target_:  hcpdiff.workflow.EndTextEncode
+
+actions:
+  - build_model
+  - build_plugin
+  - load_plugin
+  - optimize_model
+  - text
+  - config_diffusion
+  - diffusion
+  ### highres fix ###
+  - resize
+  - config_highres
+  - diffusion
+  ### highres fix ###
+  - decode

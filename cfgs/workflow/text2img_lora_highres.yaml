@@ -1,5 +1,5 @@
 _base_:
-  - cfgs/workflow/text2img.yaml
+  - cfgs/workflow/highres_fix_latent.yaml
 
 dtype: fp16
 amp: fp16
@@ -29,4 +29,9 @@ actions:
   - text
   - config_diffusion
   - diffusion
+  ### highres fix ###
+  - resize
+  - config_highres
+  - diffusion
+  ### highres fix ###
   - decode

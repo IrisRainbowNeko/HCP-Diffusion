@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Union
 import warnings
 
 from diffusers import UNet2DConditionModel, AutoencoderKL, PNDMScheduler
@@ -8,9 +8,11 @@ from hcpdiff.utils import auto_text_encoder, auto_tokenizer, to_validate_file
 from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import get_dtype
-from .base import BasicAction, from_memory_context, MemoryMixin
+from .base import BasicAction, from_memory_context, feedback_input
+from PIL import Image
+from omegaconf import OmegaConf
 
-class LoadModelsAction(BasicAction, MemoryMixin):
+class LoadModelsAction(BasicAction):
     @from_memory_context
     def __init__(self, pretrained_model: str, dtype: str, unet=None, text_encoder=None, tokenizer=None, vae=None, scheduler=None):
         self.pretrained_model = pretrained_model
@@ -22,6 +24,7 @@ class LoadModelsAction(BasicAction, MemoryMixin):
         self.vae = vae
         self.scheduler = scheduler
 
+    @feedback_input
     def forward(self, memory, **states):
         memory.unet = self.unet or UNet2DConditionModel.from_pretrained(self.pretrained_model, subfolder="unet", torch_dtype=self.dtype)
         memory.text_encoder = self.text_encoder or auto_text_encoder(self.pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype)
@@ -29,18 +32,32 @@ class LoadModelsAction(BasicAction, MemoryMixin):
         memory.vae = self.vae or AutoencoderKL.from_pretrained(self.pretrained_model, subfolder="vae", torch_dtype=self.dtype)
         memory.scheduler = self.scheduler or PNDMScheduler.from_pretrained(self.pretrained_model, subfolder="scheduler", torch_dtype=self.dtype)
 
-        return states
+class LoadImageAction(BasicAction):
+    @from_memory_context
+    def __init__(self, image_path: Union[str, List[str]], key_target: str = 'images'):
+        self.image_path = image_path
+        self.key_target = key_target
+
+    @feedback_input
+    def forward(self, **states):
+        if isinstance(self.image_path, str):
+            images = Image.open(self.image_path).convert('RGB')
+        else:
+            images = [Image.open(path).convert('RGB') for path in self.image_path]
+        return {self.key_target:images}
 
 class SaveImageAction(BasicAction):
     @from_memory_context
-    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95):
+    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95, save_cfg=True):
         self.save_root = save_root
         self.image_type = image_type
         self.quality = quality
+        self.save_cfg = save_cfg
 
         os.makedirs(save_root, exist_ok=True)
 
-    def forward(self, images, prompt, negative_prompt, seeds=None, **states):
+    @feedback_input
+    def forward(self, images, prompt, negative_prompt, cfgs, seeds=None, **states):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
@@ -48,15 +65,19 @@ class SaveImageAction(BasicAction):
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
 
-        return {**states, 'images':images, 'prompt':prompt, 'negative_prompt':negative_prompt, 'seeds':seeds}
+            if self.save_cfg:
+                with open(os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info.yaml"), 'w', encoding='utf-8') as f:
+                    cfgs.seed = seeds[bid]
+                    f.write(OmegaConf.to_yaml(cfgs))
 
-class BuildModelLoaderAction(BasicAction, MemoryMixin):
+class BuildModelLoaderAction(BasicAction):
+
     def forward(self, memory, **states):
         memory.model_loader_unet = HCPModelLoader(memory.unet)
         memory.model_loader_TE = HCPModelLoader(memory.text_encoder)
         return states
 
-class LoadPartAction(BasicAction, MemoryMixin):
+class LoadPartAction(BasicAction):
     @from_memory_context
     def __init__(self, model: str, cfg):
         self.model = model
@@ -67,50 +88,29 @@ class LoadPartAction(BasicAction, MemoryMixin):
         model_loader.load_part(self.cfg)
         return states
 
-class LoadLoraAction(BasicAction, MemoryMixin):
+class LoadLoraAction(BasicAction):
     @from_memory_context
-    def __init__(self, model: str, cfg):
+    def __init__(self, name: str, model: str, cfg, base_model_alpha=1.0, load_ema=False):
+        self.name = name
         self.model = model
-        self.cfg = cfg
+        self.cfg_lora = cfg
+        self.base_model_alpha = base_model_alpha
+        self.load_ema = load_ema
 
     def forward(self, memory, **states):
         model_loader = memory[f"model_loader_{self.model}"]
-        lora_group = model_loader.load_lora(self.cfg)
+        lora_group = model_loader.load_lora(self.cfg_lora)
+
         if 'lora_dict' not in memory:
             memory.lora_dict = {}
-        if path in memory.lora_dict:
-            warnings.warn(f"Lora {path} already loaded, and will be replaced!")
-            memory.lora_dict[path].remove()
-        memory.lora_dict[path] = lora_group
+        # remove if exist
+        if self.name in memory.lora_dict:
+            warnings.warn(f"Lora {self.name} already loaded, and will be replaced!")
+            memory.lora_dict[self.name].remove()
+        memory.lora_dict[self.name] = lora_group
         return states
 
-class BuildPluginAction(BasicAction, MemoryMixin):
-    @from_memory_context
-    def __init__(self, model: str, cfg):
-        self.model = model
-        self.cfg = cfg
-
-    def forward(self, memory, **states):
-        if isinstance(self.cfg_merge.plugin_cfg, str):
-            plugin_cfg = load_config(self.cfg_merge.plugin_cfg)
-            plugin_cfg = {'plugin_unet':hydra.utils.instantiate(plugin_cfg['plugin_unet']),
-                'plugin_TE':hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
-        else:
-            plugin_cfg = self.cfg_merge.plugin_cfg
-        all_plugin_group_unet = make_plugin(memory.unet, plugin_cfg['plugin_unet'])
-        all_plugin_group_TE = make_plugin(memory.text_encoder, plugin_cfg['plugin_TE'])
-
-        if 'plugin_dict' not in memory:
-            memory.plugin_dict = {}
-
-        for name, plugin_group in all_plugin_group_unet.items():
-            memory.plugin_dict[name] = plugin_group
-        for name, plugin_group in all_plugin_group_TE.items():
-            memory.plugin_dict[name] = plugin_group
-
-        return states
-
-class LoadPluginAction(BasicAction, MemoryMixin):
+class LoadPluginAction(BasicAction):
     @from_memory_context
     def __init__(self, model: str, cfg):
         self.model = model
@@ -121,7 +121,7 @@ class LoadPluginAction(BasicAction, MemoryMixin):
         model_loader.load_plugin(self.cfg)
         return states
 
-class RemoveLoraAction(BasicAction, MemoryMixin):
+class RemoveLoraAction(BasicAction):
     @from_memory_context
     def __init__(self, path_list: List[str]):
         self.path_list = path_list
@@ -135,7 +135,7 @@ class RemoveLoraAction(BasicAction, MemoryMixin):
                 warnings.warn(f"Lora {path} not loaded!")
         return states
 
-class RemovePluginAction(BasicAction, MemoryMixin):
+class RemovePluginAction(BasicAction):
     @from_memory_context
     def __init__(self, name_list: List[str]):
         self.name_list = name_list
@@ -147,4 +147,15 @@ class RemovePluginAction(BasicAction, MemoryMixin):
                 del memory.plugin_dict[name]
             else:
                 warnings.warn(f"Plugin {name} not loaded!")
+        return states
+
+class FeedInputAction(BasicAction):
+    @from_memory_context
+    def __init__(self, model):
+        self.model = model
+
+    def forward(self, memory, _ex_input=None, **states):
+        if hasattr(self.model, 'input_feeder') and _ex_input is not None:
+            for feeder in self.model.input_feeder:
+                feeder(_ex_input)
         return states

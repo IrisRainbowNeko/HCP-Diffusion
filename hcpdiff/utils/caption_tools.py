@@ -60,9 +60,13 @@ class TagErase:
         self.p = p
 
     def __call__(self, data):
-        for i, item in enumerate(data['prompt']):
+        if 'caption' in data:
             if random.random()<self.p:
-                data['prompt'][i] = ''
+                data['caption'] = ''
+        else:
+            for i, item in enumerate(data['prompt']):
+                if random.random()<self.p:
+                    data['prompt'][i] = ''
         return data
 
     def __repr__(self):

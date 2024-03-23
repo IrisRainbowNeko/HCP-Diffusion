@@ -9,3 +9,5 @@
 
 /test
 /build
+# GitHub Copilot persisted chat sessions
+/copilot/chatSessions

@@ -1,19 +1,25 @@
-dtype: fp16
+dtype: fp32
 amp: fp16
 bs: 2
 seed: 42
 
+pretrained_model: 'ckpts/any5'
+
 memory: { }
 
-prepare:
+build_model:
   - _target_: hcpdiff.workflow.LoadModelsAction
-    pretrained_model: 'ckpts/any5'
+    pretrained_model: ${pretrained_model}
     dtype: ${dtype}
     scheduler:
-      _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
+      _target_: diffusers.DPMSolverMultistepScheduler # change Sampler
       beta_start: 0.00085
       beta_end: 0.012
       beta_schedule: 'scaled_linear'
+      algorithm_type: 'sde-dpmsolver++'
+      use_karras_sigmas: True
+
+optimize_model:
   - _target_: hcpdiff.workflow.XformersEnableAction
   - _target_: hcpdiff.workflow.ExecAction
     prog: |-
@@ -27,33 +33,53 @@ prepare:
   - _target_: hcpdiff.workflow.VaeOptimizeAction
     slicing: True
 
-actions:
+text:
   - _target_: hcpdiff.workflow.TextHookAction
     N_repeats: 1
     layer_skip: 1
   # encode text
+  - _target_:  hcpdiff.workflow.StartTextEncode
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:text_encoder}
   - _target_: hcpdiff.workflow.AttnMultTextEncodeAction
     prompt: 'masterpiece, best quality, 1girl, cat ears, outside'
     negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
     bs: ${bs}
+  - _target_:  hcpdiff.workflow.EndTextEncode
+
+config_diffusion:
   # prepare seed
   - _target_: hcpdiff.workflow.SeedAction
     seed: ${seed}
   - _target_: hcpdiff.workflow.MakeTimestepsAction
-    N_steps: 30
-  # text to image
+    N_steps: 25
   - _target_: hcpdiff.workflow.MakeLatentAction
     width: 512
     height: 512
+
+diffusion:
+  # text to image
+  - _target_: hcpdiff.workflow.FeedInputAction
+    model: ${hcp.from_memory:unet}
   - _target_: hcpdiff.workflow.LoopAction
     loop_value:
       timesteps: t #迭代timesteps，每一步的存成t到states里
     actions:
       - _target_: hcpdiff.workflow.DiffusionStepAction
         guidance_scale: 7.0
+
+decode:
   # decode to image
   - _target_: hcpdiff.workflow.DecodeAction
     vae: ${hcp.from_memory:vae}
   - _target_: hcpdiff.workflow.SaveImageAction
     save_root: output_pipe/
     image_type: png
+
+actions:
+  - build_model
+  - optimize_model
+  - text
+  - config_diffusion
+  - diffusion
+  - decode

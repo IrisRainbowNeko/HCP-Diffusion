@@ -1,5 +1,5 @@
-torch>=1.12.0
-torchvision>=0.13.0
+#torch>=1.12.0
+#torchvision>=0.13.0
 accelerate>=0.15.0
 diffusers<=0.26.1
 safetensors
@@ -16,7 +16,7 @@ PyYAML
 scikit_learn
 tqdm
 transformers>=4.25.1
-xformers
+#xformers
 pytorch_lightning
 easydict
 pytorch-msssim
