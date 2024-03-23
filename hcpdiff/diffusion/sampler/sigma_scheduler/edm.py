@@ -16,7 +16,7 @@ class EDMSigmaScheduler(SigmaScheduler):
 
         min_inv_rho = self.sigma_min**(1/self.rho)
         max_inv_rho = self.sigma_max**(1/self.rho)
-        return torch.lerp(max_inv_rho, min_inv_rho, t)**self.rho
+        return torch.lerp(min_inv_rho, max_inv_rho, t)**self.rho
 
     def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)):
         if isinstance(min_rate, float):

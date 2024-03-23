@@ -118,5 +118,10 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
         return linear_interp(self.sigmas, t_scale), t
 
 if __name__ == '__main__':
+    from matplotlib import pyplot as plt
+
     sigma_scheduler = DDPMDiscreteSigmaScheduler()
     print(sigma_scheduler.sigma_min, sigma_scheduler.sigma_max)
+
+    plt.plot(sigma_scheduler.sigmas)
+    plt.show()
