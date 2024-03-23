@@ -19,7 +19,7 @@ class DDPMSampler(BaseSampler):
     def add_noise(self, x, sigma):
         sqrt_alpha = 1./(sigma**2+1).sqrt()
         one_sqrt_alpha = (1-sqrt_alpha**2).sqrt()
-        return sqrt_alpha*x+one_sqrt_alpha*torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
+        return sqrt_alpha*x+one_sqrt_alpha*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError

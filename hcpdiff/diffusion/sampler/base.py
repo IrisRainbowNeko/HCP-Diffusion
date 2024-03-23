@@ -19,9 +19,12 @@ class BaseSampler:
     def num_timesteps(self):
         return getattr(self.sigma_scheduler, 'num_timesteps', 1.)
 
+    def make_nosie(self, shape, device='cuda', dtype=torch.float32):
+        return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)
+
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
         sigma = self.sigma_scheduler.sigma_max
-        return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)*sigma
+        return self.make_nosie(shape, device, dtype)*sigma
 
     def add_noise(self, x, sigma):
         raise NotImplementedError

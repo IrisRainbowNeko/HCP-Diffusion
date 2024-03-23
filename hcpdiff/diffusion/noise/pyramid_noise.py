@@ -2,24 +2,19 @@ import random
 
 import torch
 from torch.nn import functional as F
-from diffusers import SchedulerMixin
 
 from .noise_base import NoiseBase
 
-class PyramidNoiseScheduler(NoiseBase, SchedulerMixin):
-    def __init__(self, base_scheduler, level: int = 10, discount: float = 0.9, step_size: float = 2., resize_mode: str = 'bilinear'):
+class PyramidNoiseScheduler(NoiseBase):
+    def __init__(self, base_scheduler, level: int = 6, discount: float = 0.4, step_size: float = 2., resize_mode: str = 'bilinear'):
         super().__init__(base_scheduler)
         self.level = level
         self.step_size = step_size
         self.resize_mode = resize_mode
         self.discount = discount
 
-    def add_noise(
-        self,
-        original_samples: torch.FloatTensor,
-        noise: torch.FloatTensor,
-        timesteps: torch.IntTensor,
-    ) -> torch.FloatTensor:
+    def make_nosie(self, shape, device='cuda', dtype=torch.float32):
+        noise = torch.randn(shape, device=device, dtype=dtype)
         with torch.no_grad():
             b, c, h, w = noise.shape
             for i in range(1, self.level):
@@ -29,7 +24,8 @@ class PyramidNoiseScheduler(NoiseBase, SchedulerMixin):
                 if wn == 1 or hn == 1:
                     break
             noise = noise/noise.std()
-        return self.base_scheduler.add_noise(original_samples, noise, timesteps)
+        return noise
+
 
 # if __name__ == '__main__':
 #     noise = torch.randn(1,3,512,512)

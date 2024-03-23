@@ -4,8 +4,9 @@ from .base import BaseSampler
 from .sigma_scheduler import SigmaScheduler
 
 class EDM_DDPMSampler(BaseSampler):
-    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None):
+    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None, sigma_thr=1000):
         super().__init__(sigma_scheduler, generator)
+        self.sigma_thr = sigma_thr
 
     def c_in(self, sigma):
         return 1/(sigma**2+1).sqrt()
@@ -17,15 +18,19 @@ class EDM_DDPMSampler(BaseSampler):
         return 1.
 
     def add_noise(self, x, sigma):
-        return x+sigma*torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
+        if sigma>self.sigma_thr:
+            return sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
+        else:
+            return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
 
 class EDMSampler(BaseSampler):
-    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None, sigma_data: float = 0.5):
+    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None, sigma_data: float = 0.5, sigma_thr=1000):
         super().__init__(sigma_scheduler, generator)
         self.sigma_data = sigma_data
+        self.sigma_thr = sigma_thr
 
     def c_in(self, sigma):
         return 1/(sigma**2+self.sigma_data**2)**0.5
@@ -37,7 +42,10 @@ class EDMSampler(BaseSampler):
         return self.sigma_data**2/(sigma**2+self.sigma_data**2)
 
     def add_noise(self, x, sigma):
-        return x+sigma.view(-1,1,1,1)*torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
+        if sigma>self.sigma_thr:
+            return sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
+        else:
+            return x+sigma.view(-1, 1, 1, 1)*self.make_nosie(x.shape, device=x.device, dtype=x.dtype)
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
