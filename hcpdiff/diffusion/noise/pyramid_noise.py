@@ -40,21 +40,3 @@ if __name__ == '__main__':
     plt.figure()
     plt.imshow(noise[0].permute(1,2,0))
     plt.show()
-
-# if __name__ == '__main__':
-#     noise = torch.randn(1,3,512,512)
-#     level=10
-#     discount=0.6
-#     b, c, h, w = noise.shape
-#     for i in range(level):
-#         r = random.random() * 2 + 2
-#         wn, hn = max(1, int(w / (r ** i))), max(1, int(h / (r ** i)))
-#         noise += F.interpolate(torch.randn(b, c, wn, hn).to(noise), (w, h), None, 'bilinear') * discount ** i
-#         if wn == 1 or hn == 1:
-#             break
-#     noise = noise / noise.std()
-#
-#     from matplotlib import pyplot as plt
-#     plt.figure()
-#     plt.imshow(noise[0].permute(1,2,0))
-#     plt.show()
