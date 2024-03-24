@@ -21,14 +21,14 @@ from hcpdiff.ckpt_manager import auto_manager
 from .net_utils import split_module_name
 from hcpdiff.tools.convert_old_lora import convert_state
 
-def get_class_match_layer(class_name, block:nn.Module):
-    if type(block).__name__==class_name:
+def get_class_match_layer(class_name, block: nn.Module):
+    if type(block).__name__ == class_name:
         return ['']
     else:
-        return ['.'+name for name, layer in block.named_modules() if type(layer).__name__==class_name]
+        return ['.'+name for name, layer in block.named_modules() if type(layer).__name__ == class_name]
 
 def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str], List[Dict[str, Any]]]:
-    res=[]
+    res = []
     for name in layers:
         metas = name.split(':')
 
@@ -36,35 +36,35 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
         pre_hook = False
         cls_filter = None
         for meta in metas[:-1]:
-            if meta=='re':
-                use_re=True
-            elif meta=='pre_hook':
-                pre_hook=True
+            if meta == 're':
+                use_re = True
+            elif meta == 'pre_hook':
+                pre_hook = True
             elif meta.startswith('cls('):
-                cls_filter=meta[4:-1]
+                cls_filter = meta[4:-1]
 
         name = metas[-1]
         if use_re:
             pattern = re.compile(name)
-            match_layers = filter(lambda x: pattern.match(x) != None, all_layers.keys())
+            match_layers = filter(lambda x:pattern.match(x) != None, all_layers.keys())
         else:
             match_layers = [name]
 
         if cls_filter is not None:
             match_layers_new = []
             for layer in match_layers:
-                match_layers_new.extend([layer + x for x in get_class_match_layer(name[1], all_layers[layer])])
+                match_layers_new.extend([layer+x for x in get_class_match_layer(name[1], all_layers[layer])])
             match_layers = match_layers_new
 
         for layer in match_layers:
             if return_metas:
-                res.append({'layer': layer, 'pre_hook': pre_hook})
+                res.append({'layer':layer, 'pre_hook':pre_hook})
             else:
                 res.append(layer)
 
     # Remove duplicates and keep the original order
     if return_metas:
-        layer_set=set()
+        layer_set = set()
         res_unique = []
         for item in res:
             if item['layer'] not in layer_set:
@@ -75,7 +75,7 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
         return sorted(set(res), key=res.index)
 
 def get_lora_rank_and_cls(lora_state):
-    if 'layer.lora_down.weight' in lora_state: # old format
+    if 'layer.lora_down.weight' in lora_state:  # old format
         warnings.warn("The old lora format is deprecated.", DeprecationWarning)
         rank = lora_state['layer.lora_down.weight'].shape[0]
         lora_layer_cls = lora_layer_map['lora']
@@ -88,11 +88,11 @@ def get_lora_rank_and_cls(lora_state):
         raise ValueError('Unknown lora format.')
 
 def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
-    named_modules = {k:v for k,v in model.named_modules()}
+    named_modules = {k:v for k, v in model.named_modules()}
 
-    train_params=[]
-    all_lora_blocks={}
-    all_lora_blocks_neg={}
+    train_params = []
+    all_lora_blocks = {}
+    all_lora_blocks_neg = {}
 
     if cfg_model is not None:
         for item in cfg_model:
@@ -107,15 +107,20 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
     if cfg_lora is not None:
         for lora_id, item in enumerate(cfg_lora):
             params_group = []
+            block_branch = getattr(item, 'branch', None)
             for layer_name in get_match_layers(item.layers, named_modules):
                 parent_name, host_name = split_module_name(layer_name)
                 layer = named_modules[layer_name]
-                arg_dict = {k:v for k,v in item.items() if k!='layers'}
-                lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, parent_block=named_modules[parent_name], host_name=host_name, **arg_dict)
+                arg_dict = {k:v for k, v in item.items() if k != 'layers'}
+                lora_block_dict = lora_layer_map[arg_dict.get('type', 'lora')].wrap_model(lora_id, layer, parent_block=named_modules[parent_name],
+                                                                                          host_name=host_name, **arg_dict)
 
-                block_branch = getattr(item, 'branch', None)
-                for k,v in lora_block_dict.items():
+                for k, v in lora_block_dict.items():
                     block_path = net_path_join(layer_name, k)
+
+                    # update named_modules to support multi lora
+                    parent_name_i, host_name_i = block_path.rsplit('.', 1)
+                    named_modules[block_path] = getattr(named_modules[parent_name_i], host_name_i)
 
                     if block_branch is None:
                         all_lora_blocks[block_path] = v
@@ -130,7 +135,7 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
                     v.train()
                     params_group.extend(v.parameters())
 
-            train_params.append({'params': params_group, 'lr':getattr(item, 'lr', default_lr)})
+            train_params.append({'params':params_group, 'lr':getattr(item, 'lr', default_lr)})
 
     if len(all_lora_blocks_neg)>0:
         return train_params, (LoraGroup(all_lora_blocks), LoraGroup(all_lora_blocks_neg))
@@ -138,26 +143,28 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
         return train_params, LoraGroup(all_lora_blocks)
 
 def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
-    train_params=[]
-    all_plugin_group={}
+    train_params = []
+    all_plugin_group = {}
 
     if cfg_plugin is None:
         return train_params, all_plugin_group
 
-    named_modules = {k: v for k, v in model.named_modules()}
+    named_modules = {k:v for k, v in model.named_modules()}
 
     # builder: functools.partial
     for plugin_name, builder in cfg_plugin.items():
-        all_plugin_blocks={}
+        all_plugin_blocks = {}
 
         lr = builder.keywords.pop('lr') if 'lr' in builder.keywords else default_lr
         train_plugin = builder.keywords.pop('train') if 'train' in builder.keywords else True
-        plugin_class = getattr(builder.func, '__self__', builder.func) # support static or class method
+        plugin_class = getattr(builder.func, '__self__', builder.func)  # support static or class method
 
         params_group = []
         if issubclass(plugin_class, MultiPluginBlock):
-            from_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords.pop('from_layers'), named_modules, return_metas=True)]
-            to_layers = [{**item, 'layer':named_modules[item['layer']]} for item in get_match_layers(builder.keywords.pop('to_layers'), named_modules, return_metas=True)]
+            from_layers = [{**item, 'layer':named_modules[item['layer']]} for item in
+                get_match_layers(builder.keywords.pop('from_layers'), named_modules, return_metas=True)]
+            to_layers = [{**item, 'layer':named_modules[item['layer']]} for item in
+                get_match_layers(builder.keywords.pop('to_layers'), named_modules, return_metas=True)]
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
             if train_plugin:
@@ -175,9 +182,9 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             for layer_name in get_match_layers(layers_name, named_modules):
                 blocks = builder(name=plugin_name, host_model=model, host=named_modules[layer_name])
                 if not isinstance(blocks, dict):
-                    blocks={'':blocks}
+                    blocks = {'':blocks}
 
-                for k,v in blocks.items():
+                for k, v in blocks.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
                         v.train()
@@ -193,9 +200,9 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             to_layer = get_match_layers(builder.keywords.pop('to_layer'), named_modules, return_metas=True)
 
             for from_layer_meta, to_layer_meta in zip(from_layer, to_layer):
-                from_layer_name=from_layer_meta['layer']
-                from_layer_meta['layer']=named_modules[from_layer_name]
-                to_layer_meta['layer']=named_modules[to_layer_meta['layer']]
+                from_layer_name = from_layer_meta['layer']
+                from_layer_meta['layer'] = named_modules[from_layer_name]
+                to_layer_meta['layer'] = named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
                 if train_plugin:
                     layer.train()
@@ -212,11 +219,11 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
             for layer_name in get_match_layers(layers_name, named_modules):
                 parent_name, host_name = split_module_name(layer_name)
                 layers = builder(name=plugin_name, host_model=model, host=named_modules[layer_name],
-                                parent_block=named_modules[parent_name], host_name=host_name)
+                                 parent_block=named_modules[parent_name], host_name=host_name)
                 if not isinstance(layers, dict):
-                    layers={'':layers}
+                    layers = {'':layers}
 
-                for k,v in layers.items():
+                for k, v in layers.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
                     if train_plugin:
                         v.train()
@@ -253,12 +260,12 @@ class HCPModelLoader:
             layers = item.get('layers', 'all')
             if layers == 'all':
                 for k, v in part_state.items():
-                    self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
+                    self.named_params[k].data = base_model_alpha*self.named_params[k].data+item.alpha*v
             else:
                 match_blocks = get_match_layers(layers, self.named_modules)
-                state_add = {k:v for blk in match_blocks for k,v in part_state.items() if k.startswith(blk)}
+                state_add = {k:v for blk in match_blocks for k, v in part_state.items() if k.startswith(blk)}
                 for k, v in state_add.items():
-                    self.named_params[k].data = base_model_alpha * self.named_params[k].data + item.alpha * v
+                    self.named_params[k].data = base_model_alpha*self.named_params[k].data+item.alpha*v
 
     @torch.no_grad()
     def load_lora(self, cfg, base_model_alpha=1.0, load_ema=False):
@@ -272,7 +279,7 @@ class HCPModelLoader:
             # get all layers in the lora_state
             for name, p in lora_state.items():
                 # lora_block. is the old format
-                prefix, block_name = name.split('.___.' if name.rfind('lora_block.')==-1 else '.lora_block.', 1)
+                prefix, block_name = name.split('.___.' if name.rfind('lora_block.') == -1 else '.lora_block.', 1)
                 if prefix not in lora_block_state:
                     lora_block_state[prefix] = {}
                 lora_block_state[prefix][block_name] = p
@@ -284,7 +291,7 @@ class HCPModelLoader:
                 for k, v in lora_block_state.items():
                     for mk in match_blocks:
                         if k.startswith(mk):
-                            lora_state_new[k]=v
+                            lora_state_new[k] = v
                             break
                 lora_block_state = lora_state_new
             # add lora to host and load weights
@@ -298,8 +305,9 @@ class HCPModelLoader:
                     lora_state = convert_state(lora_state)
 
                 lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
-                                                        alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state, alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
-                                                        parent_block=self.named_modules[parent_name], host_name=host_name)
+                                                       alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state,
+                                                       alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
+                                                       parent_block=self.named_modules[parent_name], host_name=host_name)
                 all_lora_blocks[f'{layer_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
                 lora_block.to(self.host.device)
