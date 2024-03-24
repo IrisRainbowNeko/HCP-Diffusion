@@ -3,11 +3,10 @@ import random
 import torch
 from torch.nn import functional as F
 
-from .noise_base import NoiseBase
+from hcpdiff.diffusion.sampler import BaseSampler
 
-class PyramidNoiseScheduler(NoiseBase):
-    def __init__(self, base_scheduler, level: int = 6, discount: float = 0.4, step_size: float = 2., resize_mode: str = 'bilinear'):
-        super().__init__(base_scheduler)
+class PyramidNoiseSampler:
+    def __init__(self, level: int = 6, discount: float = 0.4, step_size: float = 2., resize_mode: str = 'bilinear'):
         self.level = level
         self.step_size = step_size
         self.resize_mode = resize_mode
@@ -26,6 +25,21 @@ class PyramidNoiseScheduler(NoiseBase):
             noise = noise/noise.std()
         return noise
 
+    @classmethod
+    def patch(cls, base_sampler: BaseSampler, level: int = 6, discount: float = 0.4, step_size: float = 2., resize_mode: str = 'bilinear'):
+        patcher = cls(level, discount, step_size, resize_mode)
+        base_sampler.make_nosie = patcher.make_nosie
+        return base_sampler
+
+if __name__ == '__main__':
+    from hcpdiff.diffusion.sampler import EDM_DDPMSampler, DDPMContinuousSigmaScheduler
+    from matplotlib import pyplot as plt
+
+    sampler = PyramidNoiseSampler.patch(EDM_DDPMSampler(DDPMContinuousSigmaScheduler()))
+    noise = sampler.make_nosie((1,3,512,512), device='cpu')
+    plt.figure()
+    plt.imshow(noise[0].permute(1,2,0))
+    plt.show()
 
 # if __name__ == '__main__':
 #     noise = torch.randn(1,3,512,512)

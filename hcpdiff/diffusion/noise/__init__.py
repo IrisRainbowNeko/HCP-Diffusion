@@ -1,3 +1,2 @@
-from .noise_base import NoiseBase
-from .pyramid_noise import PyramidNoiseScheduler
-from .zero_terminal import ZeroTerminalScheduler
+from .pyramid_noise import PyramidNoiseSampler
+from .zero_terminal import ZeroTerminalSampler

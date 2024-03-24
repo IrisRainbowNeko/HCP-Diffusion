@@ -1,17 +1,19 @@
 import torch
-from .noise_base import NoiseBase
 from ..sampler.sigma_scheduler import DDPMDiscreteSigmaScheduler
 
-class ZeroTerminalScheduler(NoiseBase):
-    def __init__(self, base_scheduler):
-        super().__init__(base_scheduler)
-        assert isinstance(base_scheduler.sigma_scheduler, DDPMDiscreteSigmaScheduler), "ZeroTerminalScheduler only works with DDPM SigmaScheduler"
+class ZeroTerminalSampler:
 
-        alphas_cumprod = base_scheduler.sigma_scheduler.alphas_cumprod
-        base_scheduler.sigma_scheduler.alphas_cumprod = self.rescale_zero_terminal_snr(alphas_cumprod)
-        base_scheduler.sigma_scheduler.sigmas = ((1-alphas_cumprod)/alphas_cumprod).sqrt()
+    @classmethod
+    def patch(cls, base_sampler):
+        assert isinstance(base_sampler.sigma_scheduler, DDPMDiscreteSigmaScheduler), "ZeroTerminalScheduler only works with DDPM SigmaScheduler"
 
-    def rescale_zero_terminal_snr(self, alphas_cumprod, thr=1e-4):
+        alphas_cumprod = base_sampler.sigma_scheduler.alphas_cumprod
+        base_sampler.sigma_scheduler.alphas_cumprod = cls.rescale_zero_terminal_snr(alphas_cumprod)
+        base_sampler.sigma_scheduler.sigmas = ((1-alphas_cumprod)/alphas_cumprod).sqrt()
+
+
+    @staticmethod
+    def rescale_zero_terminal_snr(alphas_cumprod, thr=1e-4):
         """
         Rescales betas to have zero terminal SNR Based on https://arxiv.org/pdf/2305.08891.pdf (Algorithm 1)
         Args:
