@@ -122,6 +122,16 @@ if __name__ == '__main__':
 
     sigma_scheduler = DDPMDiscreteSigmaScheduler()
     print(sigma_scheduler.sigma_min, sigma_scheduler.sigma_max)
+    t = torch.linspace(0, 1, 1000)
+    rho = 7.
+    s2 = (sigma_scheduler.sigma_min**(1/rho)+t*(sigma_scheduler.sigma_max**(1/rho)-sigma_scheduler.sigma_min**(1/rho)))**rho
 
+    plt.figure()
     plt.plot(sigma_scheduler.sigmas)
+    plt.plot(s2)
+    plt.show()
+
+    plt.figure()
+    plt.plot(sigma_scheduler.sigmas.log())
+    plt.plot(s2.log())
     plt.show()
