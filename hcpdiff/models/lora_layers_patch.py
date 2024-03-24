@@ -99,6 +99,11 @@ class LoraLayer(LoraBlock):
             b = self.bias.data if self.bias else None
             return w, b
 
+def none_add(a, b):
+    if a is None:
+        return b
+    return a+b
+
 class DAPPPatchContainer(PatchPluginContainer):
     def forward(self, x, *args, **kwargs):
         weight_p = None
@@ -107,25 +112,11 @@ class DAPPPatchContainer(PatchPluginContainer):
         bias_n = None
         for name in self.plugin_names:
             if self[name].branch=='p':
-                if weight_p is None:
-                    weight_p = self[name].get_weight()
-                else:
-                    weight_p = weight_p + self[name].get_weight()
-
-                if bias_p is None:
-                    bias_p = self[name].get_bias()
-                else:
-                    bias_p = bias_p+self[name].get_bias()
+                weight_p = none_add(weight_p, self[name].get_weight())
+                bias_p = none_add(bias_p, self[name].get_bias())
             elif self[name].branch=='n':
-                if weight_n is None:
-                    weight_n = self[name].get_weight()
-                else:
-                    weight_n = weight_n + self[name].get_weight()
-
-                if bias_n is None:
-                    bias_n = self[name].get_bias()
-                else:
-                    bias_n = bias_n+self[name].get_bias()
+                weight_n = none_add(weight_n, self[name].get_weight())
+                bias_n = none_add(bias_n, self[name].get_bias())
 
         B = x.shape[0]//2
         x_p = self[name].post_forward(x[B:], self._host.weight, weight_p, self._host.bias, bias_p)

@@ -121,10 +121,8 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
                         all_lora_blocks[block_path] = v
                     elif block_branch == 'p':
                         all_lora_blocks[block_path] = v
-                        v.set_mask((0.5, 1))
                     elif block_branch == 'n':
                         all_lora_blocks_neg[block_path] = v
-                        v.set_mask((0, 0.5))
                     else:
                         raise NotImplementedError(f'Unsupported branch "{block_branch}"')
 
