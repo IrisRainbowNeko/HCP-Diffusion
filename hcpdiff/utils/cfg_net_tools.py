@@ -294,10 +294,16 @@ class HCPModelLoader:
                             lora_state_new[k] = v
                             break
                 lora_block_state = lora_state_new
+
+            block_branch = getattr(item, 'branch', None)
             # add lora to host and load weights
             for layer_name, lora_state in lora_block_state.items():
                 parent_name, host_name = split_module_name(layer_name)
                 lora_layer_cls, rank, old_format = get_lora_rank_and_cls(lora_state)
+
+                if block_branch:
+                    lora_layer_cls = lora_layer_map['dapp']
+
                 if 'alpha' in lora_state:
                     del lora_state['alpha']
 
@@ -307,7 +313,10 @@ class HCPModelLoader:
                 lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
                                                        alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state,
                                                        alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
-                                                       parent_block=self.named_modules[parent_name], host_name=host_name)
+                                                       parent_block=self.named_modules[parent_name], host_name=host_name, branch=block_branch)
+                # update named_modules to support multi lora
+                self.named_modules[layer_name] = getattr(self.named_modules[parent_name], host_name)
+
                 all_lora_blocks[f'{layer_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
                 lora_block.to(self.host.device)
