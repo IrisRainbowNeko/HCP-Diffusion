@@ -51,6 +51,8 @@ class Trainer:
     ckpt_manager_map = {'torch':CkptManagerPKL, 'safetensors':CkptManagerSafe}
 
     def __init__(self, cfgs_raw):
+        torch.backends.cudnn.benchmark = True
+
         cfgs_raw = TrainCFGConverter().convert(cfgs_raw)  # support old cfgs format
         cfgs = hydra.utils.instantiate(cfgs_raw)
         self.cfgs = cfgs
