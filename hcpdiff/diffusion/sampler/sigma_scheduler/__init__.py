@@ -1,3 +1,3 @@
 from .base import SigmaScheduler
 from .ddpm import DDPMDiscreteSigmaScheduler, DDPMContinuousSigmaScheduler
-from .edm import EDMSigmaScheduler
+from .edm import EDMSigmaScheduler, EDMRefSigmaScheduler
