@@ -42,5 +42,5 @@ class EDMRefSigmaScheduler(EDMSigmaScheduler):
 
         t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
         sigma = self.get_sigma(t)
-        t_rect = torch.tensor(np.interp(sigma.cpu().numpy(), self.ref_sigmas, self.ref_t))
+        t_rect = torch.tensor(np.interp(sigma.cpu().log().numpy(), self.ref_sigmas, self.ref_t))
         return sigma, t_rect
