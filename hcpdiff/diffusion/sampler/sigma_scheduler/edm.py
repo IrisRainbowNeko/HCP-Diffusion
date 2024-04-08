@@ -31,7 +31,7 @@ class EDMSigmaScheduler(SigmaScheduler):
 class EDMRefSigmaScheduler(EDMSigmaScheduler):
     def __init__(self, ref_scheduler, sigma_min=0.002, sigma_max=80.0, rho=7.0):
         super().__init__(sigma_min, sigma_max, rho)
-        self.ref_sigmas = ref_scheduler.sigmas.cpu().log().numpy()
+        self.ref_sigmas = ref_scheduler.sigmas.cpu().clip(min=1e-8).log().numpy()
         self.ref_t = np.linspace(0, 1, len(self.ref_sigmas))
 
     def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)):
@@ -42,5 +42,5 @@ class EDMRefSigmaScheduler(EDMSigmaScheduler):
 
         t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
         sigma = self.get_sigma(t)
-        t_rect = torch.tensor(np.interp(sigma.cpu().log().numpy(), self.ref_sigmas, self.ref_t))
+        t_rect = torch.tensor(np.interp(sigma.cpu().clip(min=1e-8).log().numpy(), self.ref_sigmas, self.ref_t))
         return sigma, t_rect
