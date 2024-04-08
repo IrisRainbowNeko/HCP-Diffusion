@@ -3,6 +3,7 @@ import math
 from typing import Union
 from hcpdiff.utils import linear_interp
 from .base import SigmaScheduler
+from diffusers import DDPMScheduler
 
 class DDPMDiscreteSigmaScheduler(SigmaScheduler):
     def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120, num_timesteps=1000):
@@ -119,19 +120,21 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
 
 if __name__ == '__main__':
     from matplotlib import pyplot as plt
+    import numpy as np
 
     sigma_scheduler = DDPMDiscreteSigmaScheduler()
     print(sigma_scheduler.sigma_min, sigma_scheduler.sigma_max)
     t = torch.linspace(0, 1, 1000)
-    rho = 7.
+    rho = 1.
     s2 = (sigma_scheduler.sigma_min**(1/rho)+t*(sigma_scheduler.sigma_max**(1/rho)-sigma_scheduler.sigma_min**(1/rho)))**rho
+    t2 = np.interp(s2.log().numpy(), sigma_scheduler.sigmas.log().numpy(), t.numpy())
 
     plt.figure()
     plt.plot(sigma_scheduler.sigmas)
-    plt.plot(s2)
+    plt.plot(t2*1000, s2)
     plt.show()
 
     plt.figure()
     plt.plot(sigma_scheduler.sigmas.log())
-    plt.plot(s2.log())
+    plt.plot(t2*1000, s2.log())
     plt.show()
