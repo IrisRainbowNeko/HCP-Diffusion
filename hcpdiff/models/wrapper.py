@@ -4,12 +4,13 @@ from transformers import CLIPTextModel
 from hcpdiff.utils import pad_attn_bias
 
 class TEUnetWrapper(nn.Module):
-    def __init__(self, unet, TE, train_TE=False):
+    def __init__(self, unet, TE, train_TE=False, min_attnmask=32):
         super().__init__()
         self.unet = unet
         self.TE = TE
 
         self.train_TE = train_TE
+        self.min_attnmask=min_attnmask
 
     def forward(self, prompt_ids, noisy_latents, timesteps, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
         input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, position_ids=position_ids, attn_mask=attn_mask, **plugin_input)
@@ -20,6 +21,7 @@ class TEUnetWrapper(nn.Module):
         encoder_hidden_states = self.TE(prompt_ids, position_ids=position_ids, attention_mask=attn_mask, output_hidden_states=True)[0]  # Get the text embedding for conditioning
 
         if attn_mask is not None:
+            attn_mask[:, :self.min_attnmask] = 1
             encoder_hidden_states, attn_mask = pad_attn_bias(encoder_hidden_states, attn_mask)
 
         input_all['encoder_hidden_states'] = encoder_hidden_states
@@ -65,6 +67,7 @@ class SDXLTEUnetWrapper(TEUnetWrapper):
 
         added_cond_kwargs = {"text_embeds":pooled_output[-1], "time_ids":crop_info}
         if attn_mask is not None:
+            attn_mask[:, :self.min_attnmask] = 1
             encoder_hidden_states, attn_mask = pad_attn_bias(encoder_hidden_states, attn_mask)
 
         input_all['encoder_hidden_states'] = encoder_hidden_states
