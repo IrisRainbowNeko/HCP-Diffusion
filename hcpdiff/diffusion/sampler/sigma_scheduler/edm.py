@@ -6,10 +6,12 @@ import numpy as np
 from .base import SigmaScheduler
 
 class EDMSigmaScheduler(SigmaScheduler):
-    def __init__(self, sigma_min=0.002, sigma_max=80.0, rho=7.0):
+    def __init__(self, sigma_min=0.002, sigma_max=80.0, rho=7.0, num_timesteps=1000):
         self.sigma_min = torch.tensor(sigma_min)
         self.sigma_max = torch.tensor(sigma_max)
         self.rho = rho
+
+        self.num_timesteps=num_timesteps
 
     def get_sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
@@ -29,8 +31,8 @@ class EDMSigmaScheduler(SigmaScheduler):
         return self.get_sigma(t), t
 
 class EDMRefSigmaScheduler(EDMSigmaScheduler):
-    def __init__(self, ref_scheduler, sigma_min=0.002, sigma_max=80.0, rho=7.0):
-        super().__init__(sigma_min, sigma_max, rho)
+    def __init__(self, ref_scheduler, sigma_min=0.002, sigma_max=80.0, rho=7.0, num_timesteps=1000):
+        super().__init__(sigma_min, sigma_max, rho, num_timesteps=num_timesteps)
         self.ref_sigmas = ref_scheduler.sigmas.cpu().clip(min=1e-8).log().numpy()
         self.ref_t = np.linspace(0, 1, len(self.ref_sigmas))
 
