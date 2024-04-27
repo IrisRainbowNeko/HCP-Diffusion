@@ -3,9 +3,11 @@ _base_:
   - cfgs/train/train_base.yaml
   - cfgs/train/tuning_base.yaml
 
+unet_lr: 0.0006
+
 lora_unet:
   -
-    lr: 0.0006
+    lr: ${unet_lr}
     rank: 4
     alpha: 2
     layers:
@@ -43,6 +45,9 @@ data:
         prompt_template: 'prompt_tuning_template/object.txt'
         caption_file: null # path to image captions (file_words)
 
+        word_names:
+          pt1: pt-cat1
+
         text_transforms:
           _target_: torchvision.transforms.Compose
           transforms:
@@ -50,8 +55,7 @@ data:
             - _target_: hcpdiff.utils.caption_tools.TagErase
               p: 0.05
             - _target_: hcpdiff.utils.caption_tools.TemplateFill
-              word_names:
-                pt1: pt-cat1
+              word_names: ${....word_names}
 
 
     bucket:

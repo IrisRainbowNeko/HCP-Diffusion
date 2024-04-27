@@ -4,7 +4,7 @@
 
 ## 流程与原理
 
-对于这一任务，HCP-Diffusion的作者[7eu7e7](https://github.com/7eu7d7)所推荐的方法是，将一个embedding模型和Lora模型一同进行训练，并在实际进行推理（即生成二次元动漫角色的图片）的时候同时使用embedding模型和Lora模型，即可实现所需的效果，并且由于将触发词固化在了embedding模型中，所以将会取得比传统Lora更稳定的效果。
+对于这一任务，HCP-Diffusion的作者[IrisRainbowNeko](https://github.com/IrisRainbowNeko)所推荐的方法是，将一个embedding模型和Lora模型一同进行训练，并在实际进行推理（即生成二次元动漫角色的图片）的时候同时使用embedding模型和Lora模型，即可实现所需的效果，并且由于将触发词固化在了embedding模型中，所以将会取得比传统Lora更稳定的效果。
 
 由此，这一训练过程总共分为以下几步：
 * 准备数据集

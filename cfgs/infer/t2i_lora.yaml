@@ -1,0 +1,12 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+lora_path: ''
+lora_alpha: 0.8
+
+merge:
+  group1:
+    type: 'unet'
+    base_model_alpha: 1.0 # base model weight to merge with lora or part
+    lora:
+      - path: ${lora_path}
+        alpha: ${lora_alpha}
