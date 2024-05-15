@@ -62,7 +62,7 @@ class TEUnetWrapper(nn.Module):
     @classmethod
     def build_from_pretrained(cls, pretrained_model_name_or_path, unet=None, TE=None, revision=None, train_TE=False, min_attnmask=32):
         unet = unet or UNet2DConditionModel.from_pretrained(
-            self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=revision
+            pretrained_model_name_or_path, subfolder="unet", revision=revision
         )
 
         if TE is None:
