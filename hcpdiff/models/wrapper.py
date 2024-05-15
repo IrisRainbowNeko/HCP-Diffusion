@@ -34,13 +34,6 @@ class TEUnetWrapper(nn.Module):
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask).sample  # Predict the noise residual
         return model_pred
 
-    def prepare(self, accelerator):
-        if self.train_TE:
-            return accelerator.prepare(self)
-        else:
-            self.unet = accelerator.prepare(self.unet)
-            return self
-
     def enable_gradient_checkpointing(self):
         def grad_ckpt_enable(m):
             if hasattr(m, 'gradient_checkpointing'):

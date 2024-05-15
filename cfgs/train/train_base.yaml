@@ -30,9 +30,9 @@ train:
   loss:
     criterion:
       - _target_: hcpdiff.loss.WeightedLoss
+        _partial_: True
         loss:
           _target_: torch.nn.MSELoss
-          _partial_: True
           reduction: 'none' # support for attention mask
     type: 'x0' # 'eps' or 'x0'
 

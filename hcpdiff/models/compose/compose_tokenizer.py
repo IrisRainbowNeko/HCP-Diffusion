@@ -19,7 +19,7 @@ class ComposeTokenizer(PreTrainedTokenizer):
     def __init__(self, tokenizer_list: List[Tuple[str, CLIPTokenizer]], cat_dim=-1):
         self.cat_dim = cat_dim
         self.tokenizer_list = tokenizer_list
-        super().__init__()
+        #super().__init__()
 
         self.model_max_length = self.first_tokenizer.model_max_length
 
