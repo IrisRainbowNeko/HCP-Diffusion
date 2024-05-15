@@ -33,7 +33,7 @@ from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
 from hcpdiff.deprecated.cfg_converter import TrainCFGConverter
 from hcpdiff.loggers import LoggerGroup
-from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper
+from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper, auto_build_wrapper
 from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
 from hcpdiff.models.compose import SDXLTextEncoder
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
@@ -197,14 +197,15 @@ class Trainer:
                 param['lr'] *= scale_factor
 
     def build_model(self):
+        pretrained = self.cfgs.model.pretrained_model_name_or_path
+
         # Load the tokenizer
         if self.cfgs.model.get('tokenizer', None) is not None:
             self.tokenizer = self.cfgs.model.tokenizer
         else:
-            tokenizer_cls = auto_tokenizer_cls(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
+            tokenizer_cls = auto_tokenizer_cls(pretrained, self.cfgs.model.revision)
             self.tokenizer = tokenizer_cls.from_pretrained(
-                self.cfgs.model.pretrained_model_name_or_path, subfolder="tokenizer",
-                revision=self.cfgs.model.revision, use_fast=False,
+                pretrained, subfolder="tokenizer", revision=self.cfgs.model.revision, use_fast=False,
             )
 
         # Load scheduler and models
@@ -212,27 +213,14 @@ class Trainer:
 
         #self.num_train_timesteps = len(self.noise_scheduler.timesteps)
         self.vae: AutoencoderKL = self.cfgs.model.get('vae', None) or AutoencoderKL.from_pretrained(
-            self.cfgs.model.pretrained_model_name_or_path, subfolder="vae", revision=self.cfgs.model.revision)
-        self.build_unet_and_TE()
+            pretrained, subfolder="vae", revision=self.cfgs.model.revision)
+        #self.build_unet_and_TE()
 
-    def build_unet_and_TE(self):  # for easy to use colossalAI
-        unet = self.cfgs.model.get('unet', None) or UNet2DConditionModel.from_pretrained(
-            self.cfgs.model.pretrained_model_name_or_path, subfolder="unet", revision=self.cfgs.model.revision
-        )
-
-        if self.cfgs.model.get('text_encoder', None) is not None:
-            text_encoder = self.cfgs.model.text_encoder
-            text_encoder_cls = type(text_encoder)
+        if self.cfgs.model.get('wrapper', None) is None:
+            self.TE_unet = auto_build_wrapper(pretrained, self.cfgs.model.get('unet', None), self.cfgs.model.get('TE', None),
+                                            revision=self.cfgs.model.revision, train_TE=self.train_TE)
         else:
-            # import correct text encoder class
-            text_encoder_cls = auto_text_encoder_cls(self.cfgs.model.pretrained_model_name_or_path, self.cfgs.model.revision)
-            text_encoder = text_encoder_cls.from_pretrained(
-                self.cfgs.model.pretrained_model_name_or_path, subfolder="text_encoder", revision=self.cfgs.model.revision
-            )
-
-        # Wrap unet and text_encoder to make DDP happy. Multiple DDP has soooooo many fxxking bugs!
-        wrapper_cls = SDXLTEUnetWrapper if text_encoder_cls == SDXLTextEncoder else TEUnetWrapper
-        self.TE_unet = wrapper_cls(unet, text_encoder, train_TE=self.train_TE)
+            self.TE_unet = self.cfgs.model.wrapper(pretrained, train_TE=self.train_TE, revision=self.cfgs.model.revision)
 
     def build_ema(self):
         if self.cfgs.model.ema is not None:
