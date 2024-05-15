@@ -21,7 +21,7 @@ class ComposeTokenizer(PreTrainedTokenizer):
         self.tokenizer_list = tokenizer_list
         #super().__init__()
 
-        self.model_max_length = self.first_tokenizer.model_max_length
+        self.model_max_length = torch.tensor([tokenizer.model_max_length for name, tokenizer in self.tokenizer_list])
 
     @property
     def first_tokenizer(self):
@@ -48,8 +48,13 @@ class ComposeTokenizer(PreTrainedTokenizer):
     def add_tokens( self, new_tokens, special_tokens: bool = False) -> List[int]:
         return [tokenizer.add_tokens(new_tokens, special_tokens) for name, tokenizer in self.tokenizer_list]
 
-    def __call__(self, text, *args, **kwargs):
-        token_list: List[BatchEncoding] = [tokenizer(text, *args, **kwargs) for name, tokenizer in self.tokenizer_list]
+    def __call__(self, text, *args, max_length=None, **kwargs):
+        if isinstance(max_length, torch.Tensor):
+            token_list: List[BatchEncoding] = [tokenizer(text, *args, max_length=max_length_i, **kwargs)
+                for (name, tokenizer), max_length_i in zip(self.tokenizer_list, max_length)]
+        else:
+            token_list: List[BatchEncoding] = [tokenizer(text, *args, max_length=max_length, **kwargs) for name, tokenizer in self.tokenizer_list]
+
         input_ids = torch.cat([token.input_ids for token in token_list], dim=-1)  # [N_tokenizer, N_token]
         attention_mask = [token.attention_mask for token in token_list]
         return BatchEncoding({'input_ids':input_ids, 'attention_mask':attention_mask})
