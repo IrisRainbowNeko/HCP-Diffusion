@@ -211,14 +211,11 @@ class Trainer:
         # Load scheduler and models
         self.noise_sampler = self.cfgs.model.get('noise_scheduler', None) or EDM_DDPMSampler(DDPMDiscreteSigmaScheduler())
 
-        #self.num_train_timesteps = len(self.noise_scheduler.timesteps)
         self.vae: AutoencoderKL = self.cfgs.model.get('vae', None) or AutoencoderKL.from_pretrained(
             pretrained, subfolder="vae", revision=self.cfgs.model.revision)
-        #self.build_unet_and_TE()
 
         if self.cfgs.model.get('wrapper', None) is None:
-            self.TE_unet = auto_build_wrapper(pretrained, self.cfgs.model.get('unet', None), self.cfgs.model.get('TE', None),
-                                            revision=self.cfgs.model.revision, train_TE=self.train_TE)
+            self.TE_unet = auto_build_wrapper(pretrained, revision=self.cfgs.model.revision, train_TE=self.train_TE)
         else:
             self.TE_unet = self.cfgs.model.wrapper(pretrained, train_TE=self.train_TE, revision=self.cfgs.model.revision)
 
