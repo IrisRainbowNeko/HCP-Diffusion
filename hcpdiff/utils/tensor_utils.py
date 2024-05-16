@@ -6,7 +6,7 @@ class ListTensor(list):
             self[i] = v.to(device=device, dtype=dtype)
         return self
 
-    def squeeze(self, dim=None):
+    def squeeze(self, dim=0):
         for i, v in enumerate(self):
             self[i] = v.squeeze(dim)
         return self
