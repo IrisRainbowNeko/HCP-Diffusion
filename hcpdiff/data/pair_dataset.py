@@ -97,10 +97,7 @@ class TextImagePairDataset(Dataset):
                                     max_length=self.tokenizer.model_max_length*self.tokenizer_repeats)
         data['prompt'] = tokens.input_ids.squeeze()
         if self.encoder_attention_mask and 'attention_mask' in tokens:
-            if isinstance(tokens.attention_mask, (list, tuple)): # for compose tokenizer
-                data['attn_mask'] = [mask.squeeze() for mask in tokens.attention_mask]
-            else:
-                data['attn_mask'] = tokens.attention_mask.squeeze()
+            data['attn_mask'] = tokens.attention_mask.squeeze()
         if 'position_ids' in tokens:
             data['position_ids'] = tokens.position_ids.squeeze()
 
