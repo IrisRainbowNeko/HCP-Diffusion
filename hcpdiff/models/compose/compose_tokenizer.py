@@ -14,7 +14,6 @@ from typing import Dict, Tuple, List
 import torch
 from transformers import AutoTokenizer, CLIPTokenizer, PreTrainedTokenizer, PretrainedConfig
 from transformers.tokenization_utils_base import BatchEncoding
-from hcpdiff.utils import ListTensor
 
 class ComposeTokenizer(PreTrainedTokenizer):
     def __init__(self, tokenizer_list: List[Tuple[str, CLIPTokenizer]], cat_dim=-1):
@@ -57,7 +56,7 @@ class ComposeTokenizer(PreTrainedTokenizer):
             token_list: List[BatchEncoding] = [tokenizer(text, *args, max_length=max_length, **kwargs) for name, tokenizer in self.tokenizer_list]
 
         input_ids = torch.cat([token.input_ids for token in token_list], dim=-1)  # [N_tokenizer, N_token]
-        attention_mask = ListTensor.create([token.attention_mask for token in token_list])
+        attention_mask = torch.cat([token.attention_mask for token in token_list], dim=-1)
         return BatchEncoding({'input_ids':input_ids, 'attention_mask':attention_mask})
 
     @classmethod
