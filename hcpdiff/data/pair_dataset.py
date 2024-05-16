@@ -137,7 +137,8 @@ class TextImagePairDataset(Dataset):
                 datas[k].append(v)
 
         for k, v in datas.items():
-            datas[k] = torch.stack(v)
+            if isinstance(v[0], torch.Tensor):
+                datas[k] = torch.stack(v)
             if k == 'mask':
                 datas[k] = datas[k].unsqueeze(1)
 
