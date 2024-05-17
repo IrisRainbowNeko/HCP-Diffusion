@@ -87,7 +87,7 @@ class TEEXHook:
     def forward_hook(self, host, feat_in: Tuple[torch.Tensor], feat_out):
         encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
         if self.clip_final_norm and self.final_layer_norm is not None:
-            encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
+            encoder_hidden_states = self.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
             encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
 
