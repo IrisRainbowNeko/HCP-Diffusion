@@ -38,14 +38,10 @@ class TEEXHook:
         text_enc.register_forward_pre_hook(self.forward_hook_input)
 
     def find_final_norm(self, text_enc: nn.Module):
-        if 'final_layer_norm' in text_enc._modules:
-            logger.info(f'find final_layer_norm in {type(text_enc)}')
-            return text_enc.final_layer_norm
-
-        for child in text_enc.children():
-            if 'final_layer_norm' in child._modules:
-                logger.info(f'find final_layer_norm in {type(child)}')
-                return child.final_layer_norm
+        for module in text_enc.modules():
+            if 'final_layer_norm' in module._modules:
+                logger.info(f'find final_layer_norm in {type(module)}')
+                return module.final_layer_norm
 
         logger.info(f'final_layer_norm not found in {type(text_enc)}')
         return None
