@@ -16,6 +16,7 @@ from einops.layers.torch import Rearrange
 from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
 from transformers import CLIPTextModelWithProjection
+from loguru import logger
 
 class TEEXHook:
     def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
@@ -38,15 +39,15 @@ class TEEXHook:
 
     def find_final_norm(self, text_enc: nn.Module):
         if 'final_layer_norm' in text_enc._modules:
-            print(f'find final_layer_norm in {type(text_enc)}')
+            logger.info(f'find final_layer_norm in {type(text_enc)}')
             return text_enc.final_layer_norm
 
         for child in text_enc.children():
             if 'final_layer_norm' in child._modules:
-                print(f'find final_layer_norm in {type(child)}')
+                logger.info(f'find final_layer_norm in {type(child)}')
                 return child.final_layer_norm
 
-        print(f'final_layer_norm not found in {type(text_enc)}')
+        logger.info(f'final_layer_norm not found in {type(text_enc)}')
         return None
 
 
