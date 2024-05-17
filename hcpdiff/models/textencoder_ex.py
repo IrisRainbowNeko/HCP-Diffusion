@@ -46,6 +46,7 @@ class TEEXHook:
                 print(f'find final_layer_norm in {type(child)}')
                 return child.final_layer_norm
 
+        print(f'final_layer_norm not found in {type(text_enc)}')
         return None
 
 
