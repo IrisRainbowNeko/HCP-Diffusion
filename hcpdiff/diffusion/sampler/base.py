@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 from .sigma_scheduler import SigmaScheduler
 
@@ -26,7 +27,7 @@ class BaseSampler:
         sigma = self.sigma_scheduler.sigma_max
         return self.make_nosie(shape, device, dtype)*sigma
 
-    def add_noise(self, x, sigma):
+    def add_noise(self, x, sigma) -> Tuple[torch.Tensor, torch.Tensor]:
         raise NotImplementedError
 
     def add_noise_rand_t(self, x):
@@ -35,11 +36,13 @@ class BaseSampler:
         sigma, timesteps = self.sigma_scheduler.sample_sigma(shape=(bs,))
         sigma = sigma.view(-1, 1, 1, 1).to(x.device)
         timesteps = timesteps.to(x.device)
-        noisy_x = self.add_noise(x, sigma).to(dtype=x.dtype)
+        noisy_x, noise = self.add_noise(x, sigma)
+        noisy_x = noisy_x.to(dtype=x.dtype)
+        noise = noise.to(dtype=x.dtype)
 
         # Sample a random timestep for each image
         timesteps = timesteps*(self.num_timesteps-1)
-        return noisy_x, sigma, timesteps
+        return noisy_x, noise, sigma, timesteps
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError

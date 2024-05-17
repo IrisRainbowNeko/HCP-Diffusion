@@ -419,7 +419,7 @@ class Trainer:
         return latents
 
     def forward(self, x_0, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
-        x_t, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
+        x_t, noise, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
 
         # CFG context for DreamArtist
         # eps = F(x_t*c_in)
@@ -438,6 +438,7 @@ class Trainer:
         else:
             raise ValueError(f"Unsupport target_type {self.cfgs.train.loss.target_type}")
 
+        # Convert pred_type to target_type
         if self.cfgs.train.loss.pred_type != self.cfgs.train.loss.target_type:
             cvt_func = getattr(self.noise_sampler, f'{self.cfgs.train.loss.pred_type}_to_{self.cfgs.train.loss.target_type}', None)
             if cvt_func is None:

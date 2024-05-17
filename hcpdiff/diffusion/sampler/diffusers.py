@@ -28,7 +28,7 @@ class DiffusersSampler(BaseSampler):
 
     def add_noise(self, x, sigma, t=None):
         noise = torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
-        return self.scheduler.add_noise(x, noise, t)
+        return self.scheduler.add_noise(x, noise, t), noise
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
