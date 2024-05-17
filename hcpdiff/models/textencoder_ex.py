@@ -28,8 +28,26 @@ class TEEXHook:
         self.device = device
         self.use_attention_mask = use_attention_mask
 
+        if clip_final_norm:
+            self.final_layer_norm = self.find_final_norm(text_enc)
+        else:
+            self.final_layer_norm = None
+
         text_enc.register_forward_hook(self.forward_hook)
         text_enc.register_forward_pre_hook(self.forward_hook_input)
+
+    def find_final_norm(self, text_enc: nn.Module):
+        if 'final_layer_norm' in text_enc._modules:
+            print(f'find final_layer_norm in {type(text_enc)}')
+            return text_enc.final_layer_norm
+
+        for child in text_enc.children():
+            if 'final_layer_norm' in child._modules:
+                print(f'find final_layer_norm in {type(child)}')
+                return child.final_layer_norm
+
+        return None
+
 
     def encode_prompt_to_emb(self, prompt):
         text_inputs = self.tokenizer(
@@ -68,7 +86,7 @@ class TEEXHook:
 
     def forward_hook(self, host, feat_in: Tuple[torch.Tensor], feat_out):
         encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
-        if self.clip_final_norm:
+        if self.clip_final_norm and self.final_layer_norm is not None:
             encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
             encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
