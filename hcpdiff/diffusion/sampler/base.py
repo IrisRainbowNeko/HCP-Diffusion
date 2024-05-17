@@ -53,6 +53,12 @@ class BaseSampler:
         one_sqrt_alpha = (1-alpha).sqrt()
         return sqrt_alpha*v_pred + one_sqrt_alpha*(x_t*sqrt_alpha)
 
+    def eps_to_velocity(self, eps, x_t, sigma):
+        alpha = 1/(sigma**2+1)
+        sqrt_alpha = alpha.sqrt()
+        one_sqrt_alpha = (1-alpha).sqrt()
+        return eps/sqrt_alpha - one_sqrt_alpha*x_t
+
     def velocity_to_x0(self, v_pred, x_t, sigma):
         eps = self.velocity_to_eps(v_pred, x_t, sigma)
         return self.eps_to_x0(eps, x_t, sigma)

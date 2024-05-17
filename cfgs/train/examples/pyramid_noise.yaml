@@ -5,7 +5,7 @@ model:
     _target_: hcpdiff.diffusion.noise.PyramidNoiseSampler.patch
     level: 6
     discount: 0.4
-    base_scheduler:
+    base_sampler:
       _target_: hcpdiff.diffusion.sampler.EDM_DDPMSampler
       sigma_scheduler:
         _target_: hcpdiff.diffusion.sampler.DDPMContinuousSigmaScheduler

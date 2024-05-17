@@ -428,27 +428,22 @@ class Trainer:
         model_pred = self.TE_unet(prompt_ids, x_t_in, timesteps, attn_mask=attn_mask, position_ids=position_ids, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
-        # Get the target for loss depending on the prediction type
-        if self.cfgs.train.loss.pred_type == "eps":
-            if self.cfgs.train.loss.target_type == "eps":
-                target = noise
-            elif self.cfgs.train.loss.target_type == "x0":
-                target = x_0
-                # x^_0 = c_skip*x_t + c_out*eps
-                model_pred = self.noise_sampler.eps_to_x0(model_pred, x_t, sigma)
-            else:
-                raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
-        elif self.cfgs.train.loss.pred_type == "v":
-            if self.cfgs.train.loss.target_type == "eps":
-                target = noise
-                model_pred = self.noise_sampler.velocity_to_eps(model_pred, x_t, sigma)
-            elif self.cfgs.train.loss.target_type == "x0":
-                target = x_0
-                model_pred = self.noise_sampler.velocity_to_x0(model_pred, x_t, sigma)
-            else:
-                raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
+        # Get target
+        if self.cfgs.train.loss.target_type == "eps":
+            target = noise
+        elif self.cfgs.train.loss.target_type == "x0":
+            target = x_0
+        elif self.cfgs.train.loss.target_type == "velocity":
+            target = self.noise_sampler.eps_to_velocity(noise, x_t, sigma)
         else:
-            raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
+            raise ValueError(f"Unsupport target_type {self.cfgs.train.loss.target_type}")
+
+        if self.cfgs.train.loss.pred_type != self.cfgs.train.loss.target_type:
+            cvt_func = getattr(self.noise_sampler, f'{self.cfgs.train.loss.pred_type}_to_{self.cfgs.train.loss.target_type}', None)
+            if cvt_func is None:
+                raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
+            else:
+                model_pred = cvt_func(model_pred, x_t, sigma)
         return model_pred, target, sigma
 
     def train_one_step(self, data_list):
