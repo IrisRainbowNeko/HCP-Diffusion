@@ -2,7 +2,7 @@ import torch
 from .sigma_scheduler import SigmaScheduler
 
 class BaseSampler:
-    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator=None):
+    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None):
         self.sigma_scheduler = sigma_scheduler
         self.generator = generator
 
@@ -33,7 +33,7 @@ class BaseSampler:
         bs = x.shape[0]
         # timesteps: [0, 1]
         sigma, timesteps = self.sigma_scheduler.sample_sigma(shape=(bs,))
-        sigma = sigma.view(-1,1,1,1).to(x.device)
+        sigma = sigma.view(-1, 1, 1, 1).to(x.device)
         timesteps = timesteps.to(x.device)
         noisy_x = self.add_noise(x, sigma).to(dtype=x.dtype)
 
@@ -44,5 +44,15 @@ class BaseSampler:
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
 
-    def get_x0(self, eps, x_t, sigma):
+    def eps_to_x0(self, eps, x_t, sigma):
         return self.c_skip(sigma)*x_t+self.c_out(sigma)*eps
+
+    def velocity_to_eps(self, v_pred, x_t, sigma):
+        alpha = 1/(sigma**2+1)
+        sqrt_alpha = alpha.sqrt()
+        one_sqrt_alpha = (1-alpha).sqrt()
+        return sqrt_alpha*v_pred + one_sqrt_alpha*(x_t*sqrt_alpha)
+
+    def velocity_to_x0(self, v_pred, x_t, sigma):
+        eps = self.velocity_to_eps(v_pred, x_t, sigma)
+        return self.eps_to_x0(eps, x_t, sigma)
