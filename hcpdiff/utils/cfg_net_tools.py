@@ -87,7 +87,18 @@ def get_lora_rank_and_cls(lora_state):
     else:
         raise ValueError('Unknown lora format.')
 
-def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
+def wd_parameters(module: nn.Module):
+    p_wd, p_no_wd = [], []
+    for name, sub_m in module.named_modules():
+        if isinstance(sub_m, nn.Conv2d) or isinstance(sub_m, nn.Linear):
+            p_wd.append(sub_m.weight)
+            if sub_m.bias is not None:
+                p_no_wd.append(sub_m.bias)
+        else:
+            p_no_wd.extend(sub_m._parameters.values())
+    return p_wd, p_no_wd
+
+def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5, weight_decay=1e-2) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
     named_modules = {k:v for k, v in model.named_modules()}
 
     train_params = []
@@ -106,7 +117,8 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
 
     if cfg_lora is not None:
         for lora_id, item in enumerate(cfg_lora):
-            params_group = []
+            params_group_wd = []
+            params_group_no_wd = []
             block_branch = getattr(item, 'branch', None)
             for layer_name in get_match_layers(item.layers, named_modules):
                 parent_name, host_name = split_module_name(layer_name)
@@ -133,9 +145,12 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5) -> Tuple[List[Dict
 
                     v.requires_grad_(True)
                     v.train()
-                    params_group.extend(v.parameters())
+                    p_wd, p_no_wd = wd_parameters(v)
+                    params_group_wd.extend(p_wd)
+                    params_group_no_wd.extend(p_no_wd)
 
-            train_params.append({'params':params_group, 'lr':getattr(item, 'lr', default_lr)})
+            train_params.append({'params':params_group_wd, 'lr':getattr(item, 'lr', default_lr), 'weight_decay': weight_decay})
+            train_params.append({'params':params_group_no_wd, 'lr':getattr(item, 'lr', default_lr)})
 
     if len(all_lora_blocks_neg)>0:
         return train_params, (LoraGroup(all_lora_blocks), LoraGroup(all_lora_blocks_neg))
