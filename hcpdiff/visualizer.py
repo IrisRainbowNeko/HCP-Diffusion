@@ -79,14 +79,18 @@ class Visualizer:
             # self.te_hook.enable_xformers()
 
     def save_model(self, save_cfg):
+        remove_list = []
         for k, v in self.pipe.unet.named_modules():
             if isinstance(v, LoraBlock):
                 v.reparameterization_to_host()
-                v.remove()
+                remove_list.append(v)
         for k, v in self.pipe.text_encoder.named_modules():
             if isinstance(v, LoraBlock):
                 v.reparameterization_to_host()
-                v.remove()
+                remove_list.append(v)
+
+        for v in remove_list:
+            v.remove()
 
         if save_cfg.path.endswith('.ckpt'):
             from hcpdiff.tools.diffusers2sd import save_state_dict
