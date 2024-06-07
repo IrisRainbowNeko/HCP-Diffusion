@@ -7,7 +7,7 @@ bs: 2
 seed: 42
 
 build_plugin:
-  # build plugin (lokr)
+  # build plugin (controlnet)
   - _target_: hcpdiff.workflow.BuildPluginAction
     cfg: 'cfgs/plugins/plugin_controlnet.yaml'
 

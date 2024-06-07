@@ -16,6 +16,7 @@ from einops.layers.torch import Rearrange
 from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
 from transformers import CLIPTextModelWithProjection
+from loguru import logger
 
 class TEEXHook:
     def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
@@ -28,8 +29,23 @@ class TEEXHook:
         self.device = device
         self.use_attention_mask = use_attention_mask
 
+        if clip_final_norm:
+            self.final_layer_norm = self.find_final_norm(text_enc)
+        else:
+            self.final_layer_norm = None
+
         text_enc.register_forward_hook(self.forward_hook)
         text_enc.register_forward_pre_hook(self.forward_hook_input)
+
+    def find_final_norm(self, text_enc: nn.Module):
+        for module in text_enc.modules():
+            if 'final_layer_norm' in module._modules:
+                logger.info(f'find final_layer_norm in {type(module)}')
+                return module.final_layer_norm
+
+        logger.info(f'final_layer_norm not found in {type(text_enc)}')
+        return None
+
 
     def encode_prompt_to_emb(self, prompt):
         text_inputs = self.tokenizer(
@@ -68,8 +84,8 @@ class TEEXHook:
 
     def forward_hook(self, host, feat_in: Tuple[torch.Tensor], feat_out):
         encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
-        if self.clip_final_norm:
-            encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
+        if self.clip_final_norm and self.final_layer_norm is not None:
+            encoder_hidden_states = self.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
             encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
 

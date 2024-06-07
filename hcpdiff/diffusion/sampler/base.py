@@ -1,8 +1,9 @@
+from typing import Tuple
 import torch
 from .sigma_scheduler import SigmaScheduler
 
 class BaseSampler:
-    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator=None):
+    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None):
         self.sigma_scheduler = sigma_scheduler
         self.generator = generator
 
@@ -26,23 +27,41 @@ class BaseSampler:
         sigma = self.sigma_scheduler.sigma_max
         return self.make_nosie(shape, device, dtype)*sigma
 
-    def add_noise(self, x, sigma):
+    def add_noise(self, x, sigma) -> Tuple[torch.Tensor, torch.Tensor]:
         raise NotImplementedError
 
     def add_noise_rand_t(self, x):
         bs = x.shape[0]
         # timesteps: [0, 1]
         sigma, timesteps = self.sigma_scheduler.sample_sigma(shape=(bs,))
-        sigma = sigma.view(-1,1,1,1).to(x.device)
+        sigma = sigma.view(-1, 1, 1, 1).to(x.device)
         timesteps = timesteps.to(x.device)
-        noisy_x = self.add_noise(x, sigma).to(dtype=x.dtype)
+        noisy_x, noise = self.add_noise(x, sigma)
+        noisy_x = noisy_x.to(dtype=x.dtype)
+        noise = noise.to(dtype=x.dtype)
 
         # Sample a random timestep for each image
         timesteps = timesteps*(self.num_timesteps-1)
-        return noisy_x, sigma, timesteps
+        return noisy_x, noise, sigma, timesteps
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
 
-    def get_x0(self, eps, x_t, sigma):
+    def eps_to_x0(self, eps, x_t, sigma):
         return self.c_skip(sigma)*x_t+self.c_out(sigma)*eps
+
+    def velocity_to_eps(self, v_pred, x_t, sigma):
+        alpha = 1/(sigma**2+1)
+        sqrt_alpha = alpha.sqrt()
+        one_sqrt_alpha = (1-alpha).sqrt()
+        return sqrt_alpha*v_pred + one_sqrt_alpha*(x_t*sqrt_alpha)
+
+    def eps_to_velocity(self, eps, x_t, sigma):
+        alpha = 1/(sigma**2+1)
+        sqrt_alpha = alpha.sqrt()
+        one_sqrt_alpha = (1-alpha).sqrt()
+        return eps/sqrt_alpha - one_sqrt_alpha*x_t
+
+    def velocity_to_x0(self, v_pred, x_t, sigma):
+        eps = self.velocity_to_eps(v_pred, x_t, sigma)
+        return self.eps_to_x0(eps, x_t, sigma)

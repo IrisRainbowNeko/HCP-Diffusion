@@ -58,6 +58,12 @@ class TrainCFGConverter:
                 cfg_train['loss']['criterion']['_target_'] = 'torch.nn.MSELoss'
             cfg_train['loss']['criterion'] = ListConfig([cfg_train['loss']['criterion']])
 
+        if 'type' in cfg_train['loss'] and 'target_type' not in cfg_train['loss']:
+            cfg_train['loss']['target_type'] = cfg_train['loss']['type']
+            cfg_train['loss']['pred_type'] = 'eps'
+            del cfg_train['loss']['type']
+
+
     def convert(self, cfg:DictConfig):
         self.convert_model(cfg['model'])
         self.convert_loss(cfg['train'])

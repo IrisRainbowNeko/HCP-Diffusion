@@ -419,7 +419,7 @@ class Trainer:
         return latents
 
     def forward(self, x_0, prompt_ids, attn_mask=None, position_ids=None, **kwargs):
-        x_t, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
+        x_t, noise, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
 
         # CFG context for DreamArtist
         # eps = F(x_t*c_in)
@@ -428,15 +428,23 @@ class Trainer:
         model_pred = self.TE_unet(prompt_ids, x_t_in, timesteps, attn_mask=attn_mask, position_ids=position_ids, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
-        # Get the target for loss depending on the prediction type
-        if self.cfgs.train.loss.type == "eps":
+        # Get target
+        if self.cfgs.train.loss.target_type == "eps":
             target = noise
-        elif self.cfgs.train.loss.type == "x0":
+        elif self.cfgs.train.loss.target_type == "x0":
             target = x_0
-            # x^_0 = c_skip*x_t + c_out*eps
-            model_pred = self.noise_sampler.get_x0(model_pred, x_t, sigma)
+        elif self.cfgs.train.loss.target_type == "velocity":
+            target = self.noise_sampler.eps_to_velocity(noise, x_t, sigma)
         else:
-            raise ValueError(f"Unknown loss type {self.cfgs.train.loss.type}")
+            raise ValueError(f"Unsupport target_type {self.cfgs.train.loss.target_type}")
+
+        # Convert pred_type to target_type
+        if self.cfgs.train.loss.pred_type != self.cfgs.train.loss.target_type:
+            cvt_func = getattr(self.noise_sampler, f'{self.cfgs.train.loss.pred_type}_to_{self.cfgs.train.loss.target_type}', None)
+            if cvt_func is None:
+                raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
+            else:
+                model_pred = cvt_func(model_pred, x_t, sigma)
         return model_pred, target, sigma
 
     def train_one_step(self, data_list):
