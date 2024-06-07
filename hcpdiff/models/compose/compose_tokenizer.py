@@ -19,7 +19,7 @@ class ComposeTokenizer(PreTrainedTokenizer):
     def __init__(self, tokenizer_list: List[Tuple[str, CLIPTokenizer]], cat_dim=-1):
         self.cat_dim = cat_dim
         self.tokenizer_list = tokenizer_list
-        #super().__init__()
+        super().__init__()
 
         self.model_max_length = torch.tensor([tokenizer.model_max_length for name, tokenizer in self.tokenizer_list])
 
@@ -40,13 +40,16 @@ class ComposeTokenizer(PreTrainedTokenizer):
         return self.first_tokenizer.bos_token_id
 
     def get_vocab(self):
-        return dict(self.first_tokenizer.encoder, **self.first_tokenizer.added_tokens_encoder)
+        return self.first_tokenizer.get_vocab()
 
     def tokenize(self, text, **kwargs) -> List[str]:
         return self.first_tokenizer.tokenize(text, **kwargs)
 
     def add_tokens( self, new_tokens, special_tokens: bool = False) -> List[int]:
         return [tokenizer.add_tokens(new_tokens, special_tokens) for name, tokenizer in self.tokenizer_list]
+    
+    def save_vocabulary(self, save_directory: str, filename_prefix = None) -> Tuple[str]:
+        return self.first_tokenizer.save_vocabulary(save_directory, filename_prefix)
 
     def __call__(self, text, *args, max_length=None, **kwargs):
         if isinstance(max_length, torch.Tensor):
