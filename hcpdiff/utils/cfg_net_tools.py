@@ -353,7 +353,9 @@ class HCPModelLoader:
                 plugin_state = {k:v for blk in match_blocks for k, v in plugin_state.items() if k.startswith(blk)}
             plugin_key_set = set([k.split('___', 1)[0]+name for k in plugin_state.keys()])
             plugin_state = {k.replace('___', name):v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
-            self.host.load_state_dict(plugin_state, strict=False)
+            load_info = self.host.load_state_dict(plugin_state, strict=False)
+            if len(load_info.unexpected_keys)>0:
+                print(name, 'unexpected_keys', load_info.unexpected_keys)
             if 'layers' in item:
                 del item.layers
             del item.path
