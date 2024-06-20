@@ -375,7 +375,7 @@ class Trainer:
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step
             self.lr_scheduler.step(self.cfgs.train.resume.start_step)
-            if self.lr_scheduler_pt:
+            if hasattr(self, 'optimizer_pt'):
                 self.lr_scheduler_pt.step(self.cfgs.train.resume.start_step)
 
         loss_sum = None
