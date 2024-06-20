@@ -47,6 +47,6 @@ class ModelEMA:
         return self.train_params
 
     def load_state_dict(self, state: Dict[str, torch.Tensor]):
-        for k, v in state:
+        for k, v in state.items():
             if k in self.train_params:
                 self.train_params[k]=v

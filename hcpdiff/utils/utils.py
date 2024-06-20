@@ -85,7 +85,7 @@ def get_cfg_range(cfg_text:str):
 def to_validate_file(name):
     rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
     new_title = re.sub(rstr, "_", name)  # 替换为下划线
-    return new_title[:50]
+    return new_title[:200]
 
 def make_mask(start, end, length):
     mask=torch.zeros(length)
