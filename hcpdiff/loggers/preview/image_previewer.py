@@ -10,8 +10,7 @@ from torch.cuda.amp import autocast
 
 from hcpdiff.models import TokenizerHook
 from hcpdiff.utils.net_utils import to_cpu
-from hcpdiff.utils.utils import prepare_seed, load_config, size_to_int, int_to_size
-from hcpdiff.utils.utils import to_validate_file
+from hcpdiff.utils import prepare_seed, load_config, size_to_int, int_to_size, to_validate_file, pad_attn_bias
 from hcpdiff.visualizer import Visualizer
 
 class ImagePreviewer(Visualizer):
@@ -35,6 +34,7 @@ class ImagePreviewer(Visualizer):
 
         self.token_ex = TokenizerHook(tokenizer)
         self.te_hook = te_hook
+        self.te_hook.use_attention_mask = self.cfgs.encoder_attention_mask
 
         if self.cfgs.seed is not None:
             self.seeds = list(range(self.cfgs.seed, self.cfgs.seed+self.cfgs.num*self.cfgs.bs))
@@ -131,7 +131,9 @@ class ImagePreviewer(Visualizer):
         mult_n, clean_text_n = self.token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=self.cfgs.amp, dtype=self.dtype):
             emb, pooled_output, attention_mask = self.te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
-            if not self.cfgs.encoder_attention_mask:
+            if self.cfgs.encoder_attention_mask:
+                emb, attention_mask = pad_attn_bias(emb, attention_mask)
+            else:
                 attention_mask = None
             emb_n, emb_p = emb.chunk(2)
             emb_p = self.te_hook.mult_attn(emb_p, mult_p)

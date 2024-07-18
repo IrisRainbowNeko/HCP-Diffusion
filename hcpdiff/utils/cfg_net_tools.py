@@ -113,7 +113,7 @@ def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5, weight_decay=1e-2)
                 layer.requires_grad_(True)
                 layer.train()
                 params_group.extend(list(LoraBlock.extract_param_without_lora(layer).values()))
-            train_params.append({'params':list(set(params_group)), 'lr':getattr(item, 'lr', default_lr)})
+            train_params.append({'params':list(dict.fromkeys(params_group)), 'lr':getattr(item, 'lr', default_lr)})
 
     if cfg_lora is not None:
         for lora_id, item in enumerate(cfg_lora):
