@@ -58,7 +58,7 @@ class SaveWordAttnAction(BasicAction):
 
     @feedback_input
     def forward(self, memory, images, prompt, seeds, cross_attn_heat_maps, **states):
-        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
+        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])
 
         for bid, (p, img) in enumerate(zip(prompt, images)):
             img_path = os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-cross_attn-{to_validate_file(prompt[0])}.{self.image_type}")
