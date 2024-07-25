@@ -1,6 +1,6 @@
 from daam import AggregateHooker, RawHeatMapCollection, UNetCrossAttentionLocator, GlobalHeatMap
 from daam.trace import UNetCrossAttentionHooker
-from typing import Union
+from typing import List
 from diffusers import UNet2DConditionModel
 from PIL import Image
 import numpy as np
@@ -57,7 +57,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
     def layer_names(self):
         return self.locator.layer_names
 
-    def compute_global_heat_map(self, prompt=None, factors=None, head_idx=None, layer_idx=None, normalize=False):
+    def compute_global_heat_map(self, prompt=None, factors=None, head_idxs: List[int]=None, layer_idx=None, normalize=False):
         # type: (str, List[float], int, int, bool) -> GlobalHeatMap
         """
         Compute the global heat map for the given prompt, aggregating across time (inference steps) and space (different
@@ -87,7 +87,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
 
         with auto_autocast(dtype=torch.float32):
             for (factor, layer, head), heat_map in heat_maps:
-                if factor in factors and (head_idx is None or head_idx == head) and (layer_idx is None or layer_idx == layer):
+                if factor in factors and (head_idxs is None or head in head_idxs) and (layer_idx is None or layer_idx == layer):
                     heat_map = heat_map.unsqueeze(1)
                     # The clamping fixes undershoot.
                     all_merges.append(F.interpolate(heat_map, size=(x, x), mode='bicubic').clamp_(min=0))
