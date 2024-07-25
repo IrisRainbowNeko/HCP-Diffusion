@@ -42,7 +42,7 @@ class SaveWordAttnAction(BasicAction):
         plt.rcParams['figure.dpi'] = 300
         plt.rcParams.update({'font.size':12})
         h = int(np.ceil(len(tokens)/d_len))
-        fig, ax = plt.subplots(h, d_len, figsize=(2*h, 3*d_len))
+        fig, ax = plt.subplots(h, d_len, figsize=(2*d_len, 2*h))
         for ax_ in ax.flatten():
             ax_.set_xticks([])
             ax_.set_yticks([])
