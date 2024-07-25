@@ -30,6 +30,7 @@ class LoadModelsAction(BasicAction):
         memory.text_encoder = self.text_encoder or auto_text_encoder(self.pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
         memory.tokenizer = self.tokenizer or auto_tokenizer(self.pretrained_model, subfolder="tokenizer", use_fast=False)
         memory.vae = self.vae or AutoencoderKL.from_pretrained(self.pretrained_model, subfolder="vae", torch_dtype=self.dtype, resume_download=True)
+        memory.vae.vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
         memory.scheduler = self.scheduler or PNDMScheduler.from_pretrained(self.pretrained_model, subfolder="scheduler", torch_dtype=self.dtype)
 
 class LoadImageAction(BasicAction):
@@ -57,7 +58,7 @@ class SaveImageAction(BasicAction):
         os.makedirs(save_root, exist_ok=True)
 
     @feedback_input
-    def forward(self, images, prompt, negative_prompt, cfgs, seeds=None, **states):
+    def forward(self, images, prompt, negative_prompt, cfgs, seeds, **states):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):

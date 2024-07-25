@@ -41,14 +41,25 @@ def feedback_input(fun, exclude_keys=('memory',)):
     return f
 
 class BasicAction:
-    def __init__(self):
-        pass
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError()
+
+class ContainerAction(BasicAction):
+    def __init__(self, actions: List[BasicAction]):
+        self.actions = actions
+
+    def inner_forward(self, memory, **states):
+        N_steps = len(self.actions)
+        pbar = tqdm(total=N_steps)
+        for step, act in enumerate(self.actions):
+            pbar.set_description(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
+            pbar.update(1)
+            states = act(memory=memory, **states)
+        return states
 
 class ExecAction(BasicAction):
     def __init__(self, prog: str):
