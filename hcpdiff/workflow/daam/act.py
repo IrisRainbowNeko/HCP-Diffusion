@@ -16,12 +16,14 @@ class CaptureCrossAttnAction(ContainerAction):
         super().__init__(actions)
 
     @feedback_input
-    def forward(self, memory, **states):
+    def forward(self, memory, prompt, **states):
+        bs = len(prompt)
+        N_head = 8
         with DiffusionHeatMapHooker(memory.unet, memory.tokenizer, vae_scale_factor=memory.vae.vae_scale_factor) as tc:
             states = self.inner_forward(memory, **states)
-            heat_map = tc.compute_global_heat_map()
+            heat_maps = [tc.compute_global_heat_map(prompt=prompt[i], head_idxs=range(N_head*i, N_head*(i+1))) for i in range(bs)]
 
-        return {**states, 'cross_attn_heat_map':heat_map}
+        return {**states, 'cross_attn_heat_maps':heat_maps}
 
 class SaveWordAttnAction(BasicAction):
 
@@ -55,11 +57,11 @@ class SaveWordAttnAction(BasicAction):
         return Image.open(buf)
 
     @feedback_input
-    def forward(self, memory, images, prompt, seeds, cross_attn_heat_map, **states):
+    def forward(self, memory, images, prompt, seeds, cross_attn_heat_maps, **states):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, img) in enumerate(zip(prompt, images)):
             img_path = os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-cross_attn-{to_validate_file(prompt[0])}.{self.image_type}")
-            img = self.draw_attn(memory.tokenizer, p, img, cross_attn_heat_map)
+            img = self.draw_attn(memory.tokenizer, p, img, cross_attn_heat_maps[bid])
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
