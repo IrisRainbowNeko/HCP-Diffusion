@@ -95,7 +95,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
             try:
                 maps = torch.stack(all_merges, dim=0)
             except RuntimeError:
-                if head_idx is not None or layer_idx is not None:
+                if head_idxs is not None or layer_idx is not None:
                     raise RuntimeError('No heat maps found for the given parameters.')
                 else:
                     raise RuntimeError('No heat maps found. Did you forget to call `with trace(...)` during generation?')
