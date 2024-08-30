@@ -40,7 +40,7 @@ class WorkflowRunner:
         new_cfg_action = []
         for act in cfg_action:
             if isinstance(act, str):
-                new_cfg_action.extend(cfgs[act])
+                new_cfg_action.extend(self.resolve_action_ref(cfgs, cfgs[act]))
             else:
                 new_cfg_action.append(act)
         return new_cfg_action
