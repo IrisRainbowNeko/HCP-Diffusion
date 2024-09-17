@@ -48,7 +48,10 @@ class SaveWordAttnAction(BasicAction):
             ax_.set_yticks([])
         for i, token in enumerate(tokens):
             heat_map = global_heat_map.compute_word_heat_map(token, word_idx=i)
-            heat_map.plot_overlay(image, ax=ax[i//d_len, i%d_len])
+            if h==1:
+                heat_map.plot_overlay(image, ax=ax[i%d_len])
+            else:
+                heat_map.plot_overlay(image, ax=ax[i//d_len, i%d_len])
         # plt.tight_layout()
 
         buf = BytesIO()
