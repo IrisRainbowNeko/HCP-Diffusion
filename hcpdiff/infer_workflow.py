@@ -15,12 +15,13 @@ class WorkflowRunner:
         self.cfgs = OmegaConf.structured(cfgs, flags={"allow_objects": True})
         OmegaConf.resolve(self.cfgs)
         self.memory = EasyDict(**hydra.utils.instantiate(self.cfgs.memory))
-        self.attach_memory(self.cfgs)
+        #self.attach_memory(self.cfgs)
 
     def start(self):
         states = {'cfgs': self.cfgs_raw}
         for action_name in self.cfgs.actions:
             cfg_action = self.resolve_action_ref(self.cfgs, self.cfgs[action_name])
+            cfg_action = self.attach_memory(cfg_action)
             actions = hydra.utils.instantiate(cfg_action)
             states = self.run(actions, states)
 
