@@ -21,7 +21,7 @@ class WorkflowRunner:
         states = {'cfgs': self.cfgs_raw}
         for action_name in self.cfgs.actions:
             cfg_action = self.resolve_action_ref(self.cfgs, self.cfgs[action_name])
-            cfg_action = self.attach_memory(cfg_action)
+            self.attach_memory(cfg_action)
             actions = hydra.utils.instantiate(cfg_action)
             states = self.run(actions, states)
 
