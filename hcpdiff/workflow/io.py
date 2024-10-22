@@ -156,7 +156,9 @@ class FeedInputAction(BasicAction):
         self.model = model
 
     def forward(self, memory, _ex_input=None, **states):
-        if hasattr(self.model, 'input_feeder') and _ex_input is not None:
+        if _ex_input is None:
+            _ex_input = {}
+        if hasattr(self.model, 'input_feeder'):
             for feeder in self.model.input_feeder:
                 feeder(_ex_input)
         return states

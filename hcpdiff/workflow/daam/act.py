@@ -36,6 +36,7 @@ class SaveWordAttnAction(BasicAction):
         os.makedirs(save_root, exist_ok=True)
 
     def draw_attn(self, tokenizer, prompt, image, global_heat_map):
+        prompt=tokenizer.bos_token+prompt+tokenizer.eos_token
         tokens = [token.replace("</w>", "") for token in tokenizer.tokenize(prompt)]
 
         d_len = self.N_col

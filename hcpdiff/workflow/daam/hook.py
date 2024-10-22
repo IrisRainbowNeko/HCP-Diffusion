@@ -101,7 +101,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
                     raise RuntimeError('No heat maps found. Did you forget to call `with trace(...)` during generation?')
 
             maps = maps.mean(0)[:, 0]
-            maps = maps[:len(self.tokenizer.tokenize(prompt)) + 2]  # 1 for SOS and 1 for padding
+            #maps = maps[:len(self.tokenizer.tokenize(prompt)) + 2]  # 1 for SOS and 1 for padding
 
             if normalize:
                 maps = maps / (maps[1:-1].sum(0, keepdim=True) + 1e-6)  # drop out [SOS] and [PAD] for proper probabilities

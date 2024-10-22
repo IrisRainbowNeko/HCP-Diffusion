@@ -4,6 +4,7 @@ from transformers import CLIPTextModel
 from hcpdiff.utils import pad_attn_bias, auto_text_encoder_cls
 from hcpdiff.models.compose import SDXLTextEncoder
 from diffusers import UNet2DConditionModel
+from torch.nn.parallel.distributed import DistributedDataParallel
 
 class TEUnetWrapper(nn.Module):
     def __init__(self, unet, TE, train_TE=False, min_attnmask=32):
@@ -28,9 +29,14 @@ class TEUnetWrapper(nn.Module):
             encoder_hidden_states, attn_mask = pad_attn_bias(encoder_hidden_states, attn_mask)
 
         input_all['encoder_hidden_states'] = encoder_hidden_states
-        if hasattr(self.unet, 'input_feeder'):
-            for feeder in self.unet.input_feeder:
-                feeder(input_all)
+        if isinstance(self.unet, DistributedDataParallel):
+            if hasattr(self.unet.module, 'input_feeder'):
+                for feeder in self.unet.module.input_feeder:
+                    feeder(input_all)
+        else:
+            if hasattr(self.unet, 'input_feeder'):
+                for feeder in self.unet.input_feeder:
+                    feeder(input_all)
         model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask).sample  # Predict the noise residual
         return model_pred
 

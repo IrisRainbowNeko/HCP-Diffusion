@@ -96,6 +96,8 @@ def wd_parameters(module: nn.Module):
                 p_no_wd.append(sub_m.bias)
         else:
             p_no_wd.extend(sub_m._parameters.values())
+    p_wd = [p for p in p_wd if p is not None]
+    p_no_wd = [p for p in p_no_wd if p is not None]
     return p_wd, p_no_wd
 
 def make_hcpdiff(model, cfg_model, cfg_lora, default_lr=1e-5, weight_decay=1e-2) -> Tuple[List[Dict], Union[LoraGroup, Tuple[LoraGroup, LoraGroup]]]:
@@ -182,6 +184,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 get_match_layers(builder.keywords.pop('to_layers'), named_modules, return_metas=True)]
 
             layer = builder(name=plugin_name, host_model=model, from_layers=from_layers, to_layers=to_layers)
+            layer.requires_grad_(False)
             if train_plugin:
                 layer.train()
                 params = layer.get_trainable_parameters()
@@ -189,7 +192,6 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                     p.requires_grad_(True)
                     params_group.append(p)
             else:
-                layer.requires_grad_(False)
                 layer.eval()
             all_plugin_blocks[''] = layer
         elif issubclass(plugin_class, SinglePluginBlock):
@@ -201,6 +203,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
 
                 for k, v in blocks.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
+                    v.requires_grad_(False)
                     if train_plugin:
                         v.train()
                         params = v.get_trainable_parameters()
@@ -208,7 +211,6 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                             p.requires_grad_(True)
                             params_group.append(p)
                     else:
-                        v.requires_grad_(False)
                         v.eval()
         elif issubclass(plugin_class, PluginBlock):
             from_layer = get_match_layers(builder.keywords.pop('from_layer'), named_modules, return_metas=True)
@@ -219,6 +221,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                 from_layer_meta['layer'] = named_modules[from_layer_name]
                 to_layer_meta['layer'] = named_modules[to_layer_meta['layer']]
                 layer = builder(name=plugin_name, host_model=model, from_layer=from_layer_meta, to_layer=to_layer_meta)
+                layer.requires_grad_(False)
                 if train_plugin:
                     layer.train()
                     params = layer.get_trainable_parameters()
@@ -226,7 +229,6 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                         p.requires_grad_(True)
                         params_group.append(p)
                 else:
-                    layer.requires_grad_(False)
                     layer.eval()
                 all_plugin_blocks[from_layer_name] = layer
         elif issubclass(plugin_class, PatchPluginBlock):
@@ -240,6 +242,7 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
 
                 for k, v in layers.items():
                     all_plugin_blocks[net_path_join(layer_name, k)] = v
+                    v.requires_grad_(False)
                     if train_plugin:
                         v.train()
                         params = v.get_trainable_parameters()
@@ -247,7 +250,6 @@ def make_plugin(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, Plu
                             p.requires_grad_(True)
                             params_group.append(p)
                     else:
-                        v.requires_grad_(False)
                         v.eval()
         else:
             raise NotImplementedError(f'Unknown plugin {plugin_class}')

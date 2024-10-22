@@ -5,7 +5,7 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from easydict import EasyDict
 
-from hcpdiff.utils.utils import load_config_with_cli
+from hcpdiff.utils import load_config_with_cli, is_list
 from copy import deepcopy
 import hcpdiff.workflow
 
@@ -33,7 +33,7 @@ class WorkflowRunner:
             else:
                 for v in cfgs.values():
                     self.attach_memory(v)
-        elif OmegaConf.is_list(cfgs):
+        elif is_list(cfgs):
             for v in cfgs:
                 self.attach_memory(v)
 
