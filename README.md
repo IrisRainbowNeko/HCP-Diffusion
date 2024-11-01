@@ -137,7 +137,7 @@ You are welcome to contribute more models and features to this toolbox!
 
 ## Team
 
-This toolbox is maintained by [HCP-Lab, SYSU](https://www.sysu-hcp.net/).
+This toolbox is maintained by [HCP-Lab, SYSU](https://www.sysu-hcp.net/) [[GitHub]](https://github.com/HCPLab-SYSU).
 
 ## Citation
 
