@@ -10,7 +10,8 @@ from .base import BasicAction, from_memory_context, feedback_input
 
 class TextHookAction(BasicAction):
     @from_memory_context
-    def __init__(self, TE=None, tokenizer=None, emb_dir: str = None, N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True):
+    def __init__(self, TE=None, tokenizer=None, emb_dir: str = None, N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True,
+                 use_attention_mask=False):
         super().__init__()
         self.TE = TE
         self.tokenizer = tokenizer
@@ -19,6 +20,7 @@ class TextHookAction(BasicAction):
         self.N_repeats = N_repeats
         self.layer_skip = layer_skip
         self.TE_final_norm = TE_final_norm
+        self.use_attention_mask = use_attention_mask
 
     def forward(self, memory, **states):
         self.TE = self.TE or memory.text_encoder
@@ -26,7 +28,7 @@ class TextHookAction(BasicAction):
 
         memory.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.emb_dir, self.tokenizer, self.TE, N_repeats=self.N_repeats)
         memory.te_hook = ComposeTEEXHook.hook(self.TE, self.tokenizer, N_repeats=self.N_repeats, device='cuda',
-                                              clip_skip=self.layer_skip, clip_final_norm=self.TE_final_norm)
+                                              clip_skip=self.layer_skip, clip_final_norm=self.TE_final_norm, use_attention_mask=self.use_attention_mask)
         memory.token_ex = TokenizerHook(self.tokenizer)
         return states
 
