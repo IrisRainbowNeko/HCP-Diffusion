@@ -87,8 +87,8 @@ class DiffusionHeatMapHooker(AggregateHooker):
 
         with auto_autocast(dtype=torch.float32):
             for (factor, layer, head), heat_map in heat_maps:
-                if factor in factors and (head_idxs is None or head in head_idxs) and (layer_idx is None or layer_idx == layer):
-                    heat_map = heat_map.unsqueeze(1)
+                if (head_idxs is None or head in head_idxs) and (layer_idx is None or layer_idx == layer):
+                    heat_map = heat_map.unsqueeze(1)/25
                     # The clamping fixes undershoot.
                     all_merges.append(F.interpolate(heat_map, size=(x, x), mode='bicubic').clamp_(min=0))
 
