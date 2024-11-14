@@ -174,6 +174,14 @@ class NoisePredAction(BasicAction):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
+            # from torchanalyzer import ModelIOAnalyzer
+            # from torchanalyzer import FlowViser
+
+            # analyzer = ModelIOAnalyzer(self.unet)
+            # info = analyzer.analyze(input_args=(latent_model_input, t, prompt_embeds), input_kwargs=dict(encoder_attention_mask=encoder_attention_mask))
+            # FlowViser().show(self.unet, info)
+            # 0/0
+
             if text_embeds is None:
                 noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                        cross_attention_kwargs=cross_attention_kwargs, ).sample

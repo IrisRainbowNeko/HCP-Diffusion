@@ -4,6 +4,7 @@ import torch
 from hcpdiff.models import TokenizerHook
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
 from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
+from hcpdiff.utils import pad_attn_bias
 from torch.cuda.amp import autocast
 
 from .base import BasicAction, from_memory_context, feedback_input
@@ -50,6 +51,8 @@ class TextEncodeAction(BasicAction):
         te_hook = self.te_hook or memory.te_hook
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
+            if attention_mask is not None:
+                emb, attention_mask = pad_attn_bias(emb, attention_mask)
         if not isinstance(te_hook, ComposeTEEXHook):
             pooled_output = None
         return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'encoder_attention_mask':attention_mask,
@@ -74,6 +77,8 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         mult_n, clean_text_n = token_ex.parse_attn_mult(self.negative_prompt)
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            if attention_mask is not None:
+                emb, attention_mask = pad_attn_bias(emb, attention_mask)
             emb_n, emb_p = emb.chunk(2)
         emb_p = te_hook.mult_attn(emb_p, mult_p)
         emb_n = te_hook.mult_attn(emb_n, mult_n)
