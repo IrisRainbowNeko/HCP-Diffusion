@@ -36,7 +36,7 @@ from hcpdiff.loggers import LoggerGroup
 from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper, auto_build_wrapper
 from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
 from hcpdiff.models.compose import SDXLTextEncoder
-from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin
+from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin, HCPModelLoader
 from hcpdiff.utils.net_utils import get_scheduler, auto_tokenizer_cls, auto_text_encoder_cls, load_emb
 from hcpdiff.utils.utils import load_config_with_cli, get_cfg_range, mgcd, format_number
 from hcpdiff.visualizer import Visualizer
@@ -264,10 +264,8 @@ class Trainer:
     @torch.no_grad()
     def load_resume(self):
         if self.cfgs.train.resume is not None:
-            for ckpt in self.cfgs.train.resume.ckpt_path.unet:
-                self.ckpt_manager.load_ckpt_to_model(self.TE_unet.unet, ckpt, model_ema=getattr(self, 'ema_unet', None))
-            for ckpt in self.cfgs.train.resume.ckpt_path.TE:
-                self.ckpt_manager.load_ckpt_to_model(self.TE_unet.TE, ckpt, model_ema=getattr(self, 'ema_text_encoder', None))
+            HCPModelLoader(self.TE_unet.unet).load_all(self.cfgs.train.resume.ckpt_path.unet)
+            HCPModelLoader(self.TE_unet.TE).load_all(self.cfgs.train.resume.ckpt_path.TE)
             for name, ckpt in self.cfgs.train.resume.ckpt_path.words:
                 self.ex_words_emb[name].data = load_emb(ckpt)
 

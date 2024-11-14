@@ -20,6 +20,7 @@ from hcpdiff.models.plugin import SinglePluginBlock, MultiPluginBlock, PluginBlo
 from hcpdiff.ckpt_manager import auto_manager
 from .net_utils import split_module_name
 from hcpdiff.tools.convert_old_lora import convert_state
+from .utils import is_list
 
 def get_class_match_layer(class_name, block: nn.Module):
     if type(block).__name__ == class_name:
@@ -290,7 +291,7 @@ class HCPModelLoader:
             return
 
         all_lora_blocks = {}
-        for lora_id, item in enumerate(cfg):
+        for lora_id, item in (enumerate(cfg) if is_list(cfg) else cfg.items()):
             lora_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['lora_ema' if load_ema else 'lora']
             lora_block_state = {}
             # get all layers in the lora_state
@@ -315,11 +316,7 @@ class HCPModelLoader:
             block_branch = getattr(item, 'branch', None)
             # add lora to host and load weights
             for layer_name, lora_state in lora_block_state.items():
-                parent_name, host_name = split_module_name(layer_name)
                 lora_layer_cls, rank, old_format = get_lora_rank_and_cls(lora_state)
-
-                if block_branch:
-                    lora_layer_cls = lora_layer_map['dapp']
 
                 if 'alpha' in lora_state:
                     del lora_state['alpha']
@@ -327,12 +324,20 @@ class HCPModelLoader:
                 if old_format:
                     lora_state = convert_state(lora_state)
 
-                lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
-                                                       alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state,
-                                                       alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
-                                                       parent_block=self.named_modules[parent_name], host_name=host_name, branch=block_branch)
-                # update named_modules to support multi lora
-                self.named_modules[layer_name] = getattr(self.named_modules[parent_name], host_name)
+                if isinstance(lora_id, int):
+                    parent_name, host_name = split_module_name(layer_name)
+
+                    if block_branch:
+                        lora_layer_cls = lora_layer_map['dapp']
+
+                    lora_block = lora_layer_cls.wrap_layer(lora_id, self.named_modules[layer_name], rank=rank, dropout=getattr(item, 'dropout', 0.0),
+                                                           alpha=getattr(item, 'alpha', 1.0), bias='layer.bias' in lora_state,
+                                                           alpha_auto_scale=getattr(item, 'alpha_auto_scale', True),
+                                                           parent_block=self.named_modules[parent_name], host_name=host_name, branch=block_branch)
+                    # update named_modules to support multi lora
+                    self.named_modules[layer_name] = getattr(self.named_modules[parent_name], host_name)
+                else:
+                    lora_block = self.named_modules[f'{layer_name}.{lora_id}']
 
                 all_lora_blocks[f'{layer_name}.{lora_block.name}'] = lora_block
                 lora_block.load_state_dict(lora_state, strict=False)
