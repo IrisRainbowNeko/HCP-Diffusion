@@ -96,7 +96,7 @@ def auto_tokenizer_cls(pretrained_model_name_or_path: str, revision: str = None)
             revision=revision, use_fast=False,
         )
         return SDXLTokenizer
-    except OSError:
+    except:
         # not sdxl, only one tokenizer
         return AutoTokenizer
 
@@ -109,7 +109,7 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
             revision=revision,
         )
         return SDXLTextEncoder
-    except OSError:
+    except:
         text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
             subfolder="text_encoder",
