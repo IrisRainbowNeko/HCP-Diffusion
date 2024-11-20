@@ -108,6 +108,8 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
             subfolder="text_encoder_2",
             revision=revision,
         )
+        if text_encoder_config.architectures is None:
+            raise ValueError()
         return SDXLTextEncoder
     except:
         text_encoder_config = PretrainedConfig.from_pretrained(
