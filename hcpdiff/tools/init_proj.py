@@ -6,6 +6,7 @@ def main():
     prefix = sys.prefix
     if not os.path.exists(os.path.join(prefix, 'hcpdiff')):
         prefix = os.path.join(prefix, 'local')
+    os.makedirs('embs/', exist_ok=True)
     try:
         if os.path.exists(r'./cfgs'):
             shutil.rmtree(r'./cfgs')
