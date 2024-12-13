@@ -19,7 +19,7 @@ class DatasetCreator:
             use_karras_sigmas = True,
         )
 
-        self.pipeline = DiffusionPipeline.from_pretrained(pretrained_model, torch_dtype=torch.float16)
+        self.pipeline = DiffusionPipeline.from_pretrained(pretrained_model, scheduler=scheduler, torch_dtype=torch.float16)
         self.pipeline.requires_safety_checker = False
         self.pipeline.safety_checker = None
         self.pipeline.to("cuda")
