@@ -6,23 +6,31 @@ from typing import Callable
 import pyarrow.parquet as pq
 import torch
 from PIL import Image
-from diffusers import StableDiffusionPipeline
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 from tqdm.auto import tqdm
 
 class DatasetCreator:
     def __init__(self, pretrained_model, out_dir: str, img_w: int=512, img_h: int=512):
-        self.pipeline = StableDiffusionPipeline.from_pretrained(pretrained_model, torch_dtype=torch.float16)
+        scheduler = DPMSolverMultistepScheduler(
+            beta_start = 0.00085,
+            beta_end = 0.012,
+            beta_schedule = 'scaled_linear',
+            algorithm_type = 'dpmsolver++',
+            use_karras_sigmas = True,
+        )
+
+        self.pipeline = DiffusionPipeline.from_pretrained(pretrained_model, torch_dtype=torch.float16)
         self.pipeline.requires_safety_checker = False
         self.pipeline.safety_checker = None
         self.pipeline.to("cuda")
         self.pipeline.unet.to(memory_format=torch.channels_last)
-        self.pipeline.enable_xformers_memory_efficient_attention()
+        #self.pipeline.enable_xformers_memory_efficient_attention()
 
         self.out_dir = out_dir
         self.img_w = img_w
         self.img_h = img_h
 
-    def create_from_prompt_dataset(self, prompt_file: str, negative_prompt: str, bs: int, num: int,
+    def create_from_prompt_dataset(self, prompt_file: str, negative_prompt: str, bs: int, num: int, save_fmt:str='txt',
                                    callback: Callable[[int, int], bool] = None):
         os.makedirs(self.out_dir, exist_ok=True)
         data = pq.read_table(prompt_file).to_batches(bs)
@@ -42,9 +50,15 @@ class DatasetCreator:
                     if not callback(count, total):
                         break
 
-        with open(os.path.join(self.out_dir, f'image_captions.json'), "w") as f:
-            json.dump(captions, f)
-            import huggingface_hub.utils._validators
+        if save_fmt=='txt':
+            for k, v in captions.items():
+                with open(os.path.join(self.out_dir, f'{k}.txt'), "w") as f:
+                    f.write(v)
+        elif save_fmt=='json':
+            with open(os.path.join(self.out_dir, f'image_captions.json'), "w") as f:
+                json.dump(captions, f)
+        else:
+            raise ValueError(f"Invalid save_fmt: {save_fmt}")
 
     @staticmethod
     def split_batch(data, bs):
@@ -60,9 +74,10 @@ if __name__ == '__main__':
                         default='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry')
     parser.add_argument('--num', type=int, default=200)
     parser.add_argument('--bs', type=int, default=4)
+    parser.add_argument('--save_fmt', type=str, default='txt')
     parser.add_argument('--img_w', type=int, default=512)
     parser.add_argument('--img_h', type=int, default=512)
     args = parser.parse_args()
 
     ds_creator = DatasetCreator(args.model, args.out_dir, args.img_w, args.img_h)
-    ds_creator.create_from_prompt_dataset(args.prompt_file, args.negative_prompt, args.bs, args.num)
+    ds_creator.create_from_prompt_dataset(args.prompt_file, args.negative_prompt, args.bs, args.num, save_fmt=args.save_fmt)
