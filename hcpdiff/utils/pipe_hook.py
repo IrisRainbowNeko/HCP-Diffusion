@@ -122,12 +122,13 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
                 if pooled_output is None:
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds[i], encoder_attention_mask=encoder_attention_mask,
-                                           cross_attention_kwargs=cross_attention_kwargs, ).sample
+                    noise_pred = self.unet(latent_model_input, timesteps=t, encoder_hidden_states=prompt_embeds[i],
+                                           encoder_attention_mask=encoder_attention_mask, cross_attention_kwargs=cross_attention_kwargs).sample
                 else:
                     added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                     # predict the noise residual
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds[i], encoder_attention_mask=encoder_attention_mask,
+                    noise_pred = self.unet(latent_model_input, timesteps=t, encoder_hidden_states=prompt_embeds[i],
+                                           encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
                 # perform guidance

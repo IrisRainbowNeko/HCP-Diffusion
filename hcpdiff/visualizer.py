@@ -11,11 +11,10 @@ from diffusers.utils.import_utils import is_xformers_available
 from hcpdiff.models import TokenizerHook, LoraBlock
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTextEncoder
 from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
-from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder
+from hcpdiff.utils.net_utils import to_cpu, to_cuda, auto_tokenizer, auto_text_encoder, get_pipe_name
 from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list, pad_attn_bias
 from hcpdiff.deprecated.cfg_converter import InferCFGConverter
-from omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
 class Visualizer:
@@ -51,9 +50,15 @@ class Visualizer:
         te = auto_text_encoder(pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
         tokenizer = auto_tokenizer(pretrained_model, subfolder="tokenizer", use_fast=False)
 
+        pipe_name = get_pipe_name(pretrained_model)
+        if pipe_name == 'PixArtSigmaPipeline':
+            from diffusers import PixArtTransformer2DModel
+            if 'unet' not in self.cfgs.new_components:
+                self.cfgs.new_components['unet'] = PixArtTransformer2DModel.from_pretrained(pretrained_model,
+                                                                subfolder="transformer", torch_dtype=self.dtype, resume_download=True)
         return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
-                                        text_encoder=te, tokenizer=tokenizer, resume_download=True,
-                                        torch_dtype=self.dtype, **self.cfgs.new_components)
+                                            text_encoder=te, tokenizer=tokenizer, resume_download=True,
+                                            torch_dtype=self.dtype, **self.cfgs.new_components)
 
     def build_optimize(self):
         if self.offload:

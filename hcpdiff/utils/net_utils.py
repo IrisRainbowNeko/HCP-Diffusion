@@ -8,6 +8,8 @@ from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer
 from functools import partial
+from huggingface_hub import hf_hub_download
+import json
 
 dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
@@ -127,8 +129,22 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
             from diffusers.pipelines.alt_diffusion.modeling_roberta_series import RobertaSeriesModelWithTransformation
 
             return RobertaSeriesModelWithTransformation
+        elif model_class == "T5EncoderModel":
+            from transformers import T5EncoderModel
+
+            return T5EncoderModel
         else:
             raise ValueError(f"{model_class} is not supported.")
+
+def get_pipe_name(path: str):
+    if os.path.isdir(path):
+        json_file = os.path.join(path, "model_index.json")
+    else:
+        json_file = hf_hub_download(path, "model_index.json")
+    with open(json_file, "r", encoding="utf-8") as reader:
+        text = reader.read()
+        data = json.loads(text)
+    return data['_class_name']
 
 def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None, **kwargs):
     return auto_tokenizer_cls(pretrained_model_name_or_path, revision).from_pretrained(pretrained_model_name_or_path, revision=revision, **kwargs)
