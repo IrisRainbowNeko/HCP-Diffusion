@@ -1,0 +1,17 @@
+_base_: [cfgs/infer/text2img.yaml]
+
+pretrained_model: 'PixArt-alpha/PixArt-Sigma-XL-2-1024-MS'
+
+prompt: ''
+neg_prompt: ''
+
+clip_skip: 0
+clip_final_norm: false
+encoder_attention_mask: true
+dtype: bf16
+
+infer_args:
+  width: 1024
+  height: 1024
+  guidance_scale: 4.5
+  num_inference_steps: 30
