@@ -121,7 +121,7 @@ class ComposeTEEXHook:
             return cls(tehook_list)
         else:
             # single text encoder
-            return TEEXHook.hook(text_enc, tokenizer, N_repeats, clip_skip, device=device, use_attention_mask=use_attention_mask)
+            return TEEXHook.hook(text_enc, tokenizer, N_repeats, clip_skip, clip_final_norm, device=device, use_attention_mask=use_attention_mask)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):

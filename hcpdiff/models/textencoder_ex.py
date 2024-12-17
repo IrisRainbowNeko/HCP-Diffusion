@@ -15,7 +15,7 @@ from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
 from torch import nn
 from transformers.models.clip.modeling_clip import CLIPAttention
-from transformers import CLIPTextModelWithProjection
+from transformers import CLIPTextModelWithProjection, T5EncoderModel
 from loguru import logger
 
 class TEEXHook:
@@ -70,12 +70,19 @@ class TEEXHook:
         if isinstance(self.text_enc, CLIPTextModelWithProjection):
             self.text_enc.text_projection.weight.data = self.text_enc.text_projection.weight.data.t()
 
-        prompt_embeds, pooled_output = self.text_enc(
-            text_input_ids.to(self.device),
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            output_hidden_states=True,
-        )
+        if isinstance(self.text_enc, T5EncoderModel):
+            prompt_embeds, pooled_output = self.text_enc(
+                text_input_ids.to(self.device),
+                attention_mask=attention_mask,
+                output_hidden_states=True,
+            )
+        else:
+            prompt_embeds, pooled_output = self.text_enc(
+                text_input_ids.to(self.device),
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                output_hidden_states=True,
+            )
         return prompt_embeds, pooled_output, attention_mask
 
     def forward_hook_input(self, host, feat_in):
@@ -88,9 +95,8 @@ class TEEXHook:
             encoder_hidden_states = self.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
             encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
-
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
-        pooled_output = feat_out.pooler_output
+        pooled_output = feat_out.get('pooler_output', None)
         # TODO: may have better fusion method
         if pooled_output is not None:
             pooled_output = rearrange(pooled_output, '(b r) ... -> b r ...', r=self.N_repeats).mean(dim=1)

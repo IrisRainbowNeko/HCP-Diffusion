@@ -51,12 +51,19 @@ class Visualizer:
         tokenizer = auto_tokenizer(pretrained_model, subfolder="tokenizer", use_fast=False)
 
         pipe_name = get_pipe_name(pretrained_model)
-        if pipe_name == 'PixArtSigmaPipeline':
+        if pipe_name in ['PixArtSigmaPipeline', 'PixArtAlphaPipeline']:
             from diffusers import PixArtTransformer2DModel
             if 'unet' not in self.cfgs.new_components:
                 self.cfgs.new_components['unet'] = PixArtTransformer2DModel.from_pretrained(pretrained_model,
                                                                 subfolder="transformer", torch_dtype=self.dtype, resume_download=True)
-        return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
+            tokenizer.model_max_length = 300
+        
+            return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
+                                            text_encoder=te, tokenizer=tokenizer, resume_download=True,
+                                            feature_extractor=None, image_encoder=None,
+                                            torch_dtype=self.dtype, **self.cfgs.new_components)
+        else:
+            return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
                                             text_encoder=te, tokenizer=tokenizer, resume_download=True,
                                             torch_dtype=self.dtype, **self.cfgs.new_components)
 
@@ -224,7 +231,7 @@ class Visualizer:
                     feeder(ex_input_dict)
 
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, generator=G,
-                               pooled_output=pooled_output[-1], encoder_attention_mask=attention_mask, **kwargs).images
+                               pooled_output=None if pooled_output is None else pooled_output[-1], encoder_attention_mask=attention_mask, **kwargs).images
         return images
 
     def inter_callback(self, i, t, num_t, latents_x0, latents):

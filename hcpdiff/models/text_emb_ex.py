@@ -45,11 +45,11 @@ class EmbeddingPTHook(SinglePluginBlock):
         :return: [B, N_repeat, N_word+2, N_emb]
         '''
         rep_idxs_B = self.input_ids >= self.num_embeddings
-        BOS = repeat(inputs_embeds[0,0,:], 'e -> r 1 e', r=self.N_repeats)
-        EOS = repeat(inputs_embeds[0,-1,:], 'e -> r 1 e', r=self.N_repeats)
+        BOS = repeat(inputs_embeds[:,0,:], 'b e -> b r 1 e', r=self.N_repeats)
+        EOS = repeat(inputs_embeds[:,-1,:], 'b e -> b r 1 e', r=self.N_repeats)
 
         replaced_embeds = []
-        for item, rep_idxs, ids_raw in zip(inputs_embeds, rep_idxs_B, self.input_ids):
+        for i, (item, rep_idxs, ids_raw) in enumerate(zip(inputs_embeds, rep_idxs_B, self.input_ids)):
             # insert pt to embeddings
             rep_idxs=torch.where(rep_idxs)[0]
             item_new=[]
@@ -64,7 +64,7 @@ class EmbeddingPTHook(SinglePluginBlock):
             # split to N_repeat sentence
             replaced_item = torch.cat(item_new, dim=0)[1:self.N_word*self.N_repeats+1, :]
             replaced_item = rearrange(replaced_item, '(r w) e -> r w e', r=self.N_repeats, w=self.N_word)
-            replaced_item = torch.cat([BOS, replaced_item, EOS], dim=1) # [N_repeat, N_word+2, N_emb]
+            replaced_item = torch.cat([BOS[i], replaced_item, EOS[i]], dim=1) # [N_repeat, N_word+2, N_emb]
 
             replaced_embeds.append(replaced_item)
         return torch.cat(replaced_embeds, dim=0) # [B*N_repeat, N_word+2, N_emb]

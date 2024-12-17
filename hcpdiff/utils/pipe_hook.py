@@ -2,7 +2,7 @@ from typing import Union, List, Optional, Callable, Dict, Any
 
 import PIL
 import torch
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, PixArtTransformer2DModel
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from .inpaint_pipe import preprocess_mask, preprocess_image, StableDiffusionInpaintPipelineLegacy
@@ -122,12 +122,19 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
                 if pooled_output is None:
-                    noise_pred = self.unet(latent_model_input, timesteps=t, encoder_hidden_states=prompt_embeds[i],
-                                           encoder_attention_mask=encoder_attention_mask, cross_attention_kwargs=cross_attention_kwargs).sample
+                    if isinstance(self.unet, PixArtTransformer2DModel):
+                        added_cond_kwargs = {"resolution": None, "aspect_ratio": None}
+                        noise_pred = self.unet(latent_model_input, timestep=t.repeat(latent_model_input.shape[0]), encoder_hidden_states=prompt_embeds[i],
+                                            encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+                    else:
+                        noise_pred = self.unet(latent_model_input, timestep=t, encoder_hidden_states=prompt_embeds[i],
+                                            encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs).sample
                 else:
                     added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                     # predict the noise residual
-                    noise_pred = self.unet(latent_model_input, timesteps=t, encoder_hidden_states=prompt_embeds[i],
+                    noise_pred = self.unet(latent_model_input, timestep=t, encoder_hidden_states=prompt_embeds[i],
                                            encoder_attention_mask=encoder_attention_mask,
                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
@@ -135,6 +142,10 @@ class HookPipe_T2I(StableDiffusionPipeline):
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond+guidance_scale*(noise_pred_text-noise_pred_uncond)
+
+                # learned sigma
+                if self.unet.config.out_channels // 2 == num_channels_latents:
+                    noise_pred = noise_pred.chunk(2, dim=1)[0]
 
                 # x_t -> x_0
                 alpha_prod_t = alphas_cumprod[t.long()]
@@ -272,8 +283,13 @@ class HookPipe_I2I(StableDiffusionImg2ImgPipeline):
 
                 # predict the noise residual
                 if pooled_output is None:
-                    noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
-                                           cross_attention_kwargs=cross_attention_kwargs, ).sample
+                    if isinstance(self.unet, PixArtTransformer2DModel):
+                        added_cond_kwargs = {"resolution": None, "aspect_ratio": None}
+                        noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+                    else:
+                        noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs, ).sample
                 else:
                     added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
                     # predict the noise residual
