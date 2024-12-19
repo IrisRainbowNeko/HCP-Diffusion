@@ -51,7 +51,7 @@ class Visualizer:
         tokenizer = auto_tokenizer(pretrained_model, subfolder="tokenizer", use_fast=False)
 
         pipe_name = get_pipe_name(pretrained_model)
-        if pipe_name in ['PixArtSigmaPipeline', 'PixArtAlphaPipeline']:
+        if 'PixArt' in pipe_name:
             from diffusers import PixArtTransformer2DModel
             if 'unet' not in self.cfgs.new_components:
                 self.cfgs.new_components['unet'] = PixArtTransformer2DModel.from_pretrained(pretrained_model,

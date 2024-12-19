@@ -1,7 +1,7 @@
 from torch import nn
 import itertools
 from transformers import CLIPTextModel, T5EncoderModel
-from hcpdiff.utils import pad_attn_bias, auto_text_encoder_cls
+from hcpdiff.utils import pad_attn_bias, auto_text_encoder_cls, get_pipe_name
 from hcpdiff.models.compose import SDXLTextEncoder
 from diffusers import UNet2DConditionModel
 from torch.nn.parallel.distributed import DistributedDataParallel
@@ -99,7 +99,7 @@ class SDXLTEUnetWrapper(TEUnetWrapper):
         return model_pred
 
 class PixArtWrapper(TEUnetWrapper):
-    def __init__(self, unet, TE, train_TE=False):
+    def __init__(self, unet, TE, train_TE=False, min_attnmask=None):
         super().__init__(unet, TE, train_TE, min_attnmask=0)
 
     def forward(self, prompt_ids, noisy_latents, timesteps, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
@@ -119,7 +119,9 @@ class PixArtWrapper(TEUnetWrapper):
         if hasattr(self.unet, 'input_feeder'):
             for feeder in self.unet.input_feeder:
                 feeder(input_all)
-        model_pred = self.unet(noisy_latents, encoder_hidden_states, timesteps, encoder_attention_mask=attn_mask).sample  # Predict the noise residual
+        added_cond_kwargs = {"resolution": None, "aspect_ratio": None}
+        model_pred = self.unet(noisy_latents, encoder_hidden_states, timesteps, encoder_attention_mask=attn_mask,
+                               added_cond_kwargs=added_cond_kwargs).sample  # Predict the noise residual
         return model_pred
 
     @classmethod
@@ -141,8 +143,12 @@ def auto_build_wrapper(pretrained_model_name_or_path, unet=None, TE=None, revisi
     else:
         text_encoder_cls = auto_text_encoder_cls(pretrained_model_name_or_path, revision)
 
+    pipe_name = get_pipe_name(pretrained_model_name_or_path)
+
     if text_encoder_cls == SDXLTextEncoder:
         wrapper_cls = SDXLTEUnetWrapper
+    elif 'PixArt' in pipe_name:
+        wrapper_cls = PixArtWrapper
     else:
         wrapper_cls = TEUnetWrapper
 

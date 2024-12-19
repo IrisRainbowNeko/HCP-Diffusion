@@ -1,0 +1,25 @@
+_base_:
+  - cfgs/train/examples/lora_conventional.yaml
+
+lora_unet:
+  -
+    lr: 1e-4
+    rank: 8
+    layers:
+      - 're:.*\.attn.?$'
+      - 're:.*\.ff$'
+
+
+model:
+  pretrained_model_name_or_path: 'PixArt-alpha/PixArt-Sigma-XL-2-1024-MS'
+  clip_skip: 0
+  clip_final_norm: False
+
+data:
+  dataset1:
+    batch_size: 4
+
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"1024*1024"}
+      num_bucket: 4
