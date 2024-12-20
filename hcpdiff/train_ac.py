@@ -446,7 +446,7 @@ class Trainer:
                 raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
             else:
                 model_pred = cvt_func(model_pred, x_t, sigma)
-        return model_pred, target, sigma
+        return model_pred, target, sigma, timesteps, x_t
 
     def train_one_step(self, data_list):
         with self.accelerator.accumulate(self.TE_unet):
@@ -461,8 +461,8 @@ class Trainer:
                     other_datas['plugin_input'] = {k:v.to(self.device, dtype=self.weight_dtype) for k, v in data['plugin_input'].items()}
 
                 latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
-                model_pred, target, sigma = self.forward(latents, prompt_ids, attn_mask, position_ids, **other_datas)
-                loss = self.get_loss(model_pred, target, sigma, img_mask)*self.train_loader_group.get_loss_weights(idx)
+                model_pred, target, sigma, timesteps, x_t = self.forward(latents, prompt_ids, attn_mask, position_ids, **other_datas)
+                loss = self.get_loss(model_pred, target, sigma, timesteps, img_mask)*self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):
@@ -487,13 +487,21 @@ class Trainer:
                 self.update_ema()
         return loss.item()
 
-    def get_loss(self, model_pred, target, sigma, att_mask):
+    def get_loss(self, model_pred, target, sigma, timesteps, x_t, att_mask):
         # compute all losses
         loss_list = []
         for criterion in self.criterion_list:
             loss_args = {}
             if getattr(criterion, 'need_sigma', False):
                 loss_args['sigma'] = sigma
+            if getattr(criterion, 'need_timesteps', False):
+                loss_args['timesteps'] = timesteps
+                loss_args['x_t'] = x_t
+            if getattr(criterion, 'need_sampler', False):
+                loss_args['sampler'] = self.noise_sampler
+            if model_pred.shape[1]==target.shape[1]*2 and not getattr(criterion, 'var_pred', False):
+                model_pred, _ = model_pred.chunk(2, dim=1)
+
             loss = criterion(model_pred.float(), target.float(), **loss_args)
 
             if (att_mask is not None) and (loss.shape[2:] == att_mask.shape[2:]):

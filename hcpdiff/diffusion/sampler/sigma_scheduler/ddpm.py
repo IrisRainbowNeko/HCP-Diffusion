@@ -14,6 +14,16 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
         self.alphas_cumprod = torch.cumprod(alphas, dim=0)
         self.sigmas = ((1-self.alphas_cumprod)/self.alphas_cumprod).sqrt()
 
+        # for VLB calculation
+        self.alphas_cumprod_prev = torch.cat([alphas.new_tensor([1.0]), self.alphas_cumprod[:-1]])
+        self.posterior_mean_coef1 = self.betas*torch.sqrt(self.alphas_cumprod_prev)/(1.0-self.alphas_cumprod)
+        self.posterior_mean_coef2 = (1.0-self.alphas_cumprod_prev)*torch.sqrt(alphas)/(1.0-self.alphas_cumprod)
+
+        self.posterior_variance = self.betas*(1.0-self.alphas_cumprod_prev)/(1.0-self.alphas_cumprod)
+        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
+        self.posterior_log_variance_clipped = torch.log(torch.cat([self.posterior_variance[1:2], self.posterior_variance[1:]]))
+
+
     @property
     def sigma_min(self):
         return self.sigmas[0]
@@ -36,6 +46,27 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
         t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
         t_scale = (t*(self.num_timesteps-1e-5)).long()  # [0, num_timesteps-1)
         return self.sigmas[t_scale], t
+
+    def sigma_to_t(self, sigma: Union[float, torch.Tensor]):
+        t = (self.sigmas-sigma).abs().argmin()
+        return t/self.num_timesteps
+
+    def get_post_mean(self, t, x_0, x_t):
+        t = (t*len(self.sigmas)).long()
+        return self.posterior_mean_coef1[t].view(-1, 1, 1, 1).to(t.device)*x_0 + self.posterior_mean_coef2[t].view(-1, 1, 1, 1).to(t.device)*x_t
+
+    def get_post_log_var(self, t, x_t_var=None):
+        t = (t*len(self.sigmas)).long()
+        min_log = self.posterior_log_variance_clipped[t].view(-1, 1, 1, 1).to(t.device)
+        if x_t_var is None:
+            return min_log
+        else:
+            max_log = self.betas.log()[t].view(-1, 1, 1, 1).to(t.device)
+            # The model_var_values is [-1, 1] for [min_var, max_var].
+            frac = (x_t_var+1)/2
+            model_log_variance = frac*max_log+(1-frac)*min_log
+            return model_log_variance
+
 
     @staticmethod
     def betas_for_alpha_bar(
@@ -117,6 +148,12 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
         t_scale = (t*(self.num_timesteps-1-1e-5))  # [0, num_timesteps-1)
 
         return linear_interp(self.sigmas, t_scale), t
+
+    def sigma_to_t(self, sigma: Union[float, torch.Tensor]):
+        diff = self.sigmas-sigma
+        diff[diff<0] = float('inf')
+        t0 = diff.argmin().clamp(0, self.num_timesteps-2)
+        return t0 + diff.min()/(self.sigmas[t0+1]-self.sigmas[t0])
 
 if __name__ == '__main__':
     from matplotlib import pyplot as plt
