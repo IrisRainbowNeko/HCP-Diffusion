@@ -23,3 +23,4 @@ data:
       _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
       target_area: ${hcp.eval:"1024*1024"}
       num_bucket: 4
+      step_size: 16

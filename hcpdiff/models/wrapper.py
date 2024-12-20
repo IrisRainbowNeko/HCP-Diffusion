@@ -102,14 +102,14 @@ class PixArtWrapper(TEUnetWrapper):
     def __init__(self, unet, TE, train_TE=False, min_attnmask=None):
         super().__init__(unet, TE, train_TE, min_attnmask=0)
 
-    def forward(self, prompt_ids, noisy_latents, timesteps, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
-        input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, position_ids=position_ids, attn_mask=attn_mask,
+    def forward(self, prompt_ids, noisy_latents, timesteps, attn_mask=None, plugin_input={}, **kwargs):
+        input_all = dict(prompt_ids=prompt_ids, noisy_latents=noisy_latents, timesteps=timesteps, attn_mask=attn_mask,
                          **plugin_input)
 
         if hasattr(self.TE, 'input_feeder'):
             for feeder in self.TE.input_feeder:
                 feeder(input_all)
-        encoder_hidden_states = self.TE(prompt_ids, position_ids=position_ids, attention_mask=attn_mask, output_hidden_states=True)[0]  # Get the text embedding for conditioning
+        encoder_hidden_states = self.TE(prompt_ids, attention_mask=attn_mask, output_hidden_states=True)[0]  # Get the text embedding for conditioning
 
         if attn_mask is not None:
             attn_mask[:, :self.min_attnmask] = 1
