@@ -439,6 +439,10 @@ class Trainer:
         else:
             raise ValueError(f"Unsupport target_type {self.cfgs.train.loss.target_type}")
 
+        # remove pred vars
+        if model_pred.shape[1]==target.shape[1]*2:
+            model_pred, _ = model_pred.chunk(2, dim=1)
+
         # Convert pred_type to target_type
         if self.cfgs.train.loss.pred_type != self.cfgs.train.loss.target_type:
             cvt_func = getattr(self.noise_sampler, f'{self.cfgs.train.loss.pred_type}_to_{self.cfgs.train.loss.target_type}', None)
@@ -462,7 +466,7 @@ class Trainer:
 
                 latents = self.get_latents(image, self.train_loader_group.get_dataset(idx))
                 model_pred, target, sigma, timesteps, x_t = self.forward(latents, prompt_ids, attn_mask, position_ids, **other_datas)
-                loss = self.get_loss(model_pred, target, sigma, timesteps, img_mask)*self.train_loader_group.get_loss_weights(idx)
+                loss = self.get_loss(model_pred, target, sigma, timesteps, x_t, img_mask)*self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
             if hasattr(self, 'optimizer'):
