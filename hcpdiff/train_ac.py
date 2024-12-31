@@ -33,7 +33,7 @@ from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
 from hcpdiff.data import RatioBucket, DataGroup, get_sampler
 from hcpdiff.deprecated.cfg_converter import TrainCFGConverter
 from hcpdiff.loggers import LoggerGroup
-from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper, auto_build_wrapper
+from hcpdiff.models import CFGContext, DreamArtistPTContext, TEUnetWrapper, SDXLTEUnetWrapper, auto_build_wrapper, PixArtWrapper
 from hcpdiff.models.compose import ComposeEmbPTHook, ComposeTEEXHook
 from hcpdiff.models.compose import SDXLTextEncoder
 from hcpdiff.utils.cfg_net_tools import make_hcpdiff, make_plugin, HCPModelLoader
@@ -218,6 +218,9 @@ class Trainer:
             self.TE_unet = auto_build_wrapper(pretrained, revision=self.cfgs.model.revision, train_TE=self.train_TE)
         else:
             self.TE_unet = self.cfgs.model.wrapper(pretrained, train_TE=self.train_TE, revision=self.cfgs.model.revision)
+
+        if isinstance(self.TE_unet, PixArtWrapper):
+            self.tokenizer.model_max_length = 300
 
     def build_ema(self):
         if self.cfgs.model.ema is not None:

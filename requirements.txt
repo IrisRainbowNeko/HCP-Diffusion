@@ -1,7 +1,7 @@
 #torch>=1.12.0
 #torchvision>=0.13.0
 accelerate>=0.15.0
-diffusers<=0.26.1
+diffusers
 safetensors
 einops>=0.6.0
 hydra-core

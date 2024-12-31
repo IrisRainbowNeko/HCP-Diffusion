@@ -7,4 +7,4 @@ from .text_emb_ex import EmbeddingPTHook
 from .textencoder_ex import TEEXHook
 from .tokenizer_ex import TokenizerHook
 from .cfg_context import CFGContext, DreamArtistPTContext
-from .wrapper import TEUnetWrapper, SDXLTEUnetWrapper, auto_build_wrapper
+from .wrapper import TEUnetWrapper, SDXLTEUnetWrapper, auto_build_wrapper, PixArtWrapper

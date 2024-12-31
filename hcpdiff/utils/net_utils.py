@@ -6,7 +6,7 @@ import torch
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from torch import nn
 from torch.optim import lr_scheduler
-from transformers import PretrainedConfig, AutoTokenizer
+from transformers import PretrainedConfig, AutoTokenizer, T5EncoderModel, CLIPTextModel
 from functools import partial
 from huggingface_hub import hf_hub_download
 import json
@@ -122,16 +122,12 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
         model_class = text_encoder_config.architectures[0]
 
         if model_class == "CLIPTextModel":
-            from transformers import CLIPTextModel
-
             return CLIPTextModel
         elif model_class == "RobertaSeriesModelWithTransformation":
             from diffusers.pipelines.alt_diffusion.modeling_roberta_series import RobertaSeriesModelWithTransformation
 
             return RobertaSeriesModelWithTransformation
         elif model_class == "T5EncoderModel":
-            from transformers import T5EncoderModel
-
             return T5EncoderModel
         else:
             raise ValueError(f"{model_class} is not supported.")

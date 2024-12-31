@@ -34,7 +34,7 @@ class Visualizer:
         if self.cfg_merge:
             self.merge_model()
 
-        self.pipe = self.pipe.to(torch_dtype=self.dtype)
+        # self.pipe = self.pipe.to(torch_dtype=self.dtype)
 
         if isinstance(self.pipe.text_encoder, ComposeTextEncoder):
             self.pipe.vae = self.pipe.vae.to(dtype=torch.float32)
@@ -57,7 +57,7 @@ class Visualizer:
                 self.cfgs.new_components['unet'] = PixArtTransformer2DModel.from_pretrained(pretrained_model,
                                                                 subfolder="transformer", torch_dtype=self.dtype, resume_download=True)
             tokenizer.model_max_length = 300
-        
+
             return pipeline.from_pretrained(pretrained_model, safety_checker=None, requires_safety_checker=False,
                                             text_encoder=te, tokenizer=tokenizer, resume_download=True,
                                             feature_extractor=None, image_encoder=None,
@@ -166,8 +166,8 @@ class Visualizer:
         if 'plugin_cfg' in self.cfg_merge:  # Build plugins
             if isinstance(self.cfg_merge.plugin_cfg, str):
                 plugin_cfg = load_config(self.cfg_merge.plugin_cfg)
-                plugin_cfg = {'plugin_unet': hydra.utils.instantiate(plugin_cfg['plugin_unet']),
-                              'plugin_TE': hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
+                plugin_cfg = {'plugin_unet':hydra.utils.instantiate(plugin_cfg['plugin_unet']),
+                    'plugin_TE':hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
             else:
                 plugin_cfg = self.cfg_merge.plugin_cfg
             make_plugin(self.pipe.unet, plugin_cfg['plugin_unet'])
@@ -231,7 +231,8 @@ class Visualizer:
                     feeder(ex_input_dict)
 
             images = self.pipe(prompt_embeds=emb_p, negative_prompt_embeds=emb_n, callback=self.inter_callback, generator=G,
-                               pooled_output=None if pooled_output is None else pooled_output[-1], encoder_attention_mask=attention_mask, **kwargs).images
+                               pooled_output=None if pooled_output is None else pooled_output[-1], encoder_attention_mask=attention_mask,
+                               **kwargs).images
         return images
 
     def inter_callback(self, i, t, num_t, latents_x0, latents):
@@ -262,7 +263,7 @@ if __name__ == '__main__':
     args, cfg_args = parser.parse_known_args()
     cfgs = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
 
-    cfgs = InferCFGConverter().convert(cfgs) # support old cfgs format
+    cfgs = InferCFGConverter().convert(cfgs)  # support old cfgs format
 
     if cfgs.seed is not None:
         if is_list(cfgs.seed):
