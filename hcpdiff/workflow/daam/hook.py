@@ -88,19 +88,19 @@ class DiffusionHeatMapHooker(AggregateHooker):
         with auto_autocast(dtype=torch.float32):
             for (factor, layer, head), heat_map in heat_maps:
                 if (head_idxs is None or head in head_idxs) and (layer_idx is None or layer_idx == layer):
-                    heat_map = heat_map.unsqueeze(1)/25
+                    heat_map = heat_map.unsqueeze(1)/25 # [L,1,H,W]
                     # The clamping fixes undershoot.
                     all_merges.append(F.interpolate(heat_map, size=(x, x), mode='bicubic').clamp_(min=0))
 
             try:
-                maps = torch.stack(all_merges, dim=0)
+                maps = torch.stack(all_merges, dim=0) # [B*head, L, 1, H, W]
             except RuntimeError:
                 if head_idxs is not None or layer_idx is not None:
                     raise RuntimeError('No heat maps found for the given parameters.')
                 else:
                     raise RuntimeError('No heat maps found. Did you forget to call `with trace(...)` during generation?')
 
-            maps = maps.mean(0)[:, 0]
+            maps = maps.mean(0)[:, 0] # [L,H,W]
             #maps = maps[:len(self.tokenizer.tokenize(prompt)) + 2]  # 1 for SOS and 1 for padding
 
             if normalize:

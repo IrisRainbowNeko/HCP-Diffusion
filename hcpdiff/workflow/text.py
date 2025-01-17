@@ -43,19 +43,31 @@ class TextEncodeAction(BasicAction):
 
         self.prompt = prompt
         self.negative_prompt = negative_prompt
+        self.bs = bs
 
         self.te_hook = te_hook
 
     @feedback_input
-    def forward(self, memory, dtype: str, device, amp=None, **states):
+    def forward(self, memory, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None, **states):
+        prompt_all = prompt_all or self.prompt
+        negative_prompt_all = negative_prompt_all or self.negative_prompt
+
+        if gen_step is not None:
+            idx = (gen_step*self.bs)%len(prompt_all)
+            prompt = prompt_all[idx:idx+self.bs]
+            negative_prompt = negative_prompt_all[idx:idx+self.bs]
+        else:
+            prompt = prompt_all
+            negative_prompt = negative_prompt_all
+
         te_hook = self.te_hook or memory.te_hook
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
-            emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(self.negative_prompt+self.prompt)
+            emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(negative_prompt+prompt)
             if attention_mask is not None:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)
         if not isinstance(te_hook, ComposeTEEXHook):
             pooled_output = None
-        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':emb, 'encoder_attention_mask':attention_mask,
+        return {'prompt':prompt, 'negative_prompt':negative_prompt, 'prompt_embeds':emb, 'encoder_attention_mask':attention_mask,
             'pooled_output':pooled_output}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
@@ -65,7 +77,18 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         self.token_ex = token_ex
 
     @feedback_input
-    def forward(self, memory, dtype: str, device, amp=None, **states):
+    def forward(self, memory, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None, **states):
+        prompt_all = prompt_all or self.prompt
+        negative_prompt_all = negative_prompt_all or self.negative_prompt
+
+        if gen_step is not None:
+            idx = (gen_step*self.bs)%len(prompt_all)
+            prompt = prompt_all[idx:idx+self.bs]
+            negative_prompt = negative_prompt_all[idx:idx+self.bs]
+        else:
+            prompt = prompt_all
+            negative_prompt = negative_prompt_all
+
         te_hook = self.te_hook or memory.te_hook
         token_ex = self.token_ex or memory.token_ex
 
@@ -73,8 +96,8 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         if offload:
             to_cuda(memory.text_encoder)
 
-        mult_p, clean_text_p = token_ex.parse_attn_mult(self.prompt)
-        mult_n, clean_text_n = token_ex.parse_attn_mult(self.negative_prompt)
+        mult_p, clean_text_p = token_ex.parse_attn_mult(prompt)
+        mult_n, clean_text_n = token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
             if attention_mask is not None:
@@ -86,5 +109,5 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         if offload:
             to_cpu(memory.text_encoder)
 
-        return {'prompt':self.prompt, 'negative_prompt':self.negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
+        return {'prompt':prompt, 'negative_prompt':negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
             'encoder_attention_mask':attention_mask, 'pooled_output':pooled_output}
