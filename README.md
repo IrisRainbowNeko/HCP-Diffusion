@@ -13,7 +13,7 @@
 
 ## Introduction
 HCP-Diffusion is a toolbox for Stable Diffusion models based on [🤗 Diffusers](https://github.com/huggingface/diffusers).
-It facilitates flexiable configurations and component support for training, in comparison with [webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
+It facilitates flexible configurations and component support for training, in comparison with [webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
 
 This toolbox supports [**Colossal-AI**](https://github.com/hpcaitech/ColossalAI), which can significantly reduce GPU memory usage.
 
