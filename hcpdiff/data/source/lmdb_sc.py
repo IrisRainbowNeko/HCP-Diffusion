@@ -13,7 +13,7 @@ class LMDBT2ISource(Text2ImageSource):
         self.env = lmdb.open(img_root, readonly=True, lock=False)  # 打开 LMDB 数据库
 
     def get_image_list(self) -> List[Tuple[str, DataSource]]:
-        imgs = list(self.caption_dict.keys())
+        imgs = [(name, self) for name in self.caption_dict.keys()]
         return imgs*self.repeat
 
     def load_image(self, name:str) -> Dict[str, Any]:
