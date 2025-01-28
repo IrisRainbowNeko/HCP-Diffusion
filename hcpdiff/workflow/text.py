@@ -109,5 +109,5 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         if offload:
             to_cpu(memory.text_encoder)
 
-        return {'prompt':prompt, 'negative_prompt':negative_prompt, 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
+        return {'prompt':list(clean_text_p), 'negative_prompt':list(clean_text_n), 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
             'encoder_attention_mask':attention_mask, 'pooled_output':pooled_output}

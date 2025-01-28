@@ -31,10 +31,12 @@ class FilePromptAction(BasicAction):
     @feedback_input
     def forward(self, memory, **states):
         states.update({'prompt_all':self.prompt, 'negative_prompt_all':self.negative_prompt})
+        states_ref = dict(**states)
 
         pbar = tqdm(range(math.ceil(len(self.prompt)/self.bs)))
         N_steps = len(self.actions)
         for gen_step in pbar:
+            states = dict(**states_ref)
             feed_data = {'gen_step': gen_step}
             states.update(feed_data)
             for step, act in enumerate(self.actions):
