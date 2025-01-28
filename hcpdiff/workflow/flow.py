@@ -4,13 +4,17 @@ from tqdm import tqdm
 import math
 
 class FilePromptAction(BasicAction):
-    def __init__(self, actions: List[BasicAction], prompt: str, negative_prompt: str, bs: int = 4):
+    def __init__(self, actions: List[BasicAction], prompt: str, negative_prompt: str, bs: int = 4, num: int = None):
         super().__init__()
         if prompt.endswith('.txt'):
             with open(prompt, 'r') as f:
                 prompt = f.read().split('\n')
+            if num:
+                prompt = prompt[:num]
         else:
             prompt = [prompt]
+            if num:
+                prompt = prompt*num
 
         if negative_prompt.endswith('.txt'):
             with open(negative_prompt, 'r') as f:
