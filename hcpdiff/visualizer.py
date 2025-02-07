@@ -16,6 +16,7 @@ from hcpdiff.utils.pipe_hook import HookPipe_T2I, HookPipe_I2I, HookPipe_Inpaint
 from hcpdiff.utils.utils import load_config_with_cli, load_config, size_to_int, int_to_size, prepare_seed, is_list, pad_attn_bias
 from hcpdiff.deprecated.cfg_converter import InferCFGConverter
 from torch.cuda.amp import autocast
+from diffusers.models.attention_processor import AttentionProcessor
 
 class Visualizer:
     dtype_dict = {'fp32':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
