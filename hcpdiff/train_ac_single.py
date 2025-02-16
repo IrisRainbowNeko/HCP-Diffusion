@@ -6,7 +6,7 @@ import torch
 from accelerate import Accelerator
 from loguru import logger
 
-from hcpdiff.train_ac import Trainer, RatioBucket, load_config_with_cli, set_seed, get_sampler
+from hcpdiff.train_ac_old import Trainer, RatioBucket, load_config_with_cli, set_seed, get_sampler
 
 class TrainerSingleCard(Trainer):
     def init_context(self, cfgs_raw):

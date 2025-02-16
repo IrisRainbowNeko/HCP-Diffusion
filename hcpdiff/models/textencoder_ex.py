@@ -19,14 +19,13 @@ from transformers import CLIPTextModelWithProjection, T5EncoderModel
 from loguru import logger
 
 class TEEXHook:
-    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
+    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=1, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
         self.text_enc = text_enc
         self.tokenizer = tokenizer
 
         self.N_repeats = N_repeats
         self.clip_skip = clip_skip
         self.clip_final_norm = clip_final_norm
-        self.device = device
         self.use_attention_mask = use_attention_mask
 
         if clip_final_norm:
@@ -46,6 +45,9 @@ class TEEXHook:
         logger.info(f'final_layer_norm not found in {type(text_enc)}')
         return None
 
+    @property
+    def device(self):
+        return self.text_enc.device
 
     def encode_prompt_to_emb(self, prompt):
         text_inputs = self.tokenizer(
@@ -173,9 +175,9 @@ class TEEXHook:
         layer.forward = forward
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
-        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device, use_attention_mask=use_attention_mask)
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
+        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)

@@ -7,7 +7,7 @@ from functools import partial
 import torch
 
 from hcpdiff.ckpt_manager import CkptManagerPKL, CkptManagerSafe
-from hcpdiff.train_ac import Trainer, load_config_with_cli
+from hcpdiff.train_ac_old import Trainer, load_config_with_cli
 from hcpdiff.utils.net_utils import get_scheduler
 
 class TrainerDeepSpeed(Trainer):
