@@ -9,9 +9,8 @@ class MinSNRWeight(WeightedLoss):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
         loss = self.loss(input, target)
-        snr = 1/(sigma*torch.sqrt(1+sigma**2))
-        snr_weight = snr.clip(max=self.gamma).float()
-        return self.weight*loss*snr_weight.view(-1, 1, 1, 1)
+        w_snr = (1/(sigma**2)).clip(min=self.gamma).float()
+        return self.weight*loss*w_snr.view(-1, 1, 1, 1)
 
 class SoftMinSNRWeight(MinSNRWeight):
 

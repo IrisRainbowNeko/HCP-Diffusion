@@ -166,6 +166,12 @@ if __name__ == '__main__':
     s2 = (sigma_scheduler.sigma_min**(1/rho)+t*(sigma_scheduler.sigma_max**(1/rho)-sigma_scheduler.sigma_min**(1/rho)))**rho
     t2 = np.interp(s2.log().numpy(), sigma_scheduler.sigmas.log().numpy(), t.numpy())
 
+    # min SNR
+    plt.figure()
+    plt.plot((1/sigma_scheduler.sigmas**2).log())
+    plt.plot((1/sigma_scheduler.sigmas**2).clip(min=5).log())
+    plt.show()
+
     plt.figure()
     plt.plot(sigma_scheduler.sigmas)
     plt.plot(t2*1000, s2)
