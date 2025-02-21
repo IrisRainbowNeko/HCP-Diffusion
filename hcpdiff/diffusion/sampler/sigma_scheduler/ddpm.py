@@ -169,7 +169,8 @@ if __name__ == '__main__':
     # min SNR
     plt.figure()
     plt.plot((1/sigma_scheduler.sigmas**2).log())
-    plt.plot((1/sigma_scheduler.sigmas**2).clip(min=5).log())
+    plt.plot((1/sigma_scheduler.sigmas**2).clip(max=5).log())
+    plt.plot((1/sigma_scheduler.sigmas*(1+sigma_scheduler.sigmas**2).sqrt()).clip(max=5).log())
     plt.show()
 
     plt.figure()
