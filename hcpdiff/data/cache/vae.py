@@ -27,7 +27,8 @@ class VaeCache(DataCache):
             return self.cache[id]
 
     def before_handler(self, index: int, data: Dict[str, Any]):
-        data['image'] = self.load_latent(data['id'])
+        cached_data = self.load_latent(data['id'])
+        data['image'] = cached_data['latents']
         return data
 
     def load(self, path):
@@ -67,21 +68,24 @@ class VaeCache(DataCache):
                 with env.begin(write=True) as txn:
                     for data in tqdm(loader):
                         img_id = data['id']
-                        image = data['image'].to(device=_share.device, dtype=vae.dtype)
+                        image = data['image'].to(device='cpu', dtype=vae.dtype)
                         latents = model.vae.encode(image).latent_dist.sample()
                         latents = (latents*vae.config.scaling_factor).cpu()
+                        data_cache = {'latents': latents, 'coord': data['coord']}
+
                         byte_stream = BytesIO()
-                        torch.save(latents, byte_stream)
+                        torch.save(data_cache, byte_stream)
                         txn.put(str(img_id).encode(), byte_stream.getvalue())
                         if not self.lazy:
-                            self.cache[img_id] = latents
+                            self.cache[img_id] = data_cache
                 env.close()
             else:
                 for data in tqdm(loader):
                     img_id = data['id']
-                    image = data['image'].to(device=_share.device, dtype=vae.dtype)
+                    image = data['image'].to(device='cpu', dtype=vae.dtype)
                     latents = model.vae.encode(image).latent_dist.sample()
                     latents = (latents*vae.config.scaling_factor).cpu()
-                    self.cache[img_id] = latents
+                    self.cache[img_id] = {'latents': latents, 'coord': data['coord']}
 
         model.vae = None
+        torch.cuda.empty_cache()

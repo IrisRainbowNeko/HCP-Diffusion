@@ -1,9 +1,12 @@
+from typing import Union
+
+import numpy as np
+import torch
 import torchvision.transforms as T
 from PIL import Image
 from rainbowneko.train.data import DataHandler, HandlerChain, LoadImageHandler, ImageHandler
+
 from .text import TemplateFillHandler, TagDropoutHandler, TagEraseHandler, TagShuffleHandler, TokenizeHandler
-import numpy as np
-from typing import Union
 
 class LossMapHandler(DataHandler):
     def __init__(self, bucket, vae_scale=8, key_map_in=('loss_map -> image', 'image_size -> image_size'),
@@ -41,7 +44,10 @@ class DiffusionImageHandler(DataHandler):
         )
 
     def handle(self, image: Image.Image, image_size: np.ndarray[int]):
-        return self.handlers(dict(image=image, image_size=image_size))
+        if isinstance(image, torch.Tensor):  # cached latents
+            return dict(image=image, image_size=image_size)
+        else:
+            return self.handlers(dict(image=image, image_size=image_size))
 
 class StableDiffusionHandler(DataHandler):
     def __init__(self, bucket, encoder_attention_mask=False, key_map_in=('image -> image', 'image_size -> image_size', 'prompt -> prompt'),
