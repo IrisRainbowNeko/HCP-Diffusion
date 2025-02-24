@@ -1,4 +1,4 @@
-from cfgs.py.train import train_base, tuning_base
+from cfgs.train.py import train_base, tuning_base
 from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.utils import neko_cfg
@@ -9,6 +9,7 @@ from rainbowneko.train.data import RatioBucket
 def make_cfg():
     dict(
         _base_=[train_base, tuning_base],
+        mixed_precision='fp16',
 
         model_part=CfgWDModelParser([
             dict(
@@ -23,7 +24,7 @@ def make_cfg():
 
         train=dict(
             train_steps=5000,
-            save_step=1000,
+            save_step=100,
         ),
 
         model=dict(
@@ -31,7 +32,7 @@ def make_cfg():
 
             wrapper=StableDiffusionWrapper.from_pretrained(
                 _partial_=True,
-                pretrained_model='runwayml/stable-diffusion-v1-5'
+                pretrained_model='Lykon/DreamShaper'
             ),
         ),
 
@@ -41,11 +42,11 @@ def make_cfg():
 @neko_cfg
 def cfg_data():
     dict(
-        dataset1=TextImagePairDataset(_partial_=True, batch_size=8, loss_weight=1.0,
+        dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(
                     img_root= 'imgs/',
-                    label_file= '',  # path to image captions (file_words)
+                    label_file= '${.img_root}',  # path to image captions (file_words)
                     prompt_template='prompt_tuning_template/caption.txt',
                 ),
             ),

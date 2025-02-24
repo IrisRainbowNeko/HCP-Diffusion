@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from hcpdiff.utils.utils import make_mask, low_rank_approximate, isinstance_list
-from .plugin import PatchPluginBlock, PluginGroup, PatchPluginContainer
+from rainbowneko.models.plugin import PatchPluginBlock, PluginGroup, PatchPluginContainer
 
 from typing import Union, Tuple, Dict, Type
 

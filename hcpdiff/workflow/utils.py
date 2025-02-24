@@ -24,7 +24,7 @@ class LatentResizeAction(BasicAction):
 class ImageResizeAction(BasicAction):
     # resample name to Image.xxx
     mode_map = {'nearest':Image.NEAREST, 'bilinear':Image.BILINEAR, 'bicubic':Image.BICUBIC, 'lanczos':Image.LANCZOS, 'box':Image.BOX,
-        'hamming':Image.HAMMING, 'antialias':Image.ANTIALIAS}
+        'hamming':Image.HAMMING, 'antialias':Image.LANCZOS}
 
     @from_memory_context
     def __init__(self, width=1024, height=1024, mode='bicubic'):

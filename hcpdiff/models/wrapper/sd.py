@@ -4,6 +4,8 @@ import torch
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from rainbowneko.models.wrapper import BaseWrapper
 from torch import Tensor
+from torch import nn
+from typing import Dict
 
 from hcpdiff.diffusion.sampler import EDM_DDPMSampler, BaseSampler, DDPMDiscreteSigmaScheduler
 from hcpdiff.models import EmbeddingPTHook, TEEXHook
@@ -14,9 +16,9 @@ from ..cfg_context import CFGContext
 
 class StableDiffusionWrapper(BaseWrapper):
     def __init__(self, unet: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=32,
-                 TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
+                 pred_type='eps', TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
         super().__init__()
-        self.key_mapper_in = self.build_mapper(key_map_in, None, None)
+        self.key_mapper_in = self.build_mapper(key_map_in, None, ('prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids', 'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input'))
         self.key_mapper_out = self.build_mapper(key_map_out, None, None)
 
         self.unet = unet
@@ -25,6 +27,8 @@ class StableDiffusionWrapper(BaseWrapper):
         self.noise_sampler = noise_sampler
         self.tokenizer = tokenizer
         self.min_attnmask = min_attnmask
+
+        self.pred_type = pred_type
 
         self.TE_hook_cfg = TEHookCFG.create(TE_hook_cfg)
         self.cfg_context = cfg_context
@@ -47,7 +51,7 @@ class StableDiffusionWrapper(BaseWrapper):
         return False
 
     def get_latents(self, image: Tensor):
-        if image.shape[1] == 4:
+        if image.shape[1] == 3:
             with torch.no_grad() if self.vae_trainable else nullcontext():
                 latents = self.vae.encode(image.to(dtype=self.vae.dtype)).latent_dist.sample()
                 latents = latents*self.vae.config.scaling_factor
@@ -99,32 +103,10 @@ class StableDiffusionWrapper(BaseWrapper):
                                        plugin_input=plugin_input)
         model_pred = self.cfg_context.post(model_pred)
 
-        # Get target
-        if self.cfgs.train.loss.target_type == "eps":
-            target = noise
-        elif self.cfgs.train.loss.target_type == "x0":
-            target = x_0
-        elif self.cfgs.train.loss.target_type == "velocity":
-            target = self.noise_sampler.eps_to_velocity(noise, x_t, sigma)
-        else:
-            raise ValueError(f"Unsupport target_type {self.cfgs.train.loss.target_type}")
+        return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type, noise_sampler=self.noise_sampler)
 
-        # # remove pred vars
-        # if model_pred.shape[1] == target.shape[1]*2:
-        #     model_pred, _ = model_pred.chunk(2, dim=1)
-
-        # Convert pred_type to target_type
-        if self.cfgs.train.loss.pred_type != self.cfgs.train.loss.target_type:
-            cvt_func = getattr(self.noise_sampler, f'{self.cfgs.train.loss.pred_type}_to_{self.cfgs.train.loss.target_type}', None)
-            if cvt_func is None:
-                raise ValueError(f"Unsupport pred_type {self.cfgs.train.loss.pred_type} with target_type {self.cfgs.train.loss.target_type}")
-            else:
-                model_pred = cvt_func(model_pred, x_t, sigma)
-
-        return dict(model_pred=model_pred, target=target, sigma=sigma, timesteps=timesteps, x_t=x_t)
-
-    def forward(self, ds_name=None, plugin_input={}, **kwargs):
-        model_args, model_kwargs = self.get_inputs_feed(self.key_mapper_in, self.model, kwargs, plugin_input, ds_name=ds_name)
+    def forward(self, ds_name=None, **kwargs):
+        model_args, model_kwargs = self.get_map_data(self.key_mapper_in, kwargs, ds_name)
         out = self.model_forward(*model_args, **model_kwargs)
         return self.get_map_data(self.key_mapper_out, out, ds_name=ds_name)[1]
 
@@ -138,8 +120,13 @@ class StableDiffusionWrapper(BaseWrapper):
             self.TE.gradient_checkpointing_enable()
         self.apply(grad_ckpt_enable)
 
+    @property
     def trainable_parameters(self):
         return [p for p in self.parameters() if p.requires_grad]
+
+    @property
+    def trainable_models(self) -> Dict[str, nn.Module]:
+        return {'self':self}
 
     def set_dtype(self, dtype, vae_dtype):
         self.dtype = dtype

@@ -90,19 +90,20 @@ class TokenizeHandler(DataHandler):
         super().__init__(key_map_in, key_map_out)
         self.encoder_attention_mask = encoder_attention_mask
 
-    @register_model_callback
+        register_model_callback(self.acquire_tokenizer)
+
     def acquire_tokenizer(self, model_wrapper):
         self.tokenizer = model_wrapper.tokenizer
 
     def handle(self, prompt):
-        tokens = self.tokenizer(prompt, truncation=True, padding="max_length", return_tensors="pt",
+        token_info = self.tokenizer(prompt, truncation=True, padding="max_length", return_tensors="pt",
                                 max_length=self.tokenizer.model_max_length*self.tokenizer.N_repeats)
-        tokens = tokens.input_ids.squeeze()
+        tokens = token_info.input_ids.squeeze()
         data = {'prompt':tokens}
-        if self.encoder_attention_mask and 'attention_mask' in tokens:
-            data['attn_mask'] = tokens.attention_mask.squeeze()
-        if 'position_ids' in tokens:
-            data['position_ids'] = tokens.position_ids.squeeze()
+        if self.encoder_attention_mask and 'attention_mask' in token_info:
+            data['attn_mask'] = token_info.attention_mask.squeeze()
+        if 'position_ids' in token_info:
+            data['position_ids'] = token_info.position_ids.squeeze()
 
         return data
 

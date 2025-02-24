@@ -7,7 +7,7 @@ from torch.nn import MSELoss
 from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.train.loggers import CLILogger
 from rainbowneko.utils import ConstantLR
-from rainbowneko.train.loss import LossContainer
+from hcpdiff.loss import DiffusionLossContainer
 
 from hcpdiff.models.wrapper import StableDiffusionWrapper
 
@@ -34,7 +34,7 @@ def make_cfg():
 
             resume=None,
 
-            loss=LossContainer(MSELoss()),
+            loss=DiffusionLossContainer(MSELoss()),
             optimizer=torch.optim.AdamW(_partial_=True, weight_decay=1e-2),
             scale_lr=False,  # auto scale lr with total batch size
             scheduler=ConstantLR(
@@ -42,7 +42,7 @@ def make_cfg():
                 warmup_steps=500,
             ),
 
-            metric=None,
+            metrics=None,
         ),
 
         logger=[

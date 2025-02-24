@@ -74,6 +74,15 @@ class HCPTrainer(Trainer):
 
         self.loggers.info(f"Saved state, step: {self.real_step}")
 
+def hcp_train():
+    import subprocess
+    parser = argparse.ArgumentParser(description='HCP-Diffusion Launcher')
+    parser.add_argument('--launch_cfg', type=str, default='cfgs/launcher/multi.yaml')
+    args, train_args = parser.parse_known_args()
+
+    subprocess.run(["accelerate", "launch", '--config_file', args.launch_cfg, "-m",
+                    "hcpdiff.trainer_ac"] + train_args, check=True)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="HCP Diffusion Trainer")
     parser.add_argument("--cfg", type=str, default=None, required=True)

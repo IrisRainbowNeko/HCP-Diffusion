@@ -28,7 +28,7 @@ def get_data_files(data_dir, prefix=''):
 setuptools.setup(
     name="hcpdiff",
     py_modules=["hcpdiff"],
-    version="0.9.2",
+    version="1.0",
     author="Ziyi Dong",
     author_email="dzy7eu7d7@gmail.com",
     description="A universal Stable-Diffusion toolbox",
@@ -50,7 +50,9 @@ setuptools.setup(
 
     entry_points={
         'console_scripts': [
-            'hcpinit = hcpdiff.tools.init_proj:main'
+            'hcpinit = hcpdiff.tools.init_proj:main',
+            'hcp_train = hcpdiff.trainer_ac:hcp_train',
+            'hcp_train_1gpu = hcpdiff.trainer_ac_single:hcp_train',
         ]
     },
 
