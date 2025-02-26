@@ -120,6 +120,9 @@ class StableDiffusionWrapper(BaseWrapper):
             self.TE.gradient_checkpointing_enable()
         self.apply(grad_ckpt_enable)
 
+    def enable_xformers(self):
+        self.unet.enable_xformers_memory_efficient_attention()
+
     @property
     def trainable_parameters(self):
         return [p for p in self.parameters() if p.requires_grad]

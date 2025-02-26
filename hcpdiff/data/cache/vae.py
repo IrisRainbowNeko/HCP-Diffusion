@@ -27,13 +27,12 @@ class VaeCache(DataCache):
             return self.cache[id]
 
     def before_handler(self, index: int, data: Dict[str, Any]):
-        print(self.cache.keys())
         cached_data = self.load_latent(data['id'])
         data['image'] = cached_data['latent']
         return data
     
     def on_finish(self, index, data):
-        pass
+        return data
 
     def load(self, path):
         if self.lazy:
@@ -93,7 +92,7 @@ class VaeCache(DataCache):
                     for img_id, latent, coord in zip(data['id'], latents, data['coord']):
                         self.cache[img_id] = {'latent': latent, 'coord': coord}
 
-        model.vae.to('cpu')
+        #model.vae.to('cpu')
         model.vae = None
         torch.cuda.empty_cache()
 

@@ -43,7 +43,7 @@ def make_cfg():
 @neko_cfg
 def cfg_data():
     dict(
-        dataset1=TextImagePairDataset(_partial_=True, batch_size=1, loss_weight=1.0,
+        dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(
                     img_root= 'imgs/',

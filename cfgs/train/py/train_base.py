@@ -52,7 +52,7 @@ def make_cfg():
         model=dict(
             name='model',
 
-            enable_xformers=True,
+            enable_xformers=False,
             gradient_checkpointing=True,
             force_cast_precision=False,
             ema=None,
