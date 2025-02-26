@@ -5,6 +5,7 @@ from rainbowneko.utils import neko_cfg
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.models import StableDiffusionWrapper
 from rainbowneko.train.data import RatioBucket
+from hcpdiff.data import VaeCache
 
 def make_cfg():
     dict(
@@ -24,7 +25,7 @@ def make_cfg():
 
         train=dict(
             train_steps=5000,
-            save_step=100,
+            save_step=500,
         ),
 
         model=dict(
@@ -42,7 +43,7 @@ def make_cfg():
 @neko_cfg
 def cfg_data():
     dict(
-        dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
+        dataset1=TextImagePairDataset(_partial_=True, batch_size=1, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(
                     img_root= 'imgs/',
@@ -55,5 +56,6 @@ def cfg_data():
                 target_area=512*512,
                 num_bucket=6,
             ),
+            cache=VaeCache(bs=1)
         )
     )

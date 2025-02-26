@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Dict, Any
 
 import numpy as np
 import torch
@@ -70,3 +70,10 @@ class StableDiffusionHandler(DataHandler):
 
     def handle(self, image: Image.Image, image_size: np.ndarray[int], prompt: str):
         return dict(**self.image_handlers(dict(image=image, image_size=image_size)), **self.text_handlers(dict(prompt=prompt)))
+    
+    def __call__(self, data) -> Dict[str, Any]:
+        data_proc = self.handle(**self.key_mapper_in.map_data(data)[1])
+        out_data = self.key_mapper_out.map_data(data_proc)[1]
+        data = dict(**data)
+        data.update(out_data)
+        return data
