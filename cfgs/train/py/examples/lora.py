@@ -1,31 +1,29 @@
-from cfgs.train.py import train_base, tuning_base
-from rainbowneko.parser import CfgWDModelParser
+from cfgs.train.py.examples import SD_FT
+from rainbowneko.parser import CfgWDPluginParser
 from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.utils import neko_cfg
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.models import StableDiffusionWrapper
 from rainbowneko.train.data import RatioBucket
 from hcpdiff.data import VaeCache
+from hcpdiff.models.lora_layers_patch import LoraLayer
 
 def make_cfg():
     dict(
-        _base_=[train_base, tuning_base],
+        _base_=[SD_FT],
         mixed_precision='fp16',
 
-        model_part=CfgWDModelParser([
-            dict(
-                lr=1e-5,
-                layers=['unet'],  # train UNet
+        model_part=None,
+        model_plugin=CfgWDPluginParser(cfg_plugin=dict(
+            lora1=LoraLayer(
+                _partial_=True,
+                rank=4,
             )
-        ]),
-
-        ckpt_manager=[
-            ckpt_manager('safetensors', saved_model=({'model':'unet', 'trainable':True},))
-        ],
+        )),
 
         train=dict(
-            train_steps=5000,
-            save_step=500,
+            train_steps=1000,
+            save_step=200,
         ),
 
         model=dict(
@@ -54,7 +52,7 @@ def cfg_data():
             handler=StableDiffusionHandler(RatioBucket),
             bucket=RatioBucket.from_files(
                 target_area=512*512,
-                num_bucket=6,
+                num_bucket=4,
             ),
             cache=VaeCache(bs=1)
         )
