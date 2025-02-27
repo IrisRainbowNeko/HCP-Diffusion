@@ -38,9 +38,9 @@ class LoraBlock(PatchPluginBlock):
     container_cls = LoraPatchContainer
     wrapable_classes = (nn.Linear, nn.Conv2d)
 
-    def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
+    def __init__(self, name:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
                  alpha_auto_scale=True, parent_block=None, host_name=None, **kwargs):
-        super().__init__(f'lora_block_{lora_id}', host, parent_block=parent_block, host_name=host_name)
+        super().__init__(f'lora_block_{name}', host, parent_block=parent_block, host_name=host_name)
 
         self.bias=bias
 
@@ -145,15 +145,15 @@ class LoraBlock(PatchPluginBlock):
             pass
 
     @classmethod
-    def wrap_layer(cls, lora_id:int, layer: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, alpha=1.0, svd_init=False,
+    def wrap_layer(cls, name:str, host: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, alpha=1.0, svd_init=False,
                    bias=False, mask=None, **kwargs):# -> LoraBlock:
-        lora_block = cls(lora_id, layer, rank, dropout, alpha, bias=bias, **kwargs)
+        lora_block = cls(name, host, rank, dropout, alpha, bias=bias, **kwargs)
         lora_block.init_weights(svd_init)
         return lora_block
 
     @classmethod
-    def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
-        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_classes=(LoraBlock,), **kwargs)
+    def wrap_model(cls, name:str, host: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
+        return super().wrap_model(name, host, exclude_classes=(LoraBlock,), **kwargs)
 
     @staticmethod
     def extract_lora_state(model:nn.Module):

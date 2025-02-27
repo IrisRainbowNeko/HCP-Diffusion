@@ -19,8 +19,8 @@ import math
 from typing import Union, List
 
 class LoraLayer(LoraBlock):
-    def __init__(self, lora_id: int, host, rank=1, dropout=0.0, alpha=1.0, bias=False, alpha_auto_scale=True, **kwargs):
-        super().__init__(lora_id, host, rank, dropout, alpha=alpha, bias=bias, alpha_auto_scale=alpha_auto_scale, **kwargs)
+    def __init__(self, name: str, host, rank=1, dropout=0.0, alpha=1.0, bias=False, alpha_auto_scale=True, **kwargs):
+        super().__init__(name, host, rank, dropout, alpha=alpha, bias=bias, alpha_auto_scale=alpha_auto_scale, **kwargs)
 
     class LinearLayer(LoraBlock.LinearLayer):
         def __init__(self, host:nn.Linear, rank, bias, block):

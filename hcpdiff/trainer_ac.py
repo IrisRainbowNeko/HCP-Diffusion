@@ -53,11 +53,12 @@ class HCPTrainer(Trainer):
                 model_ema=getattr(self, "ema_model", None),
             )
             try:
-                manager.save_plugins(
+                manager.save_plugins_step(
                     self.model_raw,
                     self.all_plugin,
                     name=self.cfgs.model.name,
                     step=self.real_step,
+                    prefix=self.ckpt_dir,
                     model_ema=getattr(self, "ema_model", None),
                 )
             except:

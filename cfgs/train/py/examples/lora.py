@@ -15,9 +15,13 @@ def make_cfg():
 
         model_part=None,
         model_plugin=CfgWDPluginParser(cfg_plugin=dict(
-            lora1=LoraLayer(
+            lora1=LoraLayer.wrap_model(
                 _partial_=True,
                 rank=4,
+                layers=[
+                    're:.*\.attn.?$',
+                    're:.*\.ff$',
+                ]
             )
         )),
 
