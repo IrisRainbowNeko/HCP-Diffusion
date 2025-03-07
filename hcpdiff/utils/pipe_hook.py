@@ -366,8 +366,14 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
         callback: Optional[Callable[[int, int, int, torch.FloatTensor], None]] = None,
         callback_steps: int = 1,
+        cross_attention_kwargs: Optional[Dict[str, Any]] = None,
+        pooled_output: Optional[torch.FloatTensor] = None,
+        crop_coord: Optional[torch.FloatTensor] = None,
         **kwargs
     ):
+        height = height or self.unet.config.sample_size*self.vae_scale_factor
+        width = width or self.unet.config.sample_size*self.vae_scale_factor
+
         # 1. Check inputs
         self.check_inputs(prompt, strength, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds)
 
@@ -403,6 +409,7 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         mask_image = preprocess_mask(mask_image, batch_size, self.vae_scale_factor)
 
         # 5. set timesteps
+        num_channels_latents = self.unet.config.in_channels
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size*num_images_per_prompt)
@@ -413,6 +420,18 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
         latents, init_latents_orig, noise = self.prepare_latents(
             image, latent_timestep, num_images_per_prompt, prompt_embeds.dtype, device, generator
         )
+
+        # SDXL inputs
+        if pooled_output is not None:
+            if crop_coord is None:
+                crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
+            else:
+                crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
+            crop_info = crop_info.to(device).repeat(batch_size, 1)
+            pooled_output = pooled_output.to(device)
+
+            if do_classifier_free_guidance:
+                crop_info = torch.cat([crop_info, crop_info], dim=0)
 
         # 7. Prepare mask latent
         mask = mask_image.to(device=self._execution_device, dtype=latents.dtype)
@@ -429,13 +448,31 @@ class HookPipe_Inpaint(StableDiffusionInpaintPipelineLegacy):
                 latent_model_input = torch.cat([latents]*2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                # predict the noise residual
-                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask).sample
+                if pooled_output is None:
+                    if isinstance(self.unet, PixArtTransformer2DModel):
+                        added_cond_kwargs = {"resolution": None, "aspect_ratio": None}
+                        noise_pred = self.unet(latent_model_input, timestep=t.repeat(latent_model_input.shape[0]), encoder_hidden_states=prompt_embeds,
+                                            encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+                    else:
+                        noise_pred = self.unet(latent_model_input, timestep=t, encoder_hidden_states=prompt_embeds,
+                                            encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs).sample
+                else:
+                    added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
+                    # predict the noise residual
+                    noise_pred = self.unet(latent_model_input, timestep=t, encoder_hidden_states=prompt_embeds,
+                                           encoder_attention_mask=encoder_attention_mask,
+                                           cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
                 # perform guidance
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond+guidance_scale*(noise_pred_text-noise_pred_uncond)
+
+                # learned sigma
+                if self.unet.config.out_channels // 2 == num_channels_latents:
+                    noise_pred = noise_pred.chunk(2, dim=1)[0]
 
                 # masking
                 if add_predicted_noise:
