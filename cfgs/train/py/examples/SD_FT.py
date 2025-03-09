@@ -1,11 +1,12 @@
 from cfgs.train.py import train_base, tuning_base
-from rainbowneko.parser import CfgWDModelParser
-from rainbowneko.ckpt_manager import ckpt_manager
-from rainbowneko.utils import neko_cfg
+from hcpdiff.ckpt_manager.format import DiffusersSD15Format
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
-from hcpdiff.models import StableDiffusionWrapper
-from rainbowneko.train.data import RatioBucket
 from hcpdiff.data import VaeCache
+from hcpdiff.models import StableDiffusionWrapper
+from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
+from rainbowneko.parser import CfgWDModelParser
+from rainbowneko.train.data import RatioBucket
+from rainbowneko.utils import neko_cfg
 
 def make_cfg():
     dict(
@@ -33,7 +34,10 @@ def make_cfg():
 
             wrapper=StableDiffusionWrapper.from_pretrained(
                 _partial_=True,
-                pretrained_model='Lykon/DreamShaper'
+                models=ModelManager(
+                    format=DiffusersSD15Format(),
+                    source=LocalCkptSource(),
+                ).load('Lykon/DreamShaper', _partial_=True)
             ),
         ),
 

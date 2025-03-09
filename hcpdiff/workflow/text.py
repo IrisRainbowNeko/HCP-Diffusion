@@ -3,19 +3,15 @@ from typing import List, Union
 import torch
 from hcpdiff.models import TokenizerHook
 from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
-from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
 from hcpdiff.utils import pad_attn_bias
+from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
+from rainbowneko.infer import BasicAction
 from torch.cuda.amp import autocast
 
-from .base import BasicAction, from_memory_context, feedback_input
-
 class TextHookAction(BasicAction):
-    @from_memory_context
-    def __init__(self, TE=None, tokenizer=None, emb_dir: str = None, N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True,
-                 use_attention_mask=False):
-        super().__init__()
-        self.TE = TE
-        self.tokenizer = tokenizer
+    def __init__(self, emb_dir: str = None, N_repeats: int = 1, layer_skip: int = 0, TE_final_norm: bool = True,
+                 use_attention_mask=False, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
 
         self.emb_dir = emb_dir
         self.N_repeats = N_repeats
@@ -23,20 +19,16 @@ class TextHookAction(BasicAction):
         self.TE_final_norm = TE_final_norm
         self.use_attention_mask = use_attention_mask
 
-    def forward(self, memory, **states):
-        self.TE = self.TE or memory.text_encoder
-        self.tokenizer = self.tokenizer or memory.tokenizer
-
-        memory.emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.emb_dir, self.tokenizer, self.TE, N_repeats=self.N_repeats)
-        memory.te_hook = ComposeTEEXHook.hook(self.TE, self.tokenizer, N_repeats=self.N_repeats, device='cuda',
-                                              clip_skip=self.layer_skip, clip_final_norm=self.TE_final_norm, use_attention_mask=self.use_attention_mask)
-        memory.token_ex = TokenizerHook(self.tokenizer)
-        return states
+    def forward(self, TE, tokenizer, **states):
+        emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.emb_dir, tokenizer, TE, N_repeats=self.N_repeats)
+        te_hook = ComposeTEEXHook.hook(TE, tokenizer, N_repeats=self.N_repeats, device='cuda',
+                                       clip_skip=self.layer_skip, clip_final_norm=self.TE_final_norm, use_attention_mask=self.use_attention_mask)
+        token_ex = TokenizerHook(tokenizer)
+        return {'te_hook':te_hook, 'emb_hook':emb_hook, 'token_ex':token_ex}
 
 class TextEncodeAction(BasicAction):
-    @from_memory_context
-    def __init__(self, prompt: Union[List, str], negative_prompt: Union[List, str], bs: int = None, te_hook=None):
-        super().__init__()
+    def __init__(self, prompt: Union[List, str], negative_prompt: Union[List, str], bs: int = None, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         if isinstance(prompt, str) and bs is not None:
             prompt = [prompt]*bs
             negative_prompt = [negative_prompt]*bs
@@ -45,10 +37,8 @@ class TextEncodeAction(BasicAction):
         self.negative_prompt = negative_prompt
         self.bs = bs
 
-        self.te_hook = te_hook
-
-    @feedback_input
-    def forward(self, memory, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None, **states):
+    def forward(self, te_hook, TE, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None, model_offload=False,
+                **states):
         prompt_all = prompt_all or self.prompt
         negative_prompt_all = negative_prompt_all or self.negative_prompt
 
@@ -60,24 +50,26 @@ class TextEncodeAction(BasicAction):
             prompt = prompt_all
             negative_prompt = negative_prompt_all
 
-        te_hook = self.te_hook or memory.te_hook
+        if model_offload:
+            to_cuda(TE)
+
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(negative_prompt+prompt)
             if attention_mask is not None:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)
+
+        if model_offload:
+            to_cpu(TE)
+
         if not isinstance(te_hook, ComposeTEEXHook):
             pooled_output = None
         return {'prompt':prompt, 'negative_prompt':negative_prompt, 'prompt_embeds':emb, 'encoder_attention_mask':attention_mask,
             'pooled_output':pooled_output}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
-    @from_memory_context
-    def __init__(self, prompt: Union[List, str], negative_prompt: Union[List, str], bs: int = None, te_hook=None, token_ex=None):
-        super().__init__(prompt, negative_prompt, bs, te_hook)
-        self.token_ex = token_ex
 
-    @feedback_input
-    def forward(self, memory, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None, **states):
+    def forward(self, te_hook, token_ex, TE, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None,
+                model_offload=False, **states):
         prompt_all = prompt_all or self.prompt
         negative_prompt_all = negative_prompt_all or self.negative_prompt
 
@@ -89,12 +81,8 @@ class AttnMultTextEncodeAction(TextEncodeAction):
             prompt = prompt_all
             negative_prompt = negative_prompt_all
 
-        te_hook = self.te_hook or memory.te_hook
-        token_ex = self.token_ex or memory.token_ex
-
-        offload = memory.text_encoder.device.type == 'cpu'
-        if offload:
-            to_cuda(memory.text_encoder)
+        if model_offload:
+            to_cuda(TE)
 
         mult_p, clean_text_p = token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = token_ex.parse_attn_mult(negative_prompt)
@@ -106,8 +94,8 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         emb_p = te_hook.mult_attn(emb_p, mult_p)
         emb_n = te_hook.mult_attn(emb_n, mult_n)
 
-        if offload:
-            to_cpu(memory.text_encoder)
+        if model_offload:
+            to_cpu(TE)
 
         return {'prompt':list(clean_text_p), 'negative_prompt':list(clean_text_n), 'prompt_embeds':torch.cat([emb_n, emb_p], dim=0),
             'encoder_attention_mask':attention_mask, 'pooled_output':pooled_output}

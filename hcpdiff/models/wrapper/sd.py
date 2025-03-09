@@ -1,16 +1,16 @@
 from contextlib import nullcontext
+from functools import partial
+from typing import Dict, Union
 
 import torch
 from diffusers import AutoencoderKL, UNet2DConditionModel
+from hcpdiff.diffusion.sampler import BaseSampler
+from hcpdiff.models import TEEXHook
+from hcpdiff.utils import pad_attn_bias
 from rainbowneko.models.wrapper import BaseWrapper
 from torch import Tensor
 from torch import nn
-from typing import Dict
 
-from hcpdiff.diffusion.sampler import EDM_DDPMSampler, BaseSampler, DDPMDiscreteSigmaScheduler
-from hcpdiff.models import EmbeddingPTHook, TEEXHook
-from hcpdiff.utils import pad_attn_bias, auto_text_encoder_cls
-from hcpdiff.utils.net_utils import auto_tokenizer_cls
 from .utils import TEHookCFG
 from ..cfg_context import CFGContext
 
@@ -140,23 +140,6 @@ class StableDiffusionWrapper(BaseWrapper):
             self.TE = self.TE.to(dtype=dtype)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model, unet=None, TE=None, vae: AutoencoderKL = None, noise_sampler: BaseSampler = None,
-                        tokenizer=None, revision=None, **kwargs):
-        unet = unet or UNet2DConditionModel.from_pretrained(
-            pretrained_model, subfolder="unet", revision=revision
-        )
-        vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision)
-        noise_sampler = noise_sampler or EDM_DDPMSampler(DDPMDiscreteSigmaScheduler())
-
-        if TE is None:
-            # import correct text encoder class
-            text_encoder_cls = auto_text_encoder_cls(pretrained_model, revision)
-            TE = text_encoder_cls.from_pretrained(
-                pretrained_model, subfolder="text_encoder", revision=revision
-            )
-
-        if tokenizer is None:
-            tokenizer_cls = auto_tokenizer_cls(pretrained_model, revision)
-            tokenizer = tokenizer_cls.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)
-
-        return cls(unet, TE, vae, noise_sampler, tokenizer, **kwargs)
+    def from_pretrained(cls, models:Union[partial, Dict[str,nn.Module]], **kwargs):
+        models = models() if isinstance(models, partial) else models
+        return cls(models['unet'], models['TE'], models['vae'], models['noise_sampler'], models['tokenizer'], **kwargs)

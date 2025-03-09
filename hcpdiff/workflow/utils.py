@@ -1,20 +1,18 @@
-import torch
+from typing import List, Union
 
-from .base import BasicAction, from_memory_context, feedback_input
-from torch import nn
+import torch
 from PIL import Image
-from typing import List
-from hcpdiff.data.data_processor import ControlNetProcessor
-from hcpdiff.utils import get_dtype
+from hcpdiff.data.handler import ControlNetHandler
+from rainbowneko.infer import BasicAction
+from torch import nn
 
 class LatentResizeAction(BasicAction):
-    @from_memory_context
-    def __init__(self, width=1024, height=1024, mode='bicubic', antialias=True):
+    def __init__(self, width=1024, height=1024, mode='bicubic', antialias=True, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.size = (height//8, width//8)
         self.mode = mode
         self.antialias = antialias
 
-    @feedback_input
     def forward(self, latents, **states):
         latents_dtype = latents.dtype
         latents = nn.functional.interpolate(latents.to(dtype=torch.float32), size=self.size, mode=self.mode)
@@ -26,23 +24,22 @@ class ImageResizeAction(BasicAction):
     mode_map = {'nearest':Image.NEAREST, 'bilinear':Image.BILINEAR, 'bicubic':Image.BICUBIC, 'lanczos':Image.LANCZOS, 'box':Image.BOX,
         'hamming':Image.HAMMING, 'antialias':Image.LANCZOS}
 
-    @from_memory_context
-    def __init__(self, width=1024, height=1024, mode='bicubic'):
+    def __init__(self, width=1024, height=1024, mode='bicubic', key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.size = (width, height)
         self.mode = self.mode_map[mode]
 
-    @feedback_input
     def forward(self, images: List[Image.Image], **states):
         images = [image.resize(self.size, resample=self.mode) for image in images]
         return {'images':images}
 
 class FeedtoCNetAction(BasicAction):
-    @from_memory_context
-    def __init__(self, width=None, height=None):
+    def __init__(self, width=None, height=None, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.size = (width, height)
+        self.cnet_handler = ControlNetHandler()
 
-    @feedback_input
-    def forward(self, images: List[Image.Image], device='cuda', dtype=None, bs=None, latents=None, **states):
+    def forward(self, images: Union[List[Image.Image], Image.Image], device='cuda', dtype=None, bs=None, latents=None, **states):
         if bs is None:
             if 'prompt' in states:
                 bs = len(states['prompt'])
@@ -52,5 +49,5 @@ class FeedtoCNetAction(BasicAction):
         else:
             width, height = self.size
 
-        images = ControlNetProcessor.prepare_cond_image(images, width, height, bs*2, device).to(dtype=get_dtype(dtype))
-        return {'_ex_input':{'cond':images}}
+        images = self.cnet_handler.handle(images).to(device, dtype=dtype).expand(bs*2, 3, width, height)
+        return {'ex_inputs':{'cond':images}}
