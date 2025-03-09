@@ -15,7 +15,7 @@ from einops import repeat, rearrange, einsum
 from torch import nn
 
 from .lora_base import LoraBlock
-from .layers import GroupLinear
+from rainbowneko.models.layers import GroupLinear
 import warnings
 
 class LoraLayer(LoraBlock):
@@ -59,8 +59,8 @@ class LoraLayerGroup(LoraBlock):
         def __init__(self, host, rank, bias, dropout, block):
             super().__init__(host, rank, bias, dropout, block)
             self.register_buffer('rank_groups', torch.tensor(block.rank_groups_raw, dtype=torch.int))
-            self.lora_down = GroupLinear(host.in_features*self.rank_groups, self.rank, groups=self.rank_groups, bias=False)
-            self.lora_up = GroupLinear(self.rank, host.out_features*self.rank_groups, groups=self.rank_groups, bias=bias)
+            self.lora_down = GroupLinear(host.in_features, self.rank//self.rank_groups, group=self.rank_groups, bias=False)
+            self.lora_up = GroupLinear(self.rank//self.rank_groups, host.out_features, group=self.rank_groups, bias=bias)
 
         def feed_svd(self, U, V, weight):
             self.lora_up.weight.data = rearrange(U, 'o (g ri) -> g ri o', g=self.rank_groups).to(device=weight.device, dtype=weight.dtype)
@@ -137,9 +137,3 @@ class LohaLayer(LoraBlock):
             w = torch.prod(einsum(self.W_up.data, self.W_down.data, 'g o r ..., g r i ... -> g o i ...'), dim=0)
             b = None
             return w, b
-
-lora_layer_map={
-    'lora': LoraLayer,
-    'loha_group': LoraLayerGroup,
-    'loha': LohaLayer,
-}

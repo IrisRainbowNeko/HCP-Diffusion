@@ -1,4 +1,6 @@
 from rainbowneko.train.loss import LossContainer
+from typing import Dict, Any
+from torch import Tensor
 
 class DiffusionLossContainer(LossContainer):
     def __init__(self, loss, weight=1.0, key_map=None):
@@ -17,6 +19,7 @@ class DiffusionLossContainer(LossContainer):
         else:
             raise ValueError(f"Unsupport target_type {self.target_type}")
 
+        # TODO: put in wrapper
         # # remove pred vars
         # if model_pred.shape[1] == target.shape[1]*2:
         #     model_pred, _ = model_pred.chunk(2, dim=1)
@@ -30,8 +33,9 @@ class DiffusionLossContainer(LossContainer):
                 model_pred = cvt_func(model_pred, x_t, sigma)
         return model_pred, target
     
-    def forward(self, pred, inputs):
+    def forward(self, pred:Dict[str,Any], inputs:Dict[str,Any]) -> Tensor:
         model_pred, target = self.get_target(**pred)
         pred['model_pred'] = model_pred
         pred['target'] = target
-        return super().forward(pred, inputs)
+        loss = super().forward(pred, inputs) * self.weight # [B,*,*,*]
+        return loss.mean()

@@ -8,15 +8,14 @@ lora_layers.py
     :Licence:     Apache-2.0
 """
 
+import math
+
 import torch
-from einops import einsum, rearrange
+from einops import einsum
 from torch import nn
 from torch.nn import functional as F
 
 from .lora_base_patch import LoraBlock, PatchPluginContainer
-from .layers import GroupLinear
-import math
-from typing import Union, List
 
 class LoraLayer(LoraBlock):
     def __init__(self, name: str, host, rank=1, dropout=0.0, alpha=1.0, bias=False, alpha_auto_scale=True, **kwargs):

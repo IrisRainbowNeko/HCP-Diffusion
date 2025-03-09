@@ -9,8 +9,6 @@ from rainbowneko.train.loggers import CLILogger
 from rainbowneko.utils import ConstantLR
 from hcpdiff.loss import DiffusionLossContainer
 
-from hcpdiff.models.wrapper import StableDiffusionWrapper
-
 time_format="%Y-%m-%d-%H-%M-%S"
 
 def make_cfg():
@@ -34,7 +32,7 @@ def make_cfg():
 
             resume=None,
 
-            loss=DiffusionLossContainer(MSELoss()),
+            loss=DiffusionLossContainer(MSELoss(reduction='none')),
             optimizer=torch.optim.AdamW(_partial_=True, weight_decay=1e-2),
             scale_lr=False,  # auto scale lr with total batch size
             scheduler=ConstantLR(
