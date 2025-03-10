@@ -21,6 +21,7 @@ class BuildModelsAction(BasicAction):
     def forward(self, **states):
         model = self.model_manager(dtype=self.dtype, device=self.device)
         if isinstance(model, dict):
+            model['scheduler'] = model['noise_sampler']
             return model
         else:
             return {'model':model}
@@ -39,7 +40,7 @@ class SaveImageAction(BasicAction):
 
         os.makedirs(save_root, exist_ok=True)
 
-    def forward(self, images, prompt, negative_prompt, cfgs, seeds, **states):
+    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, **states):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
@@ -48,6 +49,5 @@ class SaveImageAction(BasicAction):
             num_img_exist += 1
 
             if self.save_cfg:
-                with open(os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info.yaml"), 'w', encoding='utf-8') as f:
-                    cfgs.seed = seeds[bid]
-                    f.write(OmegaConf.to_yaml(cfgs))
+                cfgs.seed = seeds[bid]
+                parser.save_configs(cfgs, os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info"))

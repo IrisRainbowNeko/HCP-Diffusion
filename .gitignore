@@ -12,6 +12,7 @@ gen
 **/CVS/*
 .cvsignore
 */.cvsignore
+output*
 
 ### C++ template
 # Prerequisites

@@ -37,7 +37,7 @@ def make_cfg():
                 models=ModelManager(
                     format=DiffusersSD15Format(),
                     source=LocalCkptSource(),
-                ).load('Lykon/DreamShaper', _partial_=True)
+                ).load(name='Lykon/DreamShaper', _partial_=True)
             ),
         ),
 

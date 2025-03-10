@@ -74,7 +74,7 @@ class ComposeEmbPTHook(nn.Module):
                         ex_words_emb[file[:-3]] = emb
             return cls.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs), ex_words_emb
         else:
-            return EmbeddingPTHook.hook_from_dir(emb_dir, tokenizer, text_encoder, log, device, **kwargs)
+            return EmbeddingPTHook.hook_from_dir(emb_dir, tokenizer, text_encoder, **kwargs)
 
 class ComposeTEEXHook:
     def __init__(self, tehook_list: List[Tuple[str, TEEXHook]], cat_dim=-1):
@@ -121,7 +121,7 @@ class ComposeTEEXHook:
             return cls(tehook_list)
         else:
             # single text encoder
-            return TEEXHook.hook(text_enc, tokenizer, N_repeats, clip_skip, clip_final_norm, device=device, use_attention_mask=use_attention_mask)
+            return TEEXHook.hook(text_enc, tokenizer, N_repeats, clip_skip, clip_final_norm, use_attention_mask=use_attention_mask)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):

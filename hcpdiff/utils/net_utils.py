@@ -245,4 +245,7 @@ def split_module_name(layer_name):
     return parent_name, host_name
 
 def get_dtype(dtype):
-    return dtype_dict.get(dtype, torch.float32)
+    if isinstance(dtype, torch.dtype):
+        return dtype
+    else:
+        return dtype_dict.get(dtype, torch.float32)

@@ -51,12 +51,12 @@ class PrepareDiffusionAction(BasicAction):
         self.model_offload = model_offload
         self.amp = amp
 
-    def forward(self, device, unet, text_encoder, vae, **states):
+    def forward(self, device, unet, TE, vae, **states):
         unet.to(device)
-        text_encoder.to(device)
+        TE.to(device)
         vae.to(device)
 
-        text_encoder.eval()
+        TE.eval()
         unet.eval()
         vae.eval()
         return {'amp':self.amp, 'model_offload': self.model_offload}
@@ -101,6 +101,7 @@ class MakeLatentAction(BasicAction):
             if 'prompt' in states:
                 bs = len(states['prompt'])
         vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        device = torch.device(device)
 
         if latents is None:
             shape = (bs, self.N_ch, self.height//vae_scale_factor, self.width//vae_scale_factor)
@@ -211,7 +212,7 @@ class DiffusionStepAction(BasicAction):
 
     def forward(self, unet, scheduler, **states):
         states = self.act_noise_pred(unet=unet, scheduler=scheduler, **states)
-        states = self.act_sample(scheduler=scheduler, **states)
+        states = self.act_sample(**states)
         return states
 
 class X0PredAction(BasicAction):
@@ -223,5 +224,4 @@ class X0PredAction(BasicAction):
         return {'latents_x0':latents_x0}
 
 def time_iter(timesteps, **states):
-    for t in timesteps:
-        yield {'t':t}
+    return [{'t':t} for t in timesteps]

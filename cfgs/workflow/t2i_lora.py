@@ -1,12 +1,15 @@
+from cfgs.workflow.text2img import *
+from rainbowneko.infer.workflow import Actions, PrepareAction
+from hcpdiff.workflow import BuildModelsAction
 import torch
-from hcpdiff.ckpt_manager import DiffusersSD15Format
-from hcpdiff.workflow import (BuildModelsAction, PrepareDiffusionAction, XformersEnableAction, VaeOptimizeAction, TextHookAction,
-                              AttnMultTextEncodeAction, SeedAction, MakeTimestepsAction, MakeLatentAction, DiffusionStepAction, time_iter,
-                              DecodeAction, SaveImageAction)
 from rainbowneko.ckpt_manager import ModelManager, LocalCkptSource
-from rainbowneko.infer.workflow import (Actions, PrepareAction, LoopAction)
-from rainbowneko.utils import neko_cfg
+from hcpdiff.ckpt_manager import DiffusersSD15Format
 from diffusers import DPMSolverMultistepScheduler
+from rainbowneko.utils import neko_cfg
+from rainbowneko.infer import BuildPluginAction, LoadModelAction
+from rainbowneko.parser import CfgWDPluginParser
+from hcpdiff.models.lora_layers_patch import LoraLayer
+from rainbowneko.parser.model import NekoPluginLoader
 
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:
@@ -26,14 +29,23 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
                 )
             )
         ),
-    ])
-
-@neko_cfg
-def optimize_model() -> Actions:
-    Actions([
-        PrepareDiffusionAction(),
-        XformersEnableAction(),
-        VaeOptimizeAction(slicing=True),
+        BuildPluginAction(parser=CfgWDPluginParser(cfg_plugin=dict(
+            lora1=LoraLayer.wrap_model(
+                _partial_=True,
+                rank=4,
+                layers=[
+                    're:.*\.attn.?$',
+                    're:.*\.ff$',
+                ]
+            )
+        )), key_map_in=('unet -> model', 'device -> device')),
+        LoadModelAction(cfg=dict(
+            lora1=NekoPluginLoader(
+                path='exps/lora_paimeng/ckpts/model-1000-lora1.safetensors',
+                state_prefix='',
+                alpha=2,
+            )
+        ), key_map_in=('unet -> model',))
     ])
 
 @neko_cfg
@@ -42,36 +54,10 @@ def text(bs=4) -> Actions:
         TextHookAction(N_repeats=1, layer_skip=1),
         XformersEnableAction(),
         AttnMultTextEncodeAction(
-            prompt='masterpiece, best quality, 1girl, cat ears, outside',
+            prompt='1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh, :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up, notice_lines, paimon_(genshin_impact)',
             negative_prompt='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
             bs=bs
         ),
-    ])
-
-@neko_cfg
-def config_diffusion() -> Actions:
-    Actions([
-        SeedAction(42),
-        MakeTimestepsAction(N_steps=20),
-        MakeLatentAction(width=512, height=512)
-    ])
-
-@neko_cfg
-def diffusion() -> Actions:
-    Actions([
-        LoopAction(
-            iterator=time_iter,
-            actions=[
-                DiffusionStepAction(guidance_scale=7.0)
-            ]
-        )
-    ])
-
-@neko_cfg
-def decode() -> Actions:
-    Actions([
-        DecodeAction(),
-        SaveImageAction(save_root='output_pipe/', image_type='png'),
     ])
 
 def make_cfg():

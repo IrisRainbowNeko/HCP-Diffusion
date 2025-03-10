@@ -5,7 +5,7 @@ from .vae import EncodeAction, DecodeAction
 from .io import BuildModelsAction, SaveImageAction, LoadImageAction
 from .utils import LatentResizeAction, ImageResizeAction, FeedtoCNetAction
 from .model import VaeOptimizeAction, BuildOffloadAction, XformersEnableAction
-from .flow import FilePromptAction
+#from .flow import FilePromptAction
 
 try:
     from .fast import SFastCompileAction

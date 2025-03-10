@@ -1,12 +1,15 @@
 from cfgs.train.py.examples import SD_FT
 from rainbowneko.parser import CfgWDPluginParser
-from rainbowneko.ckpt_manager import ckpt_manager
+from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
 from rainbowneko.utils import neko_cfg
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.models import StableDiffusionWrapper
 from rainbowneko.train.data import RatioBucket
 from hcpdiff.data import VaeCache
 from hcpdiff.models.lora_layers_patch import LoraLayer
+from hcpdiff.ckpt_manager.format import DiffusersSD15Format
+from rainbowneko.utils import ConstantLR
+import torch
 
 def make_cfg():
     dict(
@@ -17,7 +20,9 @@ def make_cfg():
         model_plugin=CfgWDPluginParser(cfg_plugin=dict(
             lora1=LoraLayer.wrap_model(
                 _partial_=True,
+                lr=1e-4,
                 rank=4,
+                alpha=2,
                 layers=[
                     're:.*\.attn.?$',
                     're:.*\.ff$',
@@ -28,6 +33,13 @@ def make_cfg():
         train=dict(
             train_steps=1000,
             save_step=200,
+
+            optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99), weight_decay=0.1),
+
+            scheduler=ConstantLR(
+                _partial_=True,
+                warmup_steps=0,
+            ),
         ),
 
         model=dict(
@@ -35,7 +47,10 @@ def make_cfg():
 
             wrapper=StableDiffusionWrapper.from_pretrained(
                 _partial_=True,
-                pretrained_model='Lykon/DreamShaper'
+                models=ModelManager(
+                    format=DiffusersSD15Format(),
+                    source=LocalCkptSource(),
+                ).load(name='Lykon/DreamShaper', _partial_=True)
             ),
         ),
 
@@ -53,7 +68,10 @@ def cfg_data():
                     prompt_template='prompt_tuning_template/caption.txt',
                 ),
             ),
-            handler=StableDiffusionHandler(RatioBucket),
+            handler=StableDiffusionHandler(RatioBucket, 
+                word_names=dict(pt1='paimeng'),
+                erase=0,
+            ),
             bucket=RatioBucket.from_files(
                 target_area=512*512,
                 num_bucket=4,

@@ -40,7 +40,7 @@ class LoraBlock(PatchPluginBlock):
 
     def __init__(self, name:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
                  alpha_auto_scale=True, parent_block=None, host_name=None, **kwargs):
-        super().__init__(f'lora_block_{name}', host, parent_block=parent_block, host_name=host_name)
+        super().__init__(name, host, parent_block=parent_block, host_name=host_name)
 
         self.bias=bias
 
@@ -56,7 +56,13 @@ class LoraBlock(PatchPluginBlock):
         self.dropout = nn.Dropout(dropout)
 
         self.rank = self.layer.rank
+        self.alpha_auto_scale = alpha_auto_scale
         self.register_buffer('alpha', torch.tensor(alpha/self.rank if alpha_auto_scale else alpha))
+
+    def set_hyper_params(self, alpha=None, **kwargs):
+        if alpha is not None:
+            self.register_buffer('alpha', torch.tensor(alpha/self.rank if self.alpha_auto_scale else alpha))
+        super().set_hyper_params(**kwargs)
 
     def get_weight(self):
         return self.layer.get_weight() * self.alpha
@@ -154,23 +160,6 @@ class LoraBlock(PatchPluginBlock):
     @classmethod
     def wrap_model(cls, name:str, host: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
         return super().wrap_model(name, host, exclude_classes=(LoraBlock,), **kwargs)
-
-    @staticmethod
-    def extract_lora_state(model:nn.Module):
-        return {k:v for k,v in model.state_dict().items() if 'lora_block_' in k}
-
-    @staticmethod
-    def extract_state_without_lora(model:nn.Module):
-        return {k:v for k,v in model.state_dict().items() if 'lora_block_' not in k}
-
-    @staticmethod
-    def extract_param_without_lora(model:nn.Module):
-        return {k:v for k,v in model.named_parameters() if 'lora_block_' not in k}
-
-    @staticmethod
-    def extract_trainable_state_without_lora(model:nn.Module):
-        trainable_keys = {k for k,v in model.named_parameters() if ('lora_block_' not in k) and v.requires_grad}
-        return {k: v for k, v in model.state_dict().items() if k in trainable_keys}
 
 class LoraGroup(PluginGroup):
     def set_mask(self, batch_mask):
