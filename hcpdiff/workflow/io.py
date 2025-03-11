@@ -12,14 +12,14 @@ from rainbowneko.infer import LoadImageAction as Neko_LoadImageAction
 from functools import partial
 
 class BuildModelsAction(BasicAction):
-    def __init__(self, model_manager: partial[ModelManager.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
+    def __init__(self, model_loader: partial[ModelManager.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
-        self.model_manager = model_manager
+        self.model_loader = model_loader
         self.dtype = get_dtype(dtype)
         self.device = device
 
     def forward(self, **states):
-        model = self.model_manager(dtype=self.dtype, device=self.device)
+        model = self.model_loader(dtype=self.dtype, device=self.device)
         if isinstance(model, dict):
             model['scheduler'] = model['noise_sampler']
             return model

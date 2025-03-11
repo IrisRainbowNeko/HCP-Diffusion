@@ -1,15 +1,14 @@
-from cfgs.train.py.examples import SD_FT
-from rainbowneko.parser import CfgWDPluginParser
-from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
-from rainbowneko.utils import neko_cfg
-from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
-from hcpdiff.models import StableDiffusionWrapper
-from rainbowneko.train.data import RatioBucket
-from hcpdiff.data import VaeCache
-from hcpdiff.models.lora_layers_patch import LoraLayer
-from hcpdiff.ckpt_manager.format import DiffusersSD15Format
-from rainbowneko.utils import ConstantLR
 import torch
+from cfgs.train.py.examples import SD_FT
+from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
+from hcpdiff.data import VaeCache
+from hcpdiff.easy import sd15_auto_loader
+from hcpdiff.models import StableDiffusionWrapper
+from hcpdiff.models.lora_layers_patch import LoraLayer
+from rainbowneko.parser import CfgWDPluginParser
+from rainbowneko.train.data import RatioBucket
+from rainbowneko.utils import ConstantLR
+from rainbowneko.utils import neko_cfg
 
 def make_cfg():
     dict(
@@ -46,11 +45,8 @@ def make_cfg():
             name='model',
 
             wrapper=StableDiffusionWrapper.from_pretrained(
+                sd15_auto_loader('Lykon/DreamShaper', _partial_=True),
                 _partial_=True,
-                models=ModelManager(
-                    format=DiffusersSD15Format(),
-                    source=LocalCkptSource(),
-                ).load(name='Lykon/DreamShaper', _partial_=True)
             ),
         ),
 

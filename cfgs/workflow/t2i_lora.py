@@ -9,17 +9,31 @@ from rainbowneko.utils import neko_cfg
 from rainbowneko.infer import BuildPluginAction, LoadModelAction
 from rainbowneko.parser import CfgWDPluginParser
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from rainbowneko.parser.model import NekoPluginLoader
+from hcpdiff.easy import HCPLoraLoader, sd15_auto_loader
 
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:
     Actions([
         PrepareAction(device='cuda', dtype=torch.float16),
+        ## Full config
+        # BuildModelsAction(
+        #     model_loader=ModelManager(
+        #         source=LocalCkptSource(),
+        #         format=DiffusersSD15Format()
+        #     ).load(_partial_=True, name=pretrained_model,
+        #         noise_sampler=DPMSolverMultistepScheduler(
+        #             beta_start=0.00085,
+        #             beta_end=0.012,
+        #             beta_schedule='scaled_linear',
+        #             algorithm_type='sde-dpmsolver++',
+        #             use_karras_sigmas=True,
+        #         )
+        #     )
+        # ),
+        ## Easy config
         BuildModelsAction(
-            model_manager=ModelManager(
-                source=LocalCkptSource(),
-                format=DiffusersSD15Format()
-            ).load(_partial_=True, name=pretrained_model,
+            model_loader=sd15_auto_loader(_partial_=True,
+                ckpt_path=pretrained_model,
                 noise_sampler=DPMSolverMultistepScheduler(
                     beta_start=0.00085,
                     beta_end=0.012,
@@ -29,20 +43,9 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
                 )
             )
         ),
-        BuildPluginAction(parser=CfgWDPluginParser(cfg_plugin=dict(
-            lora1=LoraLayer.wrap_model(
-                _partial_=True,
-                rank=4,
-                layers=[
-                    're:.*\.attn.?$',
-                    're:.*\.ff$',
-                ]
-            )
-        )), key_map_in=('unet -> model', 'device -> device')),
         LoadModelAction(cfg=dict(
-            lora1=NekoPluginLoader(
+            lora1=HCPLoraLoader(
                 path='exps/lora_paimeng/ckpts/model-1000-lora1.safetensors',
-                state_prefix='',
                 alpha=2,
             )
         ), key_map_in=('unet -> model',))
