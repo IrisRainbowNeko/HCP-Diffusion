@@ -1,12 +1,16 @@
 import torch
-from diffusers import SchedulerMixin, DDPMScheduler, UNet2DConditionModel
+import inspect
+from diffusers import SchedulerMixin, DDPMScheduler, DPMSolverMultistepScheduler
 
 from .base import BaseSampler
+from .sigma_scheduler import TimeSigmaScheduler
 
 class DiffusersSampler(BaseSampler):
-    def __init__(self, generator: torch.Generator, scheduler: SchedulerMixin):
-        super().__init__(generator)
+    def __init__(self, generator: torch.Generator, scheduler: SchedulerMixin, eta=0.0):
+        sigma_scheduler = TimeSigmaScheduler()
+        super().__init__(sigma_scheduler, generator)
         self.scheduler = scheduler
+        self.eta = eta
 
     def c_in(self, sigma):
         one = torch.FloatTensor(1.)
@@ -30,5 +34,23 @@ class DiffusersSampler(BaseSampler):
         noise = torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
         return self.scheduler.add_noise(x, noise, t), noise
 
-    def denoise(self, x, sigma, eps=None, generator=None):
-        raise NotImplementedError
+    def prepare_extra_step_kwargs(self, scheduler, generator, eta):
+        # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
+        # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
+        # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
+        # and should be between [0, 1]
+
+        accepts_eta = "eta" in set(inspect.signature(scheduler.step).parameters.keys())
+        extra_step_kwargs = {}
+        if accepts_eta:
+            extra_step_kwargs["eta"] = eta
+
+        # check if the scheduler accepts generator
+        accepts_generator = "generator" in set(inspect.signature(scheduler.step).parameters.keys())
+        if accepts_generator:
+            extra_step_kwargs["generator"] = generator
+        return extra_step_kwargs
+
+    def denoise(self, x_t, sigma, eps=None, generator=None):
+        extra_step_kwargs = self.prepare_extra_step_kwargs(self.scheduler, generator, self.eta)
+        return self.scheduler.step(eps, sigma, x_t, **extra_step_kwargs).prev_sample

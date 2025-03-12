@@ -23,8 +23,8 @@ def make_cfg():
                 rank=4,
                 alpha=2,
                 layers=[
-                    're:.*\.attn.?$',
-                    're:.*\.ff$',
+                    're:unet.*\.attn.?$',
+                    're:unet.*\.ff$',
                 ]
             )
         )),

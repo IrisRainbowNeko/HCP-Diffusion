@@ -1,11 +1,11 @@
-import inspect
 import random
 import warnings
 from typing import Dict, Any, Union, List
 
 import torch
+from hcpdiff.diffusion.sampler import BaseSampler
 from hcpdiff.utils import prepare_seed
-from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
+from hcpdiff.utils.net_utils import get_dtype, to_cuda
 from rainbowneko.infer import BasicAction
 from torch.cuda.amp import autocast
 
@@ -59,7 +59,7 @@ class PrepareDiffusionAction(BasicAction):
         TE.eval()
         unet.eval()
         vae.eval()
-        return {'amp':self.amp, 'model_offload': self.model_offload}
+        return {'amp':self.amp, 'model_offload':self.model_offload}
 
 class MakeTimestepsAction(BasicAction):
     def __init__(self, N_steps: int = 30, strength: float = None, key_map_in=None, key_map_out=None):
@@ -141,30 +141,29 @@ class MakeLatentAction(BasicAction):
 
         return output
 
-
 class DenoiseAction(BasicAction):
     def __init__(self, guidance_scale: float = 7.0, key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
         self.guidance_scale = guidance_scale
 
-    def forward(self, unet, scheduler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
+    def forward(self, unet, scheduler: BaseSampler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
                 cross_attention_kwargs=None, dtype='fp32', amp=None, model_offload=False, **states):
 
         if model_offload:
-            to_cuda(unet) # to_cpu in VAE
+            to_cuda(unet)  # to_cpu in VAE
 
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
-            latent_model_input = scheduler.scale_model_input(latent_model_input, t)
+            latent_model_input = scheduler.c_in(t)*latent_model_input
 
             if text_embeds is None:
                 noise_pred = unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
-                                       cross_attention_kwargs=cross_attention_kwargs, ).sample
+                                  cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
                 added_cond_kwargs = {"text_embeds":text_embeds, "time_ids":crop_info}
                 # predict the noise residual
                 noise_pred = unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
-                                       cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+                                  cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
             # perform guidance
             if self.guidance_scale>1:
@@ -174,34 +173,9 @@ class DenoiseAction(BasicAction):
         return {'noise_pred':noise_pred}
 
 class SampleAction(BasicAction):
-    def __init__(self, eta=0.0, key_map_in=None, key_map_out=None):
-        super().__init__(key_map_in, key_map_out)
-        self.eta = eta
-
-    def prepare_extra_step_kwargs(self, scheduler, generator, eta):
-        # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
-        # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
-        # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
-        # and should be between [0, 1]
-
-        accepts_eta = "eta" in set(inspect.signature(scheduler.step).parameters.keys())
-        extra_step_kwargs = {}
-        if accepts_eta:
-            extra_step_kwargs["eta"] = eta
-
-        # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(inspect.signature(scheduler.step).parameters.keys())
-        if accepts_generator:
-            extra_step_kwargs["generator"] = generator
-        return extra_step_kwargs
-
-    def forward(self, scheduler, noise_pred, t, latents, generator, **states):
-
-        extra_step_kwargs = self.prepare_extra_step_kwargs(scheduler, generator, self.eta)
-
+    def forward(self, scheduler: BaseSampler, noise_pred, t, latents, generator, **states):
         # compute the previous noisy sample x_t -> x_t-1
-        sc_out = scheduler.step(noise_pred, t, latents, **extra_step_kwargs)
-        latents = sc_out.prev_sample
+        latents = scheduler.denoise(latents, t, noise_pred, generator=generator)
         return {'latents':latents}
 
 class DiffusionStepAction(BasicAction):
@@ -216,11 +190,8 @@ class DiffusionStepAction(BasicAction):
         return states
 
 class X0PredAction(BasicAction):
-    def forward(self, latents, alphas_cumprod, t, noise_pred, **states):
-        # x_t -> x_0
-        alpha_prod_t = alphas_cumprod[t.long()]
-        beta_prod_t = 1-alpha_prod_t
-        latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
+    def forward(self, latents, scheduler: BaseSampler, t, noise_pred, **states):
+        latents_x0 = scheduler.eps_to_x0(noise_pred, latents, t)
         return {'latents_x0':latents_x0}
 
 def time_iter(timesteps, **states):

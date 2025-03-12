@@ -1,9 +1,8 @@
 import torch
 import math
-from typing import Union
+from typing import Union, Tuple
 from hcpdiff.utils import linear_interp
 from .base import SigmaScheduler
-from diffusers import DDPMScheduler
 
 class DDPMDiscreteSigmaScheduler(SigmaScheduler):
     def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120, num_timesteps=1000):
@@ -154,6 +153,27 @@ class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
         diff[diff<0] = float('inf')
         t0 = diff.argmin().clamp(0, self.num_timesteps-2)
         return t0 + diff.min()/(self.sigmas[t0+1]-self.sigmas[t0])
+
+class TimeSigmaScheduler(SigmaScheduler):
+    def __init__(self, num_timesteps=1000):
+        super().__init__()
+        self.num_timesteps = num_timesteps
+
+    def get_sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
+        '''
+        :param t: 0-1, rate of time step
+        '''
+        return t
+
+    def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)) -> Tuple[torch.Tensor, torch.Tensor]:
+        if isinstance(min_rate, float):
+            min_rate = torch.full(shape, min_rate)
+        if isinstance(max_rate, float):
+            max_rate = torch.full(shape, max_rate)
+
+        t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
+        t_scale = (t*(self.num_timesteps-1e-5)).long()  # [0, num_timesteps-1)
+        return t_scale, t
 
 if __name__ == '__main__':
     from matplotlib import pyplot as plt

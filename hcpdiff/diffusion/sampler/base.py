@@ -1,6 +1,7 @@
 from typing import Tuple
 import torch
 from .sigma_scheduler import SigmaScheduler
+from diffusers import DDPMScheduler
 
 class BaseSampler:
     def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None):
@@ -28,7 +29,9 @@ class BaseSampler:
         return self.make_nosie(shape, device, dtype)*sigma
 
     def add_noise(self, x, sigma) -> Tuple[torch.Tensor, torch.Tensor]:
-        raise NotImplementedError
+        noise = self.make_nosie(x.shape, device=x.device)
+        noisy_x = (x.to(dtype=torch.float32)-self.c_out(sigma)*noise)/self.c_skip(sigma)
+        return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
 
     def add_noise_rand_t(self, x):
         bs = x.shape[0]
@@ -37,8 +40,6 @@ class BaseSampler:
         sigma = sigma.view(-1, 1, 1, 1).to(x.device)
         timesteps = timesteps.to(x.device)
         noisy_x, noise = self.add_noise(x, sigma)
-        noisy_x = noisy_x.to(dtype=x.dtype)
-        noise = noise.to(dtype=x.dtype)
 
         # Sample a random timestep for each image
         timesteps = timesteps*(self.num_timesteps-1)
@@ -63,5 +64,6 @@ class BaseSampler:
         return eps/sqrt_alpha - one_sqrt_alpha*x_t
 
     def velocity_to_x0(self, v_pred, x_t, sigma):
-        eps = self.velocity_to_eps(v_pred, x_t, sigma)
-        return self.eps_to_x0(eps, x_t, sigma)
+        alpha = 1/(sigma**2+1)
+        one_sqrt_alpha = (1-alpha).sqrt()
+        return alpha*x_t - one_sqrt_alpha*v_pred
