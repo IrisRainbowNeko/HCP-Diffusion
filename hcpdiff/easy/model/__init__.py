@@ -1,1 +1,1 @@
-from .loader import sd15_auto_loader, HCPLoraLoader
+from .loader import sd15_auto_loader

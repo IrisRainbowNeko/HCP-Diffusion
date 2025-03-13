@@ -9,7 +9,8 @@ from rainbowneko.utils import neko_cfg
 from rainbowneko.infer import BuildPluginAction, LoadModelAction
 from rainbowneko.parser import CfgWDPluginParser
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from hcpdiff.easy import HCPLoraLoader, sd15_auto_loader, Diffusers_SD
+from hcpdiff.easy import sd15_auto_loader, Diffusers_SD
+from hcpdiff.parser import HCPLoraLoader
 
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:

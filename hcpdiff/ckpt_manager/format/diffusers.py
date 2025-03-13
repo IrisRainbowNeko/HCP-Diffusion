@@ -1,5 +1,5 @@
 from diffusers import ModelMixin, AutoencoderKL, UNet2DConditionModel
-from hcpdiff.diffusion.sampler import EDM_DDPMSampler, DDPMDiscreteSigmaScheduler
+from hcpdiff.diffusion.sampler import DDPMSampler, DDPMDiscreteSigmaScheduler
 from hcpdiff.utils import auto_tokenizer_cls, auto_text_encoder_cls
 from rainbowneko.ckpt_manager.format import CkptFormat
 import torch
@@ -22,7 +22,7 @@ class DiffusersSD15Format(CkptFormat):
             pretrained_model, subfolder="unet", revision=revision, torch_dtype=dtype
         )
         vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision, torch_dtype=dtype)
-        noise_sampler = noise_sampler or EDM_DDPMSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or DDPMSampler(DDPMDiscreteSigmaScheduler())
 
         if TE is None:
             # import correct text encoder class

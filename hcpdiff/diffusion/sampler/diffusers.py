@@ -2,6 +2,12 @@ import torch
 import inspect
 from diffusers import SchedulerMixin, DDPMScheduler
 
+try:
+    from diffusers.utils import randn_tensor
+except:
+    # new version of diffusers
+    from diffusers.utils.torch_utils import randn_tensor
+
 from .base import BaseSampler
 from .sigma_scheduler import TimeSigmaScheduler
 
@@ -13,7 +19,7 @@ class DiffusersSampler(BaseSampler):
         self.eta = eta
 
     def c_in(self, sigma):
-        one = torch.FloatTensor(1.)
+        one = torch.ones_like(sigma)
         if hasattr(self.scheduler, '_step_index'):
             self.scheduler._step_index = None
         return self.scheduler.scale_model_input(one, sigma)
@@ -32,11 +38,11 @@ class DiffusersSampler(BaseSampler):
         return self.scheduler.timesteps
 
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
-        return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)*self.scheduler.init_noise_sigma
+        return randn_tensor(shape, generator=self.generator, device=device, dtype=dtype)*self.scheduler.init_noise_sigma
 
-    def add_noise(self, x, sigma, t=None):
-        noise = torch.randn(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
-        return self.scheduler.add_noise(x, noise, t), noise
+    def add_noise(self, x, sigma):
+        noise = randn_tensor(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
+        return self.scheduler.add_noise(x, noise, sigma), noise
 
     def prepare_extra_step_kwargs(self, scheduler, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature

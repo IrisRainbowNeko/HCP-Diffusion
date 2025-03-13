@@ -95,7 +95,7 @@ class MakeLatentAction(BasicAction):
         self.height = height
         self.width = width
 
-    def forward(self, noise_sampler, vae, generator, device, dtype, bs=None, latents=None, start_timestep=None,
+    def forward(self, noise_sampler:BaseSampler, vae, generator, device, dtype, bs=None, latents=None, start_timestep=None,
                 pooled_output=None, crop_coord=None, **states):
         if bs is None:
             if 'prompt' in states:
@@ -115,14 +115,14 @@ class MakeLatentAction(BasicAction):
                 f" size of {bs}. Make sure the batch size matches the length of the generators."
             )
 
-        noise = randn_tensor(shape, generator=generator, device=device, dtype=get_dtype(dtype))
         if latents is None:
             # scale the initial noise by the standard deviation required by the noise_sampler
-            latents = noise*noise_sampler.init_noise_sigma
+            noise_sampler.generator = generator
+            latents = noise_sampler.init_noise(shape, device=device, dtype=get_dtype(dtype))
         else:
             # image to image
             latents = latents.to(device)
-            latents = noise_sampler.add_noise(latents, noise, start_timestep)
+            latents = noise_sampler.add_noise(latents, start_timestep)
 
         output = {'latents':latents}
 
