@@ -122,7 +122,7 @@ class MakeLatentAction(BasicAction):
         else:
             # image to image
             latents = latents.to(device)
-            latents = noise_sampler.add_noise(latents, start_timestep)
+            latents, noise = noise_sampler.add_noise(latents, start_timestep)
 
         output = {'latents':latents}
 
