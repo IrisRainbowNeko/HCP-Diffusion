@@ -6,7 +6,7 @@ from .base import BaseSampler
 from .sigma_scheduler import TimeSigmaScheduler
 
 class DiffusersSampler(BaseSampler):
-    def __init__(self, scheduler: DDPMScheduler, eta=0.0, generator: torch.Generator=None):
+    def __init__(self, scheduler: SchedulerMixin, eta=0.0, generator: torch.Generator=None):
         sigma_scheduler = TimeSigmaScheduler()
         super().__init__(sigma_scheduler, generator)
         self.scheduler = scheduler

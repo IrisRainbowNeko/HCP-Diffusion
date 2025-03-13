@@ -7,23 +7,38 @@ from rainbowneko.ckpt_manager import ModelManager, LocalCkptSource
 from rainbowneko.infer.workflow import (Actions, PrepareAction, LoopAction)
 from rainbowneko.utils import neko_cfg
 from diffusers import DPMSolverMultistepScheduler
+from hcpdiff.easy import Diffusers_SD, sd15_auto_loader
 
+## Full config
+# @neko_cfg
+# def build_model(pretrained_model='ckpts/any5') -> Actions:
+#     Actions([
+#         PrepareAction(device='cuda', dtype=torch.float16),
+#         BuildModelsAction(
+#             model_loader=ModelManager(
+#                 source=LocalCkptSource(),
+#                 format=DiffusersSD15Format()
+#             ).load(_partial_=True, name=pretrained_model,
+#                 noise_sampler=DPMSolverMultistepScheduler(
+#                     beta_start=0.00085,
+#                     beta_end=0.012,
+#                     beta_schedule='scaled_linear',
+#                     algorithm_type='sde-dpmsolver++',
+#                     use_karras_sigmas=True,
+#                 )
+#             )
+#         ),
+#     ])
+
+## Easy config
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:
     Actions([
         PrepareAction(device='cuda', dtype=torch.float16),
         BuildModelsAction(
-            model_manager=ModelManager(
-                source=LocalCkptSource(),
-                format=DiffusersSD15Format()
-            ).load(_partial_=True, name=pretrained_model,
-                noise_sampler=DPMSolverMultistepScheduler(
-                    beta_start=0.00085,
-                    beta_end=0.012,
-                    beta_schedule='scaled_linear',
-                    algorithm_type='sde-dpmsolver++',
-                    use_karras_sigmas=True,
-                )
+            model_loader=sd15_auto_loader(_partial_=True,
+                ckpt_path=pretrained_model,
+                noise_sampler=Diffusers_SD.dpmpp_2m_karras
             )
         ),
     ])

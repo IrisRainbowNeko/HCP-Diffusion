@@ -9,7 +9,7 @@ from rainbowneko.utils import neko_cfg
 from rainbowneko.infer import BuildPluginAction, LoadModelAction
 from rainbowneko.parser import CfgWDPluginParser
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from hcpdiff.easy import HCPLoraLoader, sd15_auto_loader
+from hcpdiff.easy import HCPLoraLoader, sd15_auto_loader, Diffusers_SD
 
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:
@@ -34,13 +34,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
         BuildModelsAction(
             model_loader=sd15_auto_loader(_partial_=True,
                 ckpt_path=pretrained_model,
-                noise_sampler=DPMSolverMultistepScheduler(
-                    beta_start=0.00085,
-                    beta_end=0.012,
-                    beta_schedule='scaled_linear',
-                    algorithm_type='sde-dpmsolver++',
-                    use_karras_sigmas=True,
-                )
+                noise_sampler=Diffusers_SD.dpmpp_2m_karras
             )
         ),
         LoadModelAction(cfg=dict(
