@@ -21,7 +21,6 @@ class BuildModelsAction(BasicAction):
     def forward(self, **states):
         model = self.model_loader(dtype=self.dtype, device=self.device)
         if isinstance(model, dict):
-            model['scheduler'] = model['noise_sampler']
             return model
         else:
             return {'model':model}

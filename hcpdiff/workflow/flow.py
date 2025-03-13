@@ -1,11 +1,11 @@
-from .base import BasicAction, from_memory_context, feedback_input, ContainerAction
+from rainbowneko.infer import BasicAction
 from typing import List, Dict
 from tqdm import tqdm
 import math
 
 class FilePromptAction(BasicAction):
-    def __init__(self, actions: List[BasicAction], prompt: str, negative_prompt: str, bs: int = 4):
-        super().__init__()
+    def __init__(self, actions: List[BasicAction], prompt: str, negative_prompt: str, bs: int = 4, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         if prompt.endswith('.txt'):
             with open(prompt, 'r') as f:
                 prompt = f.read().split('\n')
@@ -24,8 +24,7 @@ class FilePromptAction(BasicAction):
         self.actions = actions
 
 
-    @feedback_input
-    def forward(self, memory, **states):
+    def forward(self, **states):
         states.update({'prompt_all':self.prompt, 'negative_prompt_all':self.negative_prompt})
         states_ref = dict(**states)
 
@@ -37,12 +36,12 @@ class FilePromptAction(BasicAction):
             states.update(feed_data)
             for step, act in enumerate(self.actions):
                 pbar.set_description(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
-                states = act(memory=memory, **states)
+                states = act(**states)
         return states
 
 class FlowPromptAction(BasicAction):
-    def __init__(self, actions: List[BasicAction], prompt: str, negative_prompt: str, bs: int = 4, num: int = None):
-        super().__init__()
+    def __init__(self, actions: List[BasicAction], prompt: str, negative_prompt: str, bs: int = 4, num: int = None, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         prompt = [prompt]*num
         negative_prompt = [negative_prompt]*num
 
@@ -52,8 +51,7 @@ class FlowPromptAction(BasicAction):
         self.actions = actions
 
 
-    @feedback_input
-    def forward(self, memory, **states):
+    def forward(self, **states):
         states.update({'prompt_all':self.prompt, 'negative_prompt_all':self.negative_prompt})
         states_ref = dict(**states)
 
@@ -65,5 +63,5 @@ class FlowPromptAction(BasicAction):
             states.update(feed_data)
             for step, act in enumerate(self.actions):
                 pbar.set_description(f'[{step+1}/{N_steps}] action: {type(act).__name__}')
-                states = act(memory=memory, **states)
+                states = act(**states)
         return states

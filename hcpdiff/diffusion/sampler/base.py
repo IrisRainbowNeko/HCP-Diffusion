@@ -21,6 +21,9 @@ class BaseSampler:
     def num_timesteps(self):
         return getattr(self.sigma_scheduler, 'num_timesteps', 1000.)
 
+    def get_timesteps(self, N_steps, device='cuda'):
+        return torch.linspace(0, self.num_timesteps, N_steps, device=device)
+
     def make_nosie(self, shape, device='cuda', dtype=torch.float32):
         return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)
 

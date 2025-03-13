@@ -3,7 +3,7 @@ import warnings
 from typing import Dict, Any, Union, List
 
 import torch
-from hcpdiff.diffusion.sampler import BaseSampler
+from hcpdiff.diffusion.sampler import BaseSampler, DiffusersSampler
 from hcpdiff.utils import prepare_seed
 from hcpdiff.utils.net_utils import get_dtype, to_cuda
 from rainbowneko.infer import BasicAction
@@ -67,26 +67,26 @@ class MakeTimestepsAction(BasicAction):
         self.N_steps = N_steps
         self.strength = strength
 
-    def get_timesteps(self, scheduler, timesteps, strength):
+    def get_timesteps(self, noise_sampler:BaseSampler, timesteps, strength):
         # get the original timestep using init_timestep
         num_inference_steps = len(timesteps)
         init_timestep = min(int(num_inference_steps*strength), num_inference_steps)
 
         t_start = max(num_inference_steps-init_timestep, 0)
-        timesteps = timesteps[t_start*scheduler.order:]
+        if isinstance(noise_sampler, DiffusersSampler):
+            timesteps = timesteps[t_start*noise_sampler.scheduler.order:]
+        else:
+            timesteps = timesteps[t_start:]
 
         return timesteps
 
-    def forward(self, scheduler, device, **states):
-
-        scheduler.set_timesteps(self.N_steps, device=device)
-        timesteps = scheduler.timesteps
-        alphas_cumprod = scheduler.alphas_cumprod.to(timesteps.device)
+    def forward(self, noise_sampler:BaseSampler, device, **states):
+        timesteps = noise_sampler.get_timesteps(self.N_steps, device=device)
         if self.strength:
-            timesteps = self.get_timesteps(scheduler, timesteps, self.strength)
-            return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod, 'start_timestep':timesteps[:1]}
+            timesteps = self.get_timesteps(noise_sampler, timesteps, self.strength)
+            return {'timesteps':timesteps, 'start_timestep':timesteps[:1]}
         else:
-            return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod}
+            return {'timesteps':timesteps}
 
 class MakeLatentAction(BasicAction):
     def __init__(self, N_ch=4, height=None, width=None, key_map_in=None, key_map_out=None):
@@ -95,7 +95,7 @@ class MakeLatentAction(BasicAction):
         self.height = height
         self.width = width
 
-    def forward(self, scheduler, vae, generator, device, dtype, bs=None, latents=None, start_timestep=None,
+    def forward(self, noise_sampler, vae, generator, device, dtype, bs=None, latents=None, start_timestep=None,
                 pooled_output=None, crop_coord=None, **states):
         if bs is None:
             if 'prompt' in states:
@@ -117,12 +117,12 @@ class MakeLatentAction(BasicAction):
 
         noise = randn_tensor(shape, generator=generator, device=device, dtype=get_dtype(dtype))
         if latents is None:
-            # scale the initial noise by the standard deviation required by the scheduler
-            latents = noise*scheduler.init_noise_sigma
+            # scale the initial noise by the standard deviation required by the noise_sampler
+            latents = noise*noise_sampler.init_noise_sigma
         else:
             # image to image
             latents = latents.to(device)
-            latents = scheduler.add_noise(latents, noise, start_timestep)
+            latents = noise_sampler.add_noise(latents, noise, start_timestep)
 
         output = {'latents':latents}
 
@@ -146,7 +146,7 @@ class DenoiseAction(BasicAction):
         super().__init__(key_map_in, key_map_out)
         self.guidance_scale = guidance_scale
 
-    def forward(self, unet, scheduler: BaseSampler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
+    def forward(self, unet, noise_sampler: BaseSampler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
                 cross_attention_kwargs=None, dtype='fp32', amp=None, model_offload=False, **states):
 
         if model_offload:
@@ -154,7 +154,7 @@ class DenoiseAction(BasicAction):
 
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
-            latent_model_input = scheduler.c_in(t)*latent_model_input
+            latent_model_input = noise_sampler.c_in(t)*latent_model_input
 
             if text_embeds is None:
                 noise_pred = unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
@@ -173,9 +173,9 @@ class DenoiseAction(BasicAction):
         return {'noise_pred':noise_pred}
 
 class SampleAction(BasicAction):
-    def forward(self, scheduler: BaseSampler, noise_pred, t, latents, generator, **states):
+    def forward(self, noise_sampler: BaseSampler, noise_pred, t, latents, generator, **states):
         # compute the previous noisy sample x_t -> x_t-1
-        latents = scheduler.denoise(latents, t, noise_pred, generator=generator)
+        latents = noise_sampler.denoise(latents, t, noise_pred, generator=generator)
         return {'latents':latents}
 
 class DiffusionStepAction(BasicAction):
@@ -184,14 +184,14 @@ class DiffusionStepAction(BasicAction):
         self.act_noise_pred = DenoiseAction(guidance_scale)
         self.act_sample = SampleAction()
 
-    def forward(self, unet, scheduler, **states):
-        states = self.act_noise_pred(unet=unet, scheduler=scheduler, **states)
+    def forward(self, unet, noise_sampler, **states):
+        states = self.act_noise_pred(unet=unet, noise_sampler=noise_sampler, **states)
         states = self.act_sample(**states)
         return states
 
 class X0PredAction(BasicAction):
-    def forward(self, latents, scheduler: BaseSampler, t, noise_pred, **states):
-        latents_x0 = scheduler.eps_to_x0(noise_pred, latents, t)
+    def forward(self, latents, noise_sampler: BaseSampler, t, noise_pred, **states):
+        latents_x0 = noise_sampler.eps_to_x0(noise_pred, latents, t)
         return {'latents_x0':latents_x0}
 
 def time_iter(timesteps, **states):

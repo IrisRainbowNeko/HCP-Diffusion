@@ -1,5 +1,5 @@
 from sfast.compilers.diffusion_pipeline_compiler import (compile_unet, CompilationConfig)
-from .base import BasicAction, from_memory_context, feedback_input
+from rainbowneko.infer import BasicAction
 
 
 class SFastCompileAction(BasicAction):
@@ -26,6 +26,6 @@ class SFastCompileAction(BasicAction):
 
         return compile_unet(unet, config)
 
-    @feedback_input
-    def forward(self, memory, **states):
-        memory.unet = self.compile_model(memory.unet)
+    def forward(self, unet, **states):
+        unet = self.compile_model(unet)
+        return {'unet': unet}

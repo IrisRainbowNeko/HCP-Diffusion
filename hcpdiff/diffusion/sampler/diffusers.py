@@ -1,12 +1,12 @@
 import torch
 import inspect
-from diffusers import SchedulerMixin, DDPMScheduler, DPMSolverMultistepScheduler
+from diffusers import SchedulerMixin, DDPMScheduler
 
 from .base import BaseSampler
 from .sigma_scheduler import TimeSigmaScheduler
 
 class DiffusersSampler(BaseSampler):
-    def __init__(self, generator: torch.Generator, scheduler: SchedulerMixin, eta=0.0):
+    def __init__(self, scheduler: DDPMScheduler, eta=0.0, generator: torch.Generator=None):
         sigma_scheduler = TimeSigmaScheduler()
         super().__init__(sigma_scheduler, generator)
         self.scheduler = scheduler
@@ -27,7 +27,11 @@ class DiffusersSampler(BaseSampler):
         else:  # EDM model
             return 1.
 
-    def init_noise(self, sigma, shape, device='cuda', dtype=torch.float32):
+    def get_timesteps(self, N_steps, device='cuda'):
+        self.scheduler.set_timesteps(N_steps, device=device)
+        return self.scheduler.timesteps
+
+    def init_noise(self, shape, device='cuda', dtype=torch.float32):
         return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)*self.scheduler.init_noise_sigma
 
     def add_noise(self, x, sigma, t=None):
