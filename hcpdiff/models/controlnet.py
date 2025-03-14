@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from copy import deepcopy
 
-from .plugin import MultiPluginBlock, BasePluginBlock
+from rainbowneko.models.plugin import MultiPluginBlock, BasePluginBlock
 from hcpdiff.utils.net_utils import remove_all_hooks, remove_layers
 
 class ControlNetPlugin(MultiPluginBlock):

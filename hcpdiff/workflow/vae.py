@@ -53,13 +53,13 @@ class DecodeAction(BasicAction):
         self.image_processor = image_processor
         self.output_type = output_type
 
-    def forward(self, vae, unet, latents, model_offload=False, **states):
+    def forward(self, vae, denoiser, latents, model_offload=False, **states):
         vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
         if self.image_processor is None:
             self.image_processor = VaeImageProcessor(vae_scale_factor=vae_scale_factor)
 
         if model_offload:
-            to_cpu(unet)
+            to_cpu(denoiser)
             torch.cuda.synchronize()
             to_cuda(vae)
         latents = latents.to(dtype=vae.dtype)

@@ -9,7 +9,7 @@ from rainbowneko.utils import neko_cfg
 from rainbowneko.infer import BuildPluginAction, LoadModelAction
 from rainbowneko.parser import CfgWDPluginParser
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from hcpdiff.easy import sd15_auto_loader, Diffusers_SD
+from hcpdiff.easy import SD15_auto_loader, Diffusers_SD
 from hcpdiff.parser import HCPLoraLoader
 
 @neko_cfg
@@ -33,17 +33,17 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
         # ),
         ## Easy config
         BuildModelsAction(
-            model_loader=sd15_auto_loader(_partial_=True,
-                ckpt_path=pretrained_model,
-                noise_sampler=Diffusers_SD.dpmpp_2m_karras
-            )
+            model_loader=SD15_auto_loader(_partial_=True,
+                                          ckpt_path=pretrained_model,
+                                          noise_sampler=Diffusers_SD.dpmpp_2m_karras
+                                          )
         ),
         LoadModelAction(cfg=dict(
             lora1=HCPLoraLoader(
                 path='exps/lora_paimeng/ckpts/model-1000-lora1.safetensors',
                 alpha=2,
             )
-        ), key_map_in=('unet -> model',))
+        ), key_map_in=('denoiser -> model',))
     ])
 
 @neko_cfg

@@ -11,10 +11,10 @@ from rainbowneko.infer import BasicAction, Actions
 from .hook import DiffusionHeatMapHooker
 
 class CaptureCrossAttnAction(Actions):
-    def forward(self, prompt, unet, tokenizer, vae, **states):
+    def forward(self, prompt, denoiser, tokenizer, vae, **states):
         bs = len(prompt)
         N_head = 8
-        with DiffusionHeatMapHooker(unet, tokenizer, vae_scale_factor=vae.vae_scale_factor) as tc:
+        with DiffusionHeatMapHooker(denoiser, tokenizer, vae_scale_factor=vae.vae_scale_factor) as tc:
             states = super().forward(**states)
             heat_maps = [tc.compute_global_heat_map(prompt=prompt[i], head_idxs=range(N_head*i, N_head*(i+1))) for i in range(bs)]
 

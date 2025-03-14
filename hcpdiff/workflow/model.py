@@ -23,18 +23,18 @@ class BuildOffloadAction(BasicAction):
         self.max_VRAM = max_VRAM
         self.max_RAM = max_RAM
 
-    def forward(self, vae, unet, dtype: str, **states):
+    def forward(self, vae, denoiser, dtype: str, **states):
         torch_dtype = get_dtype(dtype)
         vram = size_to_int(self.max_VRAM)
-        device_map = infer_auto_device_map(unet, max_memory={0:int_to_size(vram >> 1), "cpu":self.max_RAM}, dtype=torch_dtype)
-        unet = dispatch_model(unet, device_map)
+        device_map = infer_auto_device_map(denoiser, max_memory={0:int_to_size(vram >> 1), "cpu":self.max_RAM}, dtype=torch_dtype)
+        denoiser = dispatch_model(denoiser, device_map)
 
         device_map = infer_auto_device_map(vae, max_memory={0:int_to_size(vram >> 5), "cpu":self.max_RAM}, dtype=torch_dtype)
         vae = dispatch_model(vae, device_map)
-        return {'unet':unet, 'vae':vae}
+        return {'denoiser':denoiser, 'vae':vae}
 
 class XformersEnableAction(BasicAction):
-    def forward(self, unet, **states):
+    def forward(self, denoiser, **states):
         if is_xformers_available():
-            unet.enable_xformers_memory_efficient_attention()
+            denoiser.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()

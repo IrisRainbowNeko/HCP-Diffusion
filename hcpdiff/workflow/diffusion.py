@@ -51,13 +51,13 @@ class PrepareDiffusionAction(BasicAction):
         self.model_offload = model_offload
         self.amp = amp
 
-    def forward(self, device, unet, TE, vae, **states):
-        unet.to(device)
+    def forward(self, device, denoiser, TE, vae, **states):
+        denoiser.to(device)
         TE.to(device)
         vae.to(device)
 
         TE.eval()
-        unet.eval()
+        denoiser.eval()
         vae.eval()
         return {'amp':self.amp, 'model_offload':self.model_offload}
 
@@ -146,23 +146,23 @@ class DenoiseAction(BasicAction):
         super().__init__(key_map_in, key_map_out)
         self.guidance_scale = guidance_scale
 
-    def forward(self, unet, noise_sampler: BaseSampler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
+    def forward(self, denoiser, noise_sampler: BaseSampler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
                 cross_attention_kwargs=None, dtype='fp32', amp=None, model_offload=False, **states):
 
         if model_offload:
-            to_cuda(unet)  # to_cpu in VAE
+            to_cuda(denoiser)  # to_cpu in VAE
 
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
             latent_model_input = noise_sampler.c_in(t)*latent_model_input
 
             if text_embeds is None:
-                noise_pred = unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                   cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
                 added_cond_kwargs = {"text_embeds":text_embeds, "time_ids":crop_info}
                 # predict the noise residual
-                noise_pred = unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                   cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
             # perform guidance
@@ -184,8 +184,8 @@ class DiffusionStepAction(BasicAction):
         self.act_noise_pred = DenoiseAction(guidance_scale)
         self.act_sample = SampleAction()
 
-    def forward(self, unet, noise_sampler, **states):
-        states = self.act_noise_pred(unet=unet, noise_sampler=noise_sampler, **states)
+    def forward(self, denoiser, noise_sampler, **states):
+        states = self.act_noise_pred(denoiser=denoiser, noise_sampler=noise_sampler, **states)
         states = self.act_sample(**states)
         return states
 

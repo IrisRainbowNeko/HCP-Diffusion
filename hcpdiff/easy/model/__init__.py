@@ -1,1 +1,1 @@
-from .loader import sd15_auto_loader
+from .loader import SD15_auto_loader

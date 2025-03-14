@@ -2,8 +2,8 @@ from cfgs.train.py import train_base, tuning_base
 from hcpdiff.ckpt_manager.format import DiffusersSD15Format
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.data import VaeCache
-from hcpdiff.easy import sd15_auto_loader
-from hcpdiff.models import StableDiffusionWrapper
+from hcpdiff.easy import SD15_auto_loader
+from hcpdiff.models import SD15Wrapper
 from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
 from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.train.data import RatioBucket
@@ -17,12 +17,12 @@ def make_cfg():
         model_part=CfgWDModelParser([
             dict(
                 lr=1e-5,
-                layers=['unet'],  # train UNet
+                layers=['denoiser'],  # train UNet
             )
         ]),
 
         ckpt_manager=[
-            ckpt_manager('safetensors', saved_model=({'model':'unet', 'trainable':True},))
+            ckpt_manager('safetensors', saved_model=({'model':'denoiser', 'trainable':True},))
         ],
 
         train=dict(
@@ -43,8 +43,8 @@ def make_cfg():
             # ),
 
             ## Easy config
-            wrapper=StableDiffusionWrapper.from_pretrained(
-                sd15_auto_loader('Lykon/DreamShaper', _partial_=True),
+            wrapper=SD15Wrapper.from_pretrained(
+                SD15_auto_loader('Lykon/DreamShaper', _partial_=True),
                 _partial_=True,
             ),
         ),

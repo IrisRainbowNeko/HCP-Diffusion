@@ -1,1 +1,2 @@
-from .sd import StableDiffusionWrapper
+from .sd import SD15Wrapper, SDXLWrapper
+from .pixart import PixArtWrapper

@@ -2,8 +2,8 @@ import torch
 from cfgs.train.py.examples import SD_FT
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.data import VaeCache
-from hcpdiff.easy import sd15_auto_loader
-from hcpdiff.models import StableDiffusionWrapper
+from hcpdiff.easy import SD15_auto_loader
+from hcpdiff.models import SD15Wrapper
 from hcpdiff.models.lora_layers_patch import LoraLayer
 from rainbowneko.parser import CfgWDPluginParser
 from rainbowneko.train.data import RatioBucket
@@ -23,8 +23,8 @@ def make_cfg():
                 rank=4,
                 alpha=2,
                 layers=[
-                    're:unet.*\.attn.?$',
-                    're:unet.*\.ff$',
+                    're:denoiser.*\.attn.?$',
+                    're:denoiser.*\.ff$',
                 ]
             )
         )),
@@ -44,8 +44,8 @@ def make_cfg():
         model=dict(
             name='model',
 
-            wrapper=StableDiffusionWrapper.from_pretrained(
-                sd15_auto_loader('Lykon/DreamShaper', _partial_=True),
+            wrapper=SD15Wrapper.from_pretrained(
+                SD15_auto_loader('Lykon/DreamShaper', _partial_=True),
                 _partial_=True,
             ),
         ),

@@ -26,6 +26,6 @@ class SFastCompileAction(BasicAction):
 
         return compile_unet(unet, config)
 
-    def forward(self, unet, **states):
-        unet = self.compile_model(unet)
-        return {'unet': unet}
+    def forward(self, denoiser, **states):
+        denoiser = self.compile_model(denoiser)
+        return {'denoiser': denoiser}

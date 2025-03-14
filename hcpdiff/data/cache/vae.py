@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 import lmdb
 import torch
-from hcpdiff.models.wrapper import StableDiffusionWrapper
+from hcpdiff.models.wrapper import SD15Wrapper
 from rainbowneko import _share
 from rainbowneko.train.data import DataCache, CacheableDataset
 from rainbowneko.utils import Path_Like
@@ -47,7 +47,7 @@ class VaeCache(DataCache):
             env.close()
             return cache
 
-    def build(self, dataset: CacheableDataset, model: StableDiffusionWrapper, all_gather):
+    def build(self, dataset: CacheableDataset, model: SD15Wrapper, all_gather):
         if (self.pre_build and Path(self.pre_build).exists()) or len(self.cache)>0:
             model.vae = None
             return

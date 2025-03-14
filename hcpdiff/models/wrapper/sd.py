@@ -6,6 +6,7 @@ import torch
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from hcpdiff.diffusion.sampler import BaseSampler
 from hcpdiff.models import TEEXHook
+from hcpdiff.models.compose import ComposeTEEXHook
 from hcpdiff.utils import pad_attn_bias
 from rainbowneko.models.wrapper import BaseWrapper
 from torch import Tensor
@@ -14,14 +15,16 @@ from torch import nn
 from .utils import TEHookCFG
 from ..cfg_context import CFGContext
 
-class StableDiffusionWrapper(BaseWrapper):
-    def __init__(self, unet: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=32,
+class SD15Wrapper(BaseWrapper):
+    def __init__(self, denoiser: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=0,
                  pred_type='eps', TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
         super().__init__()
-        self.key_mapper_in = self.build_mapper(key_map_in, None, ('prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids', 'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input'))
+        self.key_mapper_in = self.build_mapper(key_map_in, None, (
+        'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
+        'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input'))
         self.key_mapper_out = self.build_mapper(key_map_out, None, None)
 
-        self.unet = unet
+        self.denoiser = denoiser
         self.TE = TE
         self.vae = vae
         self.noise_sampler = noise_sampler
@@ -35,20 +38,24 @@ class StableDiffusionWrapper(BaseWrapper):
         self.tokenizer.N_repeats = self.TE_hook_cfg.tokenizer_repeats
 
     def post_init(self):
-        # Hook and extend text_encoder
-        self.text_enc_hook = TEEXHook.hook(self.TE, self.tokenizer, N_repeats=self.TE_hook_cfg.tokenizer_repeats,
-                                           clip_skip=self.TE_hook_cfg.clip_skip, clip_final_norm=self.TE_hook_cfg.clip_final_norm)
+        self.make_TE_hook(self.TE_hook_cfg)
+
+        self.vae_trainable = False
+        for name, p in self.vae.parameters():
+            if p.requires_grad:
+                self.vae_trainable = True
+                break
+
+        self.TE_trainable = False
+        for name, p in self.TE.parameters():
+            if p.requires_grad:
+                self.TE_trainable = True
+                break
 
     def make_TE_hook(self, TE_hook_cfg):
-        self.post_init()
-
-    @property
-    def vae_trainable(self):
-        return False
-
-    @property
-    def TE_trainable(self):
-        return False
+        # Hook and extend text_encoder
+        self.text_enc_hook = TEEXHook.hook(self.TE, self.tokenizer, N_repeats=TE_hook_cfg.tokenizer_repeats,
+                                           clip_skip=TE_hook_cfg.clip_skip, clip_final_norm=TE_hook_cfg.clip_final_norm)
 
     def get_latents(self, image: Tensor):
         if image.shape[1] == 3:
@@ -59,30 +66,30 @@ class StableDiffusionWrapper(BaseWrapper):
             latents = image  # Cached latents
         return latents
 
-    def forward_TE(self, prompt_ids, timesteps, attn_mask=None, position_ids=None, plugin_input={}):
+    def forward_TE(self, prompt_ids, timesteps, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
         input_all = dict(prompt_ids=prompt_ids, timesteps=timesteps, position_ids=position_ids, attn_mask=attn_mask, **plugin_input)
         if hasattr(self.TE, 'input_feeder'):
             for feeder in self.TE.input_feeder:
                 feeder(input_all)
         # Get the text embedding for conditioning
         encoder_hidden_states = self.TE(prompt_ids, position_ids=position_ids, attention_mask=attn_mask, output_hidden_states=True)[0]
+        return encoder_hidden_states
 
+    def forward_denoiser(self, x_t, prompt_ids, encoder_hidden_states, timesteps, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
         if attn_mask is not None:
             attn_mask[:, :self.min_attnmask] = 1
             encoder_hidden_states, attn_mask = pad_attn_bias(encoder_hidden_states, attn_mask)
-        return encoder_hidden_states, attn_mask
 
-    def forward_unet(self, x_t, prompt_ids, encoder_hidden_states, timesteps, attn_mask=None, position_ids=None, plugin_input={}):
         input_all = dict(prompt_ids=prompt_ids, timesteps=timesteps, position_ids=position_ids, attn_mask=attn_mask,
                          encoder_hidden_states=encoder_hidden_states, **plugin_input)
-        if hasattr(self.unet, 'input_feeder'):
-            for feeder in self.unet.input_feeder:
+        if hasattr(self.denoiser, 'input_feeder'):
+            for feeder in self.denoiser.input_feeder:
                 feeder(input_all)
-        model_pred = self.unet(x_t, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask).sample  # Predict the noise residual
+        model_pred = self.denoiser(x_t, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask).sample  # Predict the noise residual
         return model_pred
 
     def model_forward(self, prompt_ids, image, attn_mask=None, position_ids=None, neg_prompt_ids=None, neg_attn_mask=None, neg_position_ids=None,
-                      plugin_input={}):
+                      plugin_input={}, **kwargs):
         # input prepare
         x_0 = self.get_latents(image)
         x_t, noise, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
@@ -97,13 +104,14 @@ class StableDiffusionWrapper(BaseWrapper):
 
         # model forward
         x_t_in, timesteps = self.cfg_context.pre(x_t_in, timesteps)
-        encoder_hidden_states, attn_mask = self.forward_TE(prompt_ids, timesteps, attn_mask=attn_mask, position_ids=position_ids,
-                                                           plugin_input=plugin_input)
-        model_pred = self.forward_unet(x_t_in, prompt_ids, encoder_hidden_states, timesteps, attn_mask=attn_mask, position_ids=position_ids,
-                                       plugin_input=plugin_input)
+        encoder_hidden_states = self.forward_TE(prompt_ids, timesteps, attn_mask=attn_mask, position_ids=position_ids,
+                                                plugin_input=plugin_input, **kwargs)
+        model_pred = self.forward_denoiser(x_t_in, prompt_ids, encoder_hidden_states, timesteps, attn_mask=attn_mask, position_ids=position_ids,
+                                       plugin_input=plugin_input, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
-        return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type, noise_sampler=self.noise_sampler)
+        return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type,
+                    noise_sampler=self.noise_sampler)
 
     def forward(self, ds_name=None, **kwargs):
         model_args, model_kwargs = self.get_map_data(self.key_mapper_in, kwargs, ds_name)
@@ -115,13 +123,13 @@ class StableDiffusionWrapper(BaseWrapper):
             if getattr(m, 'gradient_checkpointing', False):
                 m.training = True
 
-        self.unet.enable_gradient_checkpointing()
+        self.denoiser.enable_gradient_checkpointing()
         if self.TE_trainable:
             self.TE.gradient_checkpointing_enable()
         self.apply(grad_ckpt_enable)
 
     def enable_xformers(self):
-        self.unet.enable_xformers_memory_efficient_attention()
+        self.denoiser.enable_xformers_memory_efficient_attention()
 
     @property
     def trainable_parameters(self):
@@ -140,6 +148,61 @@ class StableDiffusionWrapper(BaseWrapper):
             self.TE = self.TE.to(dtype=dtype)
 
     @classmethod
-    def from_pretrained(cls, models:Union[partial, Dict[str,nn.Module]], **kwargs):
+    def from_pretrained(cls, models: Union[partial, Dict[str, nn.Module]], **kwargs):
         models = models() if isinstance(models, partial) else models
-        return cls(models['unet'], models['TE'], models['vae'], models['noise_sampler'], models['tokenizer'], **kwargs)
+        return cls(models['denoiser'], models['TE'], models['vae'], models['noise_sampler'], models['tokenizer'], **kwargs)
+
+class SDXLWrapper(SD15Wrapper):
+    def make_TE_hook(self, TE_hook_cfg):
+        # Hook and extend text_encoder
+        self.text_enc_hook = ComposeTEEXHook.hook(self.TE, self.tokenizer, N_repeats=TE_hook_cfg.tokenizer_repeats,
+                                                  clip_skip=TE_hook_cfg.clip_skip, clip_final_norm=TE_hook_cfg.clip_final_norm)
+
+    def forward_TE(self, prompt_ids, timesteps, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
+        input_all = dict(prompt_ids=prompt_ids, timesteps=timesteps, position_ids=position_ids, attn_mask=attn_mask, **plugin_input)
+        if hasattr(self.TE, 'input_feeder'):
+            for feeder in self.TE.input_feeder:
+                feeder(input_all)
+        # Get the text embedding for conditioning
+        encoder_hidden_states, pooled_output = self.TE(prompt_ids, position_ids=position_ids, attention_mask=attn_mask, output_hidden_states=True)
+        return encoder_hidden_states, pooled_output
+
+    def forward_denoiser(self, x_t, prompt_ids, encoder_hidden_states, timesteps, added_cond_kwargs, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
+        if attn_mask is not None:
+            attn_mask[:, :self.min_attnmask] = 1
+            encoder_hidden_states, attn_mask = pad_attn_bias(encoder_hidden_states, attn_mask)
+
+        input_all = dict(prompt_ids=prompt_ids, timesteps=timesteps, position_ids=position_ids, attn_mask=attn_mask,
+                         encoder_hidden_states=encoder_hidden_states, added_cond_kwargs=added_cond_kwargs, **plugin_input)
+        if hasattr(self.denoiser, 'input_feeder'):
+            for feeder in self.denoiser.input_feeder:
+                feeder(input_all)
+        model_pred = self.denoiser(x_t, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask,
+                               added_cond_kwargs=added_cond_kwargs).sample  # Predict the noise residual
+        return model_pred
+
+    def model_forward(self, prompt_ids, image, attn_mask=None, position_ids=None, neg_prompt_ids=None, neg_attn_mask=None, neg_position_ids=None,
+                      crop_info=None, plugin_input={}):
+        # input prepare
+        x_0 = self.get_latents(image)
+        x_t, noise, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
+        x_t_in = x_t*self.noise_sampler.c_in(sigma).to(dtype=x_t.dtype)
+
+        if neg_prompt_ids:
+            prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)
+            if neg_attn_mask:
+                attn_mask = torch.cat([neg_attn_mask, attn_mask], dim=0)
+            if neg_position_ids:
+                position_ids = torch.cat([neg_position_ids, position_ids], dim=0)
+
+        # model forward
+        x_t_in, timesteps = self.cfg_context.pre(x_t_in, timesteps)
+        encoder_hidden_states, pooled_output = self.forward_TE(prompt_ids, timesteps, attn_mask=attn_mask, position_ids=position_ids,
+                                                               plugin_input=plugin_input)
+        added_cond_kwargs = {"text_embeds":pooled_output[-1], "time_ids":crop_info}
+        model_pred = self.forward_denoiser(x_t_in, prompt_ids, encoder_hidden_states, timesteps, added_cond_kwargs=added_cond_kwargs,
+                                       attn_mask=attn_mask, position_ids=position_ids, plugin_input=plugin_input)
+        model_pred = self.cfg_context.post(model_pred)
+
+        return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type,
+                    noise_sampler=self.noise_sampler)
