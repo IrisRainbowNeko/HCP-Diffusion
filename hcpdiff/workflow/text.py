@@ -19,9 +19,19 @@ class TextHookAction(BasicAction):
         self.TE_final_norm = TE_final_norm
         self.use_attention_mask = use_attention_mask
 
-    def forward(self, TE, tokenizer, **states):
-        emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.emb_dir, tokenizer, TE, N_repeats=self.N_repeats)
-        te_hook = ComposeTEEXHook.hook(TE, tokenizer, N_repeats=self.N_repeats, device='cuda',
+    def forward(self, TE, tokenizer, in_preview=False, te_hook:ComposeTEEXHook=None, emb_hook=None, **states):
+        if in_preview and emb_hook is not None:
+            emb_hook.N_repeats = self.N_repeats
+        else:
+            emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.emb_dir, tokenizer, TE, N_repeats=self.N_repeats)
+
+        if in_preview:
+            te_hook.N_repeats = self.N_repeats
+            te_hook.clip_skip = self.layer_skip
+            te_hook.clip_final_norm = self.TE_final_norm
+            te_hook.use_attention_mask = self.use_attention_mask
+        else:
+            te_hook = ComposeTEEXHook.hook(TE, tokenizer, N_repeats=self.N_repeats, device='cuda',
                                        clip_skip=self.layer_skip, clip_final_norm=self.TE_final_norm, use_attention_mask=self.use_attention_mask)
         token_ex = TokenizerHook(tokenizer)
         return {'te_hook':te_hook, 'emb_hook':emb_hook, 'token_ex':token_ex}

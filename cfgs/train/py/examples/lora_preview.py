@@ -9,6 +9,15 @@ from rainbowneko.parser import CfgWDPluginParser
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import ConstantLR
 from rainbowneko.utils import neko_cfg
+from hcpdiff.evaluate import HCPPreviewer
+
+from cfgs.workflow import t2i_lora
+# replace the prompt and negative_prompt in t2i_lora
+t2i_lora.prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
+          ' :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up,'
+          ' notice_lines, paimon_(genshin_impact)')
+t2i_lora.negative_prompt = ('lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality,'
+                   ' normal quality, jpeg artifacts, signature, watermark, username, blurry')
 
 def make_cfg():
     dict(
@@ -51,6 +60,10 @@ def make_cfg():
         ),
 
         data_train=cfg_data(),
+        evaluator=HCPPreviewer(_partial_=True,
+            interval=100,
+            workflow=t2i_lora,
+        ),
     )
 
 @neko_cfg

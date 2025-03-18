@@ -31,10 +31,17 @@ class HCPTrainer(Trainer):
         if self.cfgs.emb_pt is None:
             train_params_emb, self.train_pts = [], {}
         else:
+            from hcpdiff.parser import CfgEmbPTParser
+            self.cfgs.emb_pt: CfgEmbPTParser
+
             train_params_emb, self.train_pts = self.cfgs.emb_pt.get_params_group(self.model_wrapper)
             self.emb_format = EmbFormat()
         train_params += train_params_emb
         return train_params
+
+    @property
+    def pt_trainable(self):
+        return self.cfgs.emb_pt is not None
 
     def get_loss(self, ds_name, model_pred, inputs):
         loss = super().get_loss(ds_name, model_pred, inputs)

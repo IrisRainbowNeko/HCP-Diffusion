@@ -1,7 +1,7 @@
 from copy import copy
 from typing import Union
 
-from rainbowneko.train.data.label_loader import BaseLabelLoader, auto_label_loader
+from rainbowneko.data.label_loader import BaseLabelLoader, auto_label_loader
 
 from .text2img import Text2ImageLossMapSource
 

@@ -8,15 +8,15 @@ textencoder_ex.py
     :Licence:     Apache-2.0
 """
 
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional
 
 import torch
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
-from torch import nn
-from transformers.models.clip.modeling_clip import CLIPAttention
-from transformers import CLIPTextModelWithProjection, T5EncoderModel
 from loguru import logger
+from torch import nn
+from transformers import CLIPTextModelWithProjection, T5EncoderModel
+from transformers.models.clip.modeling_clip import CLIPAttention
 
 class TEEXHook:
     def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=1, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
@@ -27,11 +27,6 @@ class TEEXHook:
         self.clip_skip = clip_skip
         self.clip_final_norm = clip_final_norm
         self.use_attention_mask = use_attention_mask
-
-        if clip_final_norm:
-            self.final_layer_norm = self.find_final_norm(text_enc)
-        else:
-            self.final_layer_norm = None
 
         text_enc.register_forward_hook(self.forward_hook)
         text_enc.register_forward_pre_hook(self.forward_hook_input)
@@ -44,6 +39,17 @@ class TEEXHook:
 
         logger.info(f'final_layer_norm not found in {type(text_enc)}')
         return None
+
+    @property
+    def clip_final_norm(self):
+        return self.final_layer_norm is not None
+
+    @clip_final_norm.setter
+    def clip_final_norm(self, value: bool):
+        if value:
+            self.final_layer_norm = self.find_final_norm(self.text_enc)
+        else:
+            self.final_layer_norm = None
 
     @property
     def device(self):
@@ -109,7 +115,7 @@ class TEEXHook:
         return encoder_hidden_states, pooled_output
 
     def pool_hidden_states(self, encoder_hidden_states, input_ids):
-        pooled_output = encoder_hidden_states[:, :, -1, :].mean(dim=1) # [B, N_emb]
+        pooled_output = encoder_hidden_states[:, :, -1, :].mean(dim=1)  # [B, N_emb]
         return pooled_output
 
     @staticmethod
@@ -176,8 +182,10 @@ class TEEXHook:
 
     @classmethod
     def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
-        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
+        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm,
+                   use_attention_mask=use_attention_mask)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm,
+                   use_attention_mask=use_attention_mask)

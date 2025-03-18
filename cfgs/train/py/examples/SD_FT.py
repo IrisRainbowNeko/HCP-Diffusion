@@ -6,7 +6,7 @@ from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.models import SD15Wrapper
 from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
 from rainbowneko.parser import CfgWDModelParser
-from rainbowneko.train.data import RatioBucket
+from rainbowneko.data import RatioBucket
 from rainbowneko.utils import neko_cfg
 
 def make_cfg():

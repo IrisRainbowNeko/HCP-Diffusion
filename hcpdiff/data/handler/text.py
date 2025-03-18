@@ -3,7 +3,7 @@ from typing import Dict, Union, List
 
 import numpy as np
 from string import Formatter
-from rainbowneko.train.data import DataHandler
+from rainbowneko.data import DataHandler
 from rainbowneko._share import register_model_callback
 
 class TagShuffleHandler(DataHandler):

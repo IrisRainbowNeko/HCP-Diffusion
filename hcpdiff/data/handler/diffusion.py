@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torchvision.transforms as T
 from PIL import Image
-from rainbowneko.train.data import DataHandler, HandlerChain, LoadImageHandler, ImageHandler
+from rainbowneko.data import DataHandler, HandlerChain, LoadImageHandler, ImageHandler
 
 from .text import TemplateFillHandler, TagDropoutHandler, TagEraseHandler, TagShuffleHandler, TokenizeHandler
 

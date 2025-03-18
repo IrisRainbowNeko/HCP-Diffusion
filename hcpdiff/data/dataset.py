@@ -8,7 +8,7 @@ pair_dataset.py
     :Licence:     Apache-2.0
 """
 
-from rainbowneko.train.data import CacheableDataset
+from rainbowneko.data import CacheableDataset
 
 class TextImagePairDataset(CacheableDataset):
     """

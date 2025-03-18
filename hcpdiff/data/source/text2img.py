@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 from typing import Dict
 
-from rainbowneko.train.data import ImageLabelSource
+from rainbowneko.data import ImageLabelSource
 from rainbowneko.utils.utils import is_image_file
 from torchvision.transforms import transforms
 

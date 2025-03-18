@@ -1,6 +1,6 @@
 import torchvision.transforms as T
 from PIL import Image
-from rainbowneko.train.data import DataHandler, HandlerChain, LoadImageHandler, ImageHandler, SyncHandler
+from rainbowneko.data import DataHandler, HandlerChain, LoadImageHandler, ImageHandler, SyncHandler
 from rainbowneko.utils import neko_cfg
 from .diffusion import StableDiffusionHandler
 

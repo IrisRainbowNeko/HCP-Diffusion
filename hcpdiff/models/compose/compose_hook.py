@@ -61,7 +61,7 @@ class ComposeEmbPTHook(nn.Module):
         Tuple['ComposeEmbPTHook', Dict], Tuple[EmbeddingPTHook, Dict]]:
         if isinstance(text_encoder, ComposeTextEncoder):
             # multi text encoder
-            #ex_words_emb = {file[:-3]:load_emb(os.path.join(emb_dir, file)).to(device) for file in os.listdir(emb_dir) if file.endswith('.pt')}
+            # ex_words_emb = {file[:-3]:load_emb(os.path.join(emb_dir, file)).to(device) for file in os.listdir(emb_dir) if file.endswith('.pt')}
 
             # slice of nn.Parameter cannot return grad. Split the tensor
             ex_words_emb = {}
@@ -99,6 +99,24 @@ class ComposeTEEXHook:
         for name, tehook in self.tehook_list:
             tehook.clip_skip = value
 
+    @property
+    def clip_final_norm(self):
+        return self.tehook_list[0][1].clip_final_norm
+
+    @clip_final_norm.setter
+    def clip_final_norm(self, value: bool):
+        for name, tehook in self.tehook_list:
+            tehook.clip_final_norm = value
+
+    @property
+    def use_attention_mask(self):
+        return self.tehook_list[0][1].use_attention_mask
+
+    @use_attention_mask.setter
+    def use_attention_mask(self, value: bool):
+        for name, tehook in self.tehook_list:
+            tehook.use_attention_mask = value
+
     def encode_prompt_to_emb(self, prompt):
         emb_list = [tehook.encode_prompt_to_emb(prompt) for name, tehook in self.tehook_list]
         encoder_hidden_states, pooled_output, attention_mask = list(zip(*emb_list))
@@ -113,10 +131,12 @@ class ComposeTEEXHook:
         return TEEXHook.mult_attn(prompt_embeds, attn_mult)
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False) -> Union['ComposeTEEXHook', TEEXHook]:
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False) -> Union[
+        'ComposeTEEXHook', TEEXHook]:
         if isinstance(text_enc, ComposeTextEncoder):
             # multi text encoder
-            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, clip_final_norm, device=device, use_attention_mask=use_attention_mask))
+            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, clip_final_norm, device=device,
+                                                use_attention_mask=use_attention_mask))
                 for name, tokenizer_i in tokenizer.tokenizer_list]
             return cls(tehook_list)
         else:
@@ -125,4 +145,5 @@ class ComposeTEEXHook:
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
-        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
+        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm,
+                        use_attention_mask=use_attention_mask)

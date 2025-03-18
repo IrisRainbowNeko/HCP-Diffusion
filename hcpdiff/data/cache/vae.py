@@ -6,7 +6,7 @@ import lmdb
 import torch
 from hcpdiff.models.wrapper import SD15Wrapper
 from rainbowneko import _share
-from rainbowneko.train.data import DataCache, CacheableDataset
+from rainbowneko.data import DataCache, CacheableDataset
 from rainbowneko.utils import Path_Like
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler

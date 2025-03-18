@@ -18,8 +18,12 @@ class BuildModelsAction(BasicAction):
         self.dtype = get_dtype(dtype)
         self.device = device
 
-    def forward(self, **states):
-        model = self.model_loader(dtype=self.dtype, device=self.device)
+    def forward(self, in_preview=False, denoiser=None, TE=None, vae=None, **states):
+        if in_preview:
+            model = self.model_loader(dtype=self.dtype, device=self.device, denoiser=denoiser, TE=TE, vae=vae)
+        else:
+            model = self.model_loader(dtype=self.dtype, device=self.device)
+
         if isinstance(model, dict):
             return model
         else:
@@ -39,14 +43,15 @@ class SaveImageAction(BasicAction):
 
         os.makedirs(save_root, exist_ok=True)
 
-    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, **states):
-        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
+    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, preview_root=None, **states):
+        save_root = preview_root or self.save_root
+        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
-            img_path = os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
+            img_path = os.path.join(save_root, f"{num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
 
             if self.save_cfg:
                 cfgs.seed = seeds[bid]
-                parser.save_configs(cfgs, os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info"))
+                parser.save_configs(cfgs, os.path.join(save_root, f"{num_img_exist}-{seeds[bid]}-info"))

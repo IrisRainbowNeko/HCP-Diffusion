@@ -37,9 +37,9 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
         PrepareAction(device='cuda', dtype=torch.float16),
         BuildModelsAction(
             model_loader=SD15_auto_loader(_partial_=True,
-                                          ckpt_path=pretrained_model,
-                                          noise_sampler=Diffusers_SD.dpmpp_2m_karras
-                                          )
+                ckpt_path=pretrained_model,
+                noise_sampler=Diffusers_SD.dpmpp_2m_karras
+            )
         ),
     ])
 
@@ -55,7 +55,6 @@ def optimize_model() -> Actions:
 def text(bs=4) -> Actions:
     Actions([
         TextHookAction(N_repeats=1, layer_skip=1),
-        XformersEnableAction(),
         AttnMultTextEncodeAction(
             prompt='masterpiece, best quality, 1girl, cat ears, outside',
             negative_prompt='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
@@ -90,11 +89,11 @@ def decode() -> Actions:
     ])
 
 def make_cfg():
-    Actions(actions=[
+    dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),
         config_diffusion(),
         diffusion(),
         decode()
-    ])
+    ]))
