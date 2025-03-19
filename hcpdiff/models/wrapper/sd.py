@@ -41,13 +41,14 @@ class SD15Wrapper(BaseWrapper):
         self.make_TE_hook(self.TE_hook_cfg)
 
         self.vae_trainable = False
-        for name, p in self.vae.parameters():
-            if p.requires_grad:
-                self.vae_trainable = True
-                break
+        if self.vae is not None:
+            for p in self.vae.parameters():
+                if p.requires_grad:
+                    self.vae_trainable = True
+                    break
 
         self.TE_trainable = False
-        for name, p in self.TE.parameters():
+        for p in self.TE.parameters():
             if p.requires_grad:
                 self.TE_trainable = True
                 break
@@ -143,7 +144,8 @@ class SD15Wrapper(BaseWrapper):
         self.dtype = dtype
         self.vae_dtype = vae_dtype
         # Move vae and text_encoder to device and cast to weight_dtype
-        self.vae = self.vae.to(dtype=vae_dtype)
+        if self.vae is not None:
+            self.vae = self.vae.to(dtype=vae_dtype)
         if not self.TE_trainable:
             self.TE = self.TE.to(dtype=dtype)
 

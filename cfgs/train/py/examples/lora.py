@@ -64,7 +64,8 @@ def cfg_data():
                     prompt_template='prompt_tuning_template/caption.txt',
                 ),
             ),
-            handler=StableDiffusionHandler(RatioBucket, 
+            handler=StableDiffusionHandler(
+                bucket=RatioBucket, 
                 word_names=dict(pt1='paimeng'),
                 erase=0,
             ),

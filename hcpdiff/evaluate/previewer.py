@@ -2,15 +2,16 @@ from pathlib import Path
 
 import torch
 from rainbowneko.evaluate.preview import WorkflowPreviewer
+from rainbowneko.utils import to_cuda
 
 from hcpdiff.models.wrapper import SD15Wrapper
 from accelerate.hooks import remove_hook_from_module
 
 class HCPPreviewer(WorkflowPreviewer):
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def evaluate(self, step: int, model: SD15Wrapper, prefix='eval/'):
-        if step%self.interval != 0:
+        if step%self.interval != 0 or not self.trainer.is_local_main_process:
             return
 
         # record training layers
@@ -20,12 +21,15 @@ class HCPPreviewer(WorkflowPreviewer):
         self.trainer.loggers.info(f'Preview')
 
         N_repeats = model.text_enc_hook.N_repeats
-        clip_skip = model.text_enc_hook.layer_skip
-        clip_final_norm = model.text_enc_hook.TE_final_norm
+        clip_skip = model.text_enc_hook.clip_skip
+        clip_final_norm = model.text_enc_hook.clip_final_norm
         use_attention_mask = model.text_enc_hook.use_attention_mask
 
+        preview_root = Path(self.trainer.exp_dir)/'imgs'
+        preview_root.mkdir(parents=True, exist_ok=True)
+
         states = self.workflow_runner.run(denoiser=model.denoiser, TE=model.TE, vae=model.vae, in_preview=True, te_hook=model.text_enc_hook,
-                                          device=self.device, dtype=self.dtype, preview_root=Path(self.trainer.exp_dir)/'imgs',
+                                          device=self.device, dtype=self.dtype, preview_root=preview_root, preview_step=step,
                                           world_size=self.trainer.world_size, local_rank=self.trainer.local_rank,
                                           emb_hook=self.trainer.cfgs.emb_pt.embedding_hook if self.trainer.pt_trainable else None)
 
@@ -45,9 +49,11 @@ class HCPPreviewer(WorkflowPreviewer):
             self.trainer.cfgs.emb_pt.embedding_hook.N_repeats = N_repeats
 
         model.text_enc_hook.N_repeats = N_repeats
-        model.text_enc_hook.layer_skip = clip_skip
-        model.text_enc_hook.TE_final_norm = clip_final_norm
+        model.text_enc_hook.clip_skip = clip_skip
+        model.text_enc_hook.clip_final_norm = clip_final_norm
         model.text_enc_hook.use_attention_mask = use_attention_mask
+        
+        to_cuda(model)
 
         for layer in training_layers:
             layer.train()

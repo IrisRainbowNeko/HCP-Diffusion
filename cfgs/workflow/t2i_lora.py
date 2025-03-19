@@ -49,7 +49,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
                 path='exps/lora_paimeng/ckpts/model-1000-lora1.safetensors',
                 alpha=2,
             )
-        ), key_map_in=('denoiser -> model',))
+        ), key_map_in=('denoiser -> model', 'in_preview -> in_preview'))
     ])
 
 @neko_cfg
@@ -64,11 +64,11 @@ def text(bs=4) -> Actions:
     ])
 
 def make_cfg():
-    Actions(actions=[
+    dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),
         config_diffusion(),
         diffusion(),
         decode()
-    ])
+    ]))

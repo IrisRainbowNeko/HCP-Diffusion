@@ -15,11 +15,9 @@ class HCPTrainer(Trainer):
             else:
                 warnings.warn("xformers is not available. Make sure it is installed correctly")
 
-        self.model_wrapper.requires_grad_(False)
-        self.model_wrapper.eval()
-        self.weight_dtype = self.weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
-        self.vae_dtype = self.weight_dtype_map.get(self.cfgs.model.get('vae_dtype', None), torch.float32)
-        self.model_wrapper.set_dtype(self.weight_dtype, self.vae_dtype)
+        if self.model_wrapper.vae is not None:
+            self.vae_dtype = self.weight_dtype_map.get(self.cfgs.model.get('vae_dtype', None), torch.float32)
+            self.model_wrapper.set_dtype(self.weight_dtype, self.vae_dtype)
 
         if self.cfgs.model.gradient_checkpointing:
             self.model_wrapper.enable_gradient_checkpointing()

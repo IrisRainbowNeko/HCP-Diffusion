@@ -17,7 +17,7 @@ def config_highres():
 
 
 def make_cfg():
-    Actions(actions=[
+    dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),
@@ -29,4 +29,4 @@ def make_cfg():
         diffusion(),
         ### highres fix ###
         decode()
-    ])
+    ]))
