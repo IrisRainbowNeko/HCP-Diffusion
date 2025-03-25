@@ -1,26 +1,41 @@
 import torch
-from hcpdiff.ckpt_manager import DiffusersSD15Format, DiffusersSDXLFormat, DiffusersPixArtFormat
+from hcpdiff.ckpt_manager import DiffusersSD15Format, DiffusersSDXLFormat, DiffusersPixArtFormat, OfficialSD15Format, OfficialSDXLFormat
 from rainbowneko.ckpt_manager import ModelManager, LocalCkptSource
 from hcpdiff.utils import auto_tokenizer_cls, auto_text_encoder_cls, get_pipe_name
 from hcpdiff.models.wrapper import SDXLWrapper, SD15Wrapper, PixArtWrapper
 from hcpdiff.models.compose import SDXLTextEncoder
+from diffusers import  StableDiffusionPipeline, StableDiffusionXLPipeline
 
 def SD15_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=None,
                      tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
-    manager = ModelManager(
-        format=DiffusersSD15Format(),
-        source=LocalCkptSource(),
-    )
+    try:
+        try_diffusers = StableDiffusionPipeline.load_config(ckpt_path)
+        manager = ModelManager(
+            format=DiffusersSD15Format(),
+            source=LocalCkptSource(),
+        )
+    except EnvironmentError:
+        manager = ModelManager(
+            format=OfficialSD15Format(),
+            source=LocalCkptSource(),
+        )
     models = manager.load(ckpt_path, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
                           dtype=dtype, **kwargs)
     return models
 
 def SDXL_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=None,
                      tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
-    manager = ModelManager(
-        format=DiffusersSDXLFormat(),
-        source=LocalCkptSource(),
-    )
+    try:
+        try_diffusers = StableDiffusionXLPipeline.load_config(ckpt_path)
+        manager = ModelManager(
+            format=DiffusersSDXLFormat(),
+            source=LocalCkptSource(),
+        )
+    except EnvironmentError:
+        manager = ModelManager(
+            format=OfficialSDXLFormat(),
+            source=LocalCkptSource(),
+        )
     models = manager.load(ckpt_path, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
                           dtype=dtype, **kwargs)
     return models

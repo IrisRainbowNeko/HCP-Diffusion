@@ -19,7 +19,7 @@ def make_cfg():
                 lr=1e-5,
                 layers=['denoiser'],  # train UNet
             )
-        ]),
+        ], weight_decay=1e-2),
 
         ckpt_manager=[
             ckpt_manager('safetensors', saved_model=({'model':'denoiser', 'trainable':True},))

@@ -43,8 +43,9 @@ class ComposeEmbPTHook(nn.Module):
             hook_list = []
 
             emb_len = 0
-            for i, (name, tokenizer_i) in enumerate(tokenizer.tokenizer_list):
+            for i, name in enumerate(tokenizer.tokenizer_names):
                 text_encoder_i = getattr(text_encoder, name)
+                tokenizer_i = getattr(tokenizer, name)
                 if log:
                     logger.info(f'compose hook: {name}')
                 embedding_dim = text_encoder_i.get_input_embeddings().embedding_dim
@@ -135,9 +136,9 @@ class ComposeTEEXHook:
         'ComposeTEEXHook', TEEXHook]:
         if isinstance(text_enc, ComposeTextEncoder):
             # multi text encoder
-            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), tokenizer_i, N_repeats, clip_skip, clip_final_norm, device=device,
-                                                use_attention_mask=use_attention_mask))
-                for name, tokenizer_i in tokenizer.tokenizer_list]
+            tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), getattr(tokenizer, name), N_repeats, clip_skip, clip_final_norm,
+                                                device=device, use_attention_mask=use_attention_mask))
+                for name in tokenizer.tokenizer_names]
             return cls(tehook_list)
         else:
             # single text encoder

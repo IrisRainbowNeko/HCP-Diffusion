@@ -45,7 +45,7 @@ def make_cfg():
             name='model',
 
             wrapper=SD15Wrapper.from_pretrained(
-                SD15_auto_loader('Lykon/DreamShaper', _partial_=True),
+                models=SD15_auto_loader(ckpt_path='Lykon/DreamShaper', _partial_=True),
                 _partial_=True,
             ),
         ),

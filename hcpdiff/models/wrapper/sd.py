@@ -4,14 +4,14 @@ from typing import Dict, Union
 
 import torch
 from diffusers import AutoencoderKL, UNet2DConditionModel
-from hcpdiff.diffusion.sampler import BaseSampler
-from hcpdiff.models import TEEXHook
-from hcpdiff.models.compose import ComposeTEEXHook
-from hcpdiff.utils import pad_attn_bias
 from rainbowneko.models.wrapper import BaseWrapper
 from torch import Tensor
 from torch import nn
 
+from hcpdiff.diffusion.sampler import BaseSampler
+from hcpdiff.models import TEEXHook
+from hcpdiff.models.compose import ComposeTEEXHook
+from hcpdiff.utils import pad_attn_bias
 from .utils import TEHookCFG
 from ..cfg_context import CFGContext
 
@@ -20,8 +20,8 @@ class SD15Wrapper(BaseWrapper):
                  pred_type='eps', TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
         super().__init__()
         self.key_mapper_in = self.build_mapper(key_map_in, None, (
-        'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
-        'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input'))
+            'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
+            'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input'))
         self.key_mapper_out = self.build_mapper(key_map_out, None, None)
 
         self.denoiser = denoiser
@@ -108,7 +108,7 @@ class SD15Wrapper(BaseWrapper):
         encoder_hidden_states = self.forward_TE(prompt_ids, timesteps, attn_mask=attn_mask, position_ids=position_ids,
                                                 plugin_input=plugin_input, **kwargs)
         model_pred = self.forward_denoiser(x_t_in, prompt_ids, encoder_hidden_states, timesteps, attn_mask=attn_mask, position_ids=position_ids,
-                                       plugin_input=plugin_input, **kwargs)
+                                           plugin_input=plugin_input, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
         return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type,
@@ -155,6 +155,13 @@ class SD15Wrapper(BaseWrapper):
         return cls(models['denoiser'], models['TE'], models['vae'], models['noise_sampler'], models['tokenizer'], **kwargs)
 
 class SDXLWrapper(SD15Wrapper):
+    def __init__(self, denoiser: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=0,
+                 pred_type='eps', TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
+        super().__init__(denoiser, TE, vae, noise_sampler, tokenizer, min_attnmask, pred_type, TE_hook_cfg, cfg_context, key_map_in, key_map_out)
+        self.key_mapper_in = self.build_mapper(key_map_in, None, (
+            'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
+            'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input', 'coord -> crop_info'))
+
     def make_TE_hook(self, TE_hook_cfg):
         # Hook and extend text_encoder
         self.text_enc_hook = ComposeTEEXHook.hook(self.TE, self.tokenizer, N_repeats=TE_hook_cfg.tokenizer_repeats,
@@ -169,7 +176,8 @@ class SDXLWrapper(SD15Wrapper):
         encoder_hidden_states, pooled_output = self.TE(prompt_ids, position_ids=position_ids, attention_mask=attn_mask, output_hidden_states=True)
         return encoder_hidden_states, pooled_output
 
-    def forward_denoiser(self, x_t, prompt_ids, encoder_hidden_states, timesteps, added_cond_kwargs, attn_mask=None, position_ids=None, plugin_input={}, **kwargs):
+    def forward_denoiser(self, x_t, prompt_ids, encoder_hidden_states, timesteps, added_cond_kwargs, attn_mask=None, position_ids=None,
+                         plugin_input={}, **kwargs):
         if attn_mask is not None:
             attn_mask[:, :self.min_attnmask] = 1
             encoder_hidden_states, attn_mask = pad_attn_bias(encoder_hidden_states, attn_mask)
@@ -180,7 +188,7 @@ class SDXLWrapper(SD15Wrapper):
             for feeder in self.denoiser.input_feeder:
                 feeder(input_all)
         model_pred = self.denoiser(x_t, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask,
-                               added_cond_kwargs=added_cond_kwargs).sample  # Predict the noise residual
+                                   added_cond_kwargs=added_cond_kwargs).sample  # Predict the noise residual
         return model_pred
 
     def model_forward(self, prompt_ids, image, attn_mask=None, position_ids=None, neg_prompt_ids=None, neg_attn_mask=None, neg_position_ids=None,
@@ -203,7 +211,7 @@ class SDXLWrapper(SD15Wrapper):
                                                                plugin_input=plugin_input)
         added_cond_kwargs = {"text_embeds":pooled_output[-1], "time_ids":crop_info}
         model_pred = self.forward_denoiser(x_t_in, prompt_ids, encoder_hidden_states, timesteps, added_cond_kwargs=added_cond_kwargs,
-                                       attn_mask=attn_mask, position_ids=position_ids, plugin_input=plugin_input)
+                                           attn_mask=attn_mask, position_ids=position_ids, plugin_input=plugin_input)
         model_pred = self.cfg_context.post(model_pred)
 
         return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type,
