@@ -29,6 +29,7 @@ class VaeCache(DataCache):
     def before_handler(self, index: int, data: Dict[str, Any]):
         cached_data = self.load_latent(data['id'])
         data['image'] = cached_data['latent']
+        data['coord'] = cached_data['coord']
         return data
     
     def on_finish(self, index, data):

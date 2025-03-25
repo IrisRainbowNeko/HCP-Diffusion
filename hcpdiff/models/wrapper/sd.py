@@ -12,12 +12,12 @@ from hcpdiff.diffusion.sampler import BaseSampler
 from hcpdiff.models import TEEXHook
 from hcpdiff.models.compose import ComposeTEEXHook
 from hcpdiff.utils import pad_attn_bias
-from .utils import TEHookCFG
+from .utils import TEHookCFG, SD15_TEHookCFG, SDXL_TEHookCFG
 from ..cfg_context import CFGContext
 
 class SD15Wrapper(BaseWrapper):
     def __init__(self, denoiser: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=0,
-                 pred_type='eps', TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
+                 pred_type='eps', TE_hook_cfg:TEHookCFG=SD15_TEHookCFG, cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
         super().__init__()
         self.key_mapper_in = self.build_mapper(key_map_in, None, (
             'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
@@ -156,7 +156,7 @@ class SD15Wrapper(BaseWrapper):
 
 class SDXLWrapper(SD15Wrapper):
     def __init__(self, denoiser: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=0,
-                 pred_type='eps', TE_hook_cfg=TEHookCFG(), cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
+                 pred_type='eps', TE_hook_cfg:TEHookCFG=SDXL_TEHookCFG, cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
         super().__init__(denoiser, TE, vae, noise_sampler, tokenizer, min_attnmask, pred_type, TE_hook_cfg, cfg_context, key_map_in, key_map_out)
         self.key_mapper_in = self.build_mapper(key_map_in, None, (
             'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',

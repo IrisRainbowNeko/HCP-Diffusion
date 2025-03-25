@@ -31,7 +31,7 @@ class TextHookAction(BasicAction):
             te_hook.clip_final_norm = self.TE_final_norm
             te_hook.use_attention_mask = self.use_attention_mask
         else:
-            te_hook = ComposeTEEXHook.hook(TE, tokenizer, N_repeats=self.N_repeats, device='cuda',
+            te_hook = ComposeTEEXHook.hook(TE, tokenizer, N_repeats=self.N_repeats,
                                        clip_skip=self.layer_skip, clip_final_norm=self.TE_final_norm, use_attention_mask=self.use_attention_mask)
         token_ex = TokenizerHook(tokenizer)
         return {'te_hook':te_hook, 'emb_hook':emb_hook, 'token_ex':token_ex}

@@ -38,7 +38,7 @@ class ComposeEmbPTHook(nn.Module):
             hook.remove()
 
     @classmethod
-    def hook(cls, ex_words_emb: Dict[str, ParameterGroup], tokenizer, text_encoder, log=False, **kwargs):
+    def hook(cls, ex_words_emb: Dict[str, ParameterGroup], tokenizer, text_encoder, **kwargs):
         if isinstance(text_encoder, ComposeTextEncoder):
             hook_list = []
 
@@ -46,19 +46,17 @@ class ComposeEmbPTHook(nn.Module):
             for i, name in enumerate(tokenizer.tokenizer_names):
                 text_encoder_i = getattr(text_encoder, name)
                 tokenizer_i = getattr(tokenizer, name)
-                if log:
-                    logger.info(f'compose hook: {name}')
                 embedding_dim = text_encoder_i.get_input_embeddings().embedding_dim
                 ex_words_emb_i = {k:v[i] for k, v in ex_words_emb.items()}
                 emb_len += embedding_dim
-                hook_list.append((name, EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, log=log, **kwargs)))
+                hook_list.append((name, EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, **kwargs)))
 
             return cls(hook_list)
         else:
-            return EmbeddingPTHook.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs)
+            return EmbeddingPTHook.hook(ex_words_emb, tokenizer, text_encoder, **kwargs)
 
     @classmethod
-    def hook_from_dir(cls, emb_dir, tokenizer, text_encoder, log=True, device='cuda:0', **kwargs) -> Union[
+    def hook_from_dir(cls, emb_dir, tokenizer, text_encoder, device='cuda:0', **kwargs) -> Union[
         Tuple['ComposeEmbPTHook', Dict], Tuple[EmbeddingPTHook, Dict]]:
         if isinstance(text_encoder, ComposeTextEncoder):
             # multi text encoder
@@ -73,7 +71,7 @@ class ComposeEmbPTHook(nn.Module):
                         emb = load_emb(os.path.join(emb_dir, file)).to(device)
                         emb = ParameterGroup([nn.Parameter(item, requires_grad=False) for item in emb.split(emb_dims, dim=1)])
                         ex_words_emb[file[:-3]] = emb
-            return cls.hook(ex_words_emb, tokenizer, text_encoder, log, **kwargs), ex_words_emb
+            return cls.hook(ex_words_emb, tokenizer, text_encoder, **kwargs), ex_words_emb
         else:
             return EmbeddingPTHook.hook_from_dir(emb_dir, tokenizer, text_encoder, **kwargs)
 
@@ -132,12 +130,12 @@ class ComposeTEEXHook:
         return TEEXHook.mult_attn(prompt_embeds, attn_mult)
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False) -> Union[
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False) -> Union[
         'ComposeTEEXHook', TEEXHook]:
         if isinstance(text_enc, ComposeTextEncoder):
             # multi text encoder
             tehook_list = [(name, TEEXHook.hook(getattr(text_enc, name), getattr(tokenizer, name), N_repeats, clip_skip, clip_final_norm,
-                                                device=device, use_attention_mask=use_attention_mask))
+                                                use_attention_mask=use_attention_mask))
                 for name in tokenizer.tokenizer_names]
             return cls(tehook_list)
         else:
@@ -146,5 +144,5 @@ class ComposeTEEXHook:
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
-        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm,
+        return cls.hook(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm,
                         use_attention_mask=use_attention_mask)

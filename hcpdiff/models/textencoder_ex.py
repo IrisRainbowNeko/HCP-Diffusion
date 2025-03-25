@@ -104,7 +104,7 @@ class TEEXHook:
         if self.text_enc.training and self.clip_skip>0:
             encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
-        pooled_output = feat_out.get('pooler_output', None)
+        pooled_output = feat_out.get('pooler_output', feat_out.get('text_embeds', None))
         # TODO: may have better fusion method
         if pooled_output is not None:
             pooled_output = rearrange(pooled_output, '(b r) ... -> b r ...', r=self.N_repeats).mean(dim=1)

@@ -3,7 +3,7 @@ from typing import List, Union
 
 import torch
 from hcpdiff.utils import to_validate_file
-from hcpdiff.utils.img_size_tool import types_support
+from rainbowneko.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import get_dtype
 from omegaconf import OmegaConf
 from rainbowneko.ckpt_manager import ModelManager

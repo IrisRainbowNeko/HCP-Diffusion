@@ -18,12 +18,13 @@ from transformers.tokenization_utils_base import BatchEncoding
 class ComposeTokenizer(PreTrainedTokenizer):
     def __init__(self, tokenizer_list: List[Tuple[str, CLIPTokenizer]], cat_dim=-1):
         self.cat_dim = cat_dim
-        super().__init__()
 
         self.tokenizer_names = []
         for name, tokenizer in tokenizer_list:
             setattr(self, name, tokenizer)
             self.tokenizer_names.append(name)
+
+        super().__init__()
 
         self.model_max_length = torch.tensor([tokenizer.model_max_length for name, tokenizer in tokenizer_list])
 
