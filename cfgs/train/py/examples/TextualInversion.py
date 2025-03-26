@@ -9,6 +9,15 @@ from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import neko_cfg
 from hcpdiff.parser import CfgEmbPTParser
+from hcpdiff.evaluate import HCPPreviewer
+
+from cfgs.workflow import t2i_TextualInversion
+# replace the prompt and negative_prompt
+t2i_TextualInversion.prompt = ('pt-paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
+          ' :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up,'
+          ' notice_lines, paimon_(genshin_impact)')
+t2i_TextualInversion.negative_prompt = ('lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality,'
+                   ' normal quality, jpeg artifacts, signature, watermark, username, blurry')
 
 def make_cfg():
     dict(
@@ -17,9 +26,9 @@ def make_cfg():
 
         emb_pt=CfgEmbPTParser(
             emb_dir='embs/',
-            cfg_pt=dict(
-                pt1=dict(lr=1e-3, weight_decay=1e-2)
-            )
+            cfg_pt={
+                'pt-paimeng': dict(lr=0.003, weight_decay=1e-2)
+            }
         ),
 
         ckpt_manager=[
@@ -27,8 +36,8 @@ def make_cfg():
         ],
 
         train=dict(
-            train_steps=5000,
-            save_step=500,
+            train_steps=1000,
+            save_step=100,
         ),
 
         model=dict(
@@ -51,6 +60,10 @@ def make_cfg():
         ),
 
         data_train=cfg_data(),
+        evaluator=HCPPreviewer(_partial_=True,
+            interval=100,
+            workflow=t2i_TextualInversion,
+        ),
     )
 
 @neko_cfg
@@ -61,10 +74,15 @@ def cfg_data():
                 data_source1=Text2ImageSource(
                     img_root= 'imgs/',
                     label_file= '${.img_root}',  # path to image captions
-                    prompt_template='prompt_template/caption.txt',
+                    prompt_template='prompt_template/object.txt',
                 ),
             ),
-            handler=StableDiffusionHandler(bucket=RatioBucket),
+            handler=StableDiffusionHandler(
+                bucket=RatioBucket,
+                word_names=dict(
+                    pt1='pt-paimeng'
+                )
+                ),
             bucket=RatioBucket.from_files(
                 target_area=512*512,
                 num_bucket=6,

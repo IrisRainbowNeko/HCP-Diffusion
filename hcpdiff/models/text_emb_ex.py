@@ -12,7 +12,7 @@ from typing import Tuple
 import torch
 from torch import nn
 import os
-from rainbowneko._share import loggers
+from rainbowneko import _share
 from einops import rearrange, repeat
 import torch.nn.functional as F
 
@@ -83,12 +83,12 @@ class EmbeddingPTHook(SinglePluginBlock):
         #text_encoder.text_model.embeddings.token_embedding = embedding_hook
         for tid, word in zip(token_ids, word_list):
             embedding_hook.add_emb(ex_words_emb[word], tid)
-            loggers.info(f'hook: {word}, len: {ex_words_emb[word].shape[0]}, id: {tid}')
+            _share.loggers.info(f'hook: {word}, len: {ex_words_emb[word].shape[0]}, id: {tid}')
         return embedding_hook
 
     @classmethod
-    def hook_from_dir(cls, emb_dir, tokenizer, text_encoder, **kwargs):
-        ex_words_emb = {file[:-3]: nn.Parameter(load_emb(os.path.join(emb_dir, file)), requires_grad=False)
+    def hook_from_dir(cls, emb_dir, tokenizer, text_encoder, device='cuda:0', **kwargs):
+        ex_words_emb = {file[:-3]: nn.Parameter(load_emb(os.path.join(emb_dir, file)).to(device), requires_grad=False)
                         for file in os.listdir(emb_dir) if file.endswith('.pt')}
         return cls.hook(ex_words_emb, tokenizer, text_encoder, **kwargs), ex_words_emb
 
@@ -162,7 +162,7 @@ class EmbeddingPTInterpHook(SinglePluginBlock):
         for tid, word in zip(token_ids, word_list):
             embedding_hook.add_emb(ex_words_emb[word], tid)
             if log:
-                logger.info(f'hook: {word}, len: {ex_words_emb[word].shape[0]}, id: {tid}')
+                _share.logger.info(f'hook: {word}, len: {ex_words_emb[word].shape[0]}, id: {tid}')
         return embedding_hook
 
     @classmethod
