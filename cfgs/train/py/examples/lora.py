@@ -61,7 +61,7 @@ def cfg_data():
                 data_source1=Text2ImageSource(
                     img_root= 'imgs/',
                     label_file= '${.img_root}',  # path to image captions (file_words)
-                    prompt_template='prompt_tuning_template/caption.txt',
+                    prompt_template='prompt_template/caption.txt',
                 ),
             ),
             handler=StableDiffusionHandler(

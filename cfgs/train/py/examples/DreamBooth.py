@@ -6,7 +6,7 @@ from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.models import SD15Wrapper
 from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
 from rainbowneko.parser import CfgWDModelParser
-from rainbowneko.data import RatioBucket
+from rainbowneko.data import RatioBucket, FixedBucket
 from rainbowneko.utils import neko_cfg
 
 def make_cfg():
@@ -67,6 +67,20 @@ def cfg_data():
             bucket=RatioBucket.from_files(
                 target_area=512*512,
                 num_bucket=6,
+            ),
+            cache=VaeCache(bs=1)
+        ),
+        dataset_class=TextImagePairDataset(_partial_=True, batch_size=1, loss_weight=1.0,
+            source=dict(
+                data_source1=Text2ImageSource(
+                    img_root='imgs_db_class/',
+                    label_file='${.img_root}',  # path to image captions
+                    prompt_template='prompt_template/caption.txt',
+                ),
+            ),
+            handler=StableDiffusionHandler(bucket=FixedBucket),
+            bucket=FixedBucket(
+                target_size=(512, 512),
             ),
             cache=VaeCache(bs=1)
         )

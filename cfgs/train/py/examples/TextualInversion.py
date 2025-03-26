@@ -8,18 +8,19 @@ from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
 from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import neko_cfg
+from hcpdiff.parser import CfgEmbPTParser
 
 def make_cfg():
     dict(
         _base_=[train_base, tuning_base],
         mixed_precision='fp16',
 
-        model_part=CfgWDModelParser([
-            dict(
-                lr=1e-5,
-                layers=['denoiser'],  # train UNet
+        emb_pt=CfgEmbPTParser(
+            emb_dir='embs/',
+            cfg_pt=dict(
+                pt1=dict(lr=1e-3, weight_decay=1e-2)
             )
-        ], weight_decay=1e-2),
+        ),
 
         ckpt_manager=[
             ckpt_manager('safetensors', saved_model=({'model':'denoiser', 'trainable':True},))

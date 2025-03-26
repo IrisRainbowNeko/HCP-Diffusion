@@ -22,6 +22,11 @@ class CfgEmbPTParser:
             train_pts[pt_name] = word_emb
             word_emb.requires_grad = True
             self.embedding_hook.emb_train.append(word_emb)
-            train_params_emb.append({'params':word_emb, 'lr':info.lr})
+            param_group = {'params':word_emb}
+            if 'lr' in info:
+                param_group['lr'] = info.lr
+            if 'weight_decay' in info:
+                param_group['weight_decay'] = info.weight_decay
+            train_params_emb.append(param_group)
 
         return train_params_emb, train_pts

@@ -2,21 +2,22 @@ import torch
 from cfgs.train.py.examples import SD_FT
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.data import VaeCache
-from hcpdiff.easy import SDXL_auto_loader
-from hcpdiff.models import SDXLWrapper, TEHookCFG
-from hcpdiff.models.lora_layers_patch import LoraLayer
+from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.evaluate import HCPPreviewer
-from rainbowneko.parser import CfgWDPluginParser
+from hcpdiff.models import SD15Wrapper
+from hcpdiff.models.lora_layers_patch import LoraLayer
+from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.data import RatioBucket
+from rainbowneko.parser import CfgWDPluginParser
 from rainbowneko.utils import ConstantLR
 from rainbowneko.utils import neko_cfg
 
-from cfgs.workflow import t2i_lora_sdxl
+from cfgs.workflow import t2i_lora
 # replace the prompt and negative_prompt in t2i_lora
-t2i_lora_sdxl.prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
+t2i_lora.prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
           ' :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up,'
           ' notice_lines, paimon_(genshin_impact)')
-t2i_lora_sdxl.negative_prompt = ('lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality,'
+t2i_lora.negative_prompt = ('lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality,'
                    ' normal quality, jpeg artifacts, signature, watermark, username, blurry')
 
 def make_cfg():
@@ -26,7 +27,7 @@ def make_cfg():
 
         model_part=None,
         model_plugin=CfgWDPluginParser(cfg_plugin=dict(
-            lora1=LoraLayer.wrap_model(
+            lora1_unet=LoraLayer.wrap_model(
                 _partial_=True,
                 lr=1e-4,
                 rank=4,
@@ -35,8 +36,25 @@ def make_cfg():
                     're:denoiser.*\.attn.?$',
                     're:denoiser.*\.ff$',
                 ]
+            ),
+            lora1_TE=LoraLayer.wrap_model(
+                _partial_=True,
+                lr=1e-5,
+                rank=4,
+                alpha=2,
+                layers=[
+                    're:TE.*\.self_attn$',
+                    're:TE.*\.mlp$',
+                ]
             )
         )),
+
+        ckpt_manager=[
+            ckpt_manager('safetensors', saved_model=(
+                {'model':'denoiser', 'trainable':True},
+                {'model':'TE', 'trainable':True},
+            ))
+        ],
 
         train=dict(
             train_steps=1000,
@@ -53,17 +71,16 @@ def make_cfg():
         model=dict(
             name='model',
 
-            wrapper=SDXLWrapper.from_pretrained(
+            wrapper=SD15Wrapper.from_pretrained(
+                models=SD15_auto_loader(ckpt_path='Lykon/DreamShaper', _partial_=True),
                 _partial_=True,
-                models=SDXL_auto_loader(ckpt_path='stabilityai/stable-diffusion-xl-base-1.0', _partial_=True),
-                TE_hook_cfg=TEHookCFG(clip_skip=1, clip_final_norm=False)
             ),
         ),
 
         data_train=cfg_data(),
         evaluator=HCPPreviewer(_partial_=True,
             interval=100,
-            workflow=t2i_lora_sdxl,
+            workflow=t2i_lora,
         ),
     )
 
@@ -84,7 +101,7 @@ def cfg_data():
                 erase=0,
             ),
             bucket=RatioBucket.from_files(
-                target_area=1024*1024,
+                target_area=512*512,
                 num_bucket=4,
             ),
             cache=VaeCache(bs=1)
