@@ -44,16 +44,19 @@ class HCPLoraLoader(NekoPluginLoader):
             lora_layer_cls, rank = get_lora_rank_and_cls(lora_state)
 
             if 'alpha' in lora_state:
-                del lora_state['alpha']
+                lora_state['alpha'] *= self.plugin_kwargs.pop('alpha', 1.0)
 
             parent_name, host_name = split_module_name(layer_name)
 
             lora_block = lora_layer_cls.wrap_layer(name, named_modules[layer_name], rank=rank, bias='layer.bias' in lora_state,
                                                 parent_block=named_modules[parent_name], host_name=host_name)
             lora_block.set_hyper_params(**self.plugin_kwargs)
+            load_info = lora_block.load_state_dict(lora_state, strict=False)
+            if len(load_info.unexpected_keys) > 0:
+                print(name, 'unexpected_keys', load_info.unexpected_keys)
 
         # Load state to plugin
-        plugin_state = {k.replace('___', name): v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
-        load_info = model.load_state_dict(plugin_state, strict=False)
-        if len(load_info.unexpected_keys) > 0:
-            print(name, 'unexpected_keys', load_info.unexpected_keys)
+        # plugin_state = {k.replace('___', name): v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
+        # load_info = model.load_state_dict(plugin_state, strict=False)
+        # if len(load_info.unexpected_keys) > 0:
+        #     print(name, 'unexpected_keys', load_info.unexpected_keys)
