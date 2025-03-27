@@ -9,7 +9,6 @@ class EmbFormat(CkptFormat):
 
     def save_ckpt(self, sd_model: Tuple[str, torch.Tensor], save_f: FILE_LIKE):
         name, emb = sd_model
-        name = name[:name.rfind('.')]
         torch.save({'string_to_param':{'*':emb}, 'name':name}, save_f)
 
     def load_ckpt(self, ckpt_f: FILE_LIKE, map_location="cpu"):

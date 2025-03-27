@@ -73,10 +73,13 @@ class HCPTrainer(Trainer):
                 traceback.print_exc()
 
             try:
-                for pt_name, pt in self.train_pts:
-                    manager.source.put(pt_name, pt, self.emb_format, prefix=self.ckpt_dir)
+                for pt_name, pt in self.train_pts.items():
+                    manager.source.put(f'{pt_name}-{self.real_step}.{self.emb_format.EXT}', (pt_name, pt), self.emb_format, prefix=self.ckpt_dir)
+                    manager.source.put(f'{pt_name}.{self.emb_format.EXT}', (pt_name, pt), self.emb_format, prefix=self.ckpt_dir)
             except:
                 self.loggers.info(f"{manager} not support to save embedding!")
+                import traceback
+                traceback.print_exc()
 
         self.loggers.info(f"Saved state, step: {self.real_step}")
 
