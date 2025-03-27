@@ -1,12 +1,11 @@
 import torch
 from cfgs.train.py.examples import SD_FT
-from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
+from hcpdiff.data import TextImagePairDataset, Text2ImageCondSource
 from hcpdiff.data import VaeCache
-from hcpdiff.easy import SD15_auto_loader
+from hcpdiff.easy import SD15_auto_loader, ControlNet_SD15, make_controlnet_handler
 from hcpdiff.models import SD15Wrapper
-from hcpdiff.models.lora_layers_patch import LoraLayer
-from rainbowneko.parser import CfgWDPluginParser
 from rainbowneko.data import RatioBucket
+from rainbowneko.parser import CfgWDPluginParser
 from rainbowneko.utils import ConstantLR
 from rainbowneko.utils import neko_cfg
 
@@ -17,27 +16,18 @@ def make_cfg():
 
         model_part=None,
         model_plugin=CfgWDPluginParser(cfg_plugin=dict(
-            lora1=LoraLayer.wrap_model(
-                _partial_=True,
-                lr=1e-4,
-                rank=4,
-                alpha=2,
-                layers=[
-                    're:denoiser.*\.attn.?$',
-                    're:denoiser.*\.ff$',
-                ]
-            )
-        ), weight_decay=0.1),
+            cnet=ControlNet_SD15(lr=1e-4)
+        ), weight_decay=1e-2),
 
         train=dict(
-            train_steps=1000,
-            save_step=200,
+            train_steps=10000,
+            save_step=2000,
 
-            optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99)),
+            optimizer=torch.optim.AdamW(_partial_=True),
 
             scheduler=ConstantLR(
                 _partial_=True,
-                warmup_steps=0,
+                warmup_steps=1000,
             ),
         ),
 
@@ -58,17 +48,14 @@ def cfg_data():
     dict(
         dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
-                data_source1=Text2ImageSource(
-                    img_root= 'imgs/',
-                    label_file= '${.img_root}',  # path to image captions (file_words)
+                data_source1=Text2ImageCondSource(  # NOTE: source for control
+                    img_root='imgs/',
+                    cond_dir='conds/',
+                    label_file='${.img_root}',  # path to image captions (file_words)
                     prompt_template='prompt_template/caption.txt',
                 ),
             ),
-            handler=StableDiffusionHandler(
-                bucket=RatioBucket, 
-                word_names=dict(pt1='paimeng'),
-                erase=0,
-            ),
+            handler=make_controlnet_handler(bucket=RatioBucket),
             bucket=RatioBucket.from_files(
                 target_area=512*512,
                 num_bucket=4,

@@ -1,10 +1,13 @@
 from cfgs.workflow.text2img import *
-from hcpdiff.workflow import LatentResizeAction
+from hcpdiff.workflow import ImageResizeAction, DecodeAction, EncodeAction, SaveImageAction
 
 @neko_cfg
 def resize():
     Actions([
-        LatentResizeAction(width=1024, height=1024)
+        DecodeAction(),
+        SaveImageAction(save_root='output_pipe/', image_type='webp'),
+        ImageResizeAction(width=1024, height=1024, mode='lanczos'),
+        EncodeAction(),
     ])
 
 @neko_cfg

@@ -47,7 +47,7 @@ def make_cfg():
                     're:TE.*\.mlp$',
                 ]
             )
-        )),
+        ), weight_decay=0.1),
 
         ckpt_manager=[
             ckpt_manager('safetensors', saved_model=(
@@ -60,7 +60,7 @@ def make_cfg():
             train_steps=1000,
             save_step=200,
 
-            optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99), weight_decay=0.1),
+            optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99)),
 
             scheduler=ConstantLR(
                 _partial_=True,

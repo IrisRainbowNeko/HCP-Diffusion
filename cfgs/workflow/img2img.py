@@ -1,20 +1,15 @@
 from cfgs.workflow.text2img import *
-from hcpdiff.workflow import LatentResizeAction
+from hcpdiff.workflow import LoadImageAction, EncodeAction
 
 @neko_cfg
-def resize():
-    Actions([
-        LatentResizeAction(width=1024, height=1024)
-    ])
-
-@neko_cfg
-def config_highres():
+def config_diffusion() -> Actions:
     Actions([
         SeedAction(42),
         MakeTimestepsAction(N_steps=20, strength=0.6),
-        MakeLatentAction(width=1024, height=1024)
+        LoadImageAction(image_paths='cond.png'),
+        EncodeAction(),
+        MakeLatentAction(width=512, height=512)
     ])
-
 
 def make_cfg():
     dict(workflow=Actions(actions=[
@@ -23,10 +18,5 @@ def make_cfg():
         text(),
         config_diffusion(),
         diffusion(),
-        # >>> highres fix >>>
-        resize(),
-        config_highres(),
-        diffusion(),
-        # <<< highres fix <<<
         decode()
     ]))

@@ -36,13 +36,13 @@ def make_cfg():
                     're:denoiser.*\.ff$',
                 ]
             )
-        )),
+        ), weight_decay=0.1),
 
         train=dict(
             train_steps=1000,
             save_step=200,
 
-            optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99), weight_decay=0.1),
+            optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99)),
 
             scheduler=ConstantLR(
                 _partial_=True,
