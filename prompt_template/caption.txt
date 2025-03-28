@@ -1,1 +1,1 @@
-{pt1}{caption}
+{pt1} {class} {caption}

@@ -1,16 +1,17 @@
 import torch
+from rainbowneko.data import RatioBucket
+from rainbowneko.parser import CfgWDPluginParser, neko_cfg
+from rainbowneko.utils import ConstantLR
+
 from cfgs.train.py.examples import SD_FT
 from hcpdiff.data import TextImagePairDataset, Text2ImageCondSource
 from hcpdiff.data import VaeCache
 from hcpdiff.easy import SD15_auto_loader, ControlNet_SD15, make_controlnet_handler
 from hcpdiff.models import SD15Wrapper
-from rainbowneko.data import RatioBucket
-from rainbowneko.parser import CfgWDPluginParser
-from rainbowneko.utils import ConstantLR
-from rainbowneko.utils import neko_cfg
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[SD_FT],
         mixed_precision='fp16',
 
@@ -45,7 +46,7 @@ def make_cfg():
 
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageCondSource(  # NOTE: source for control

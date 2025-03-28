@@ -5,12 +5,12 @@ from hcpdiff.data import VaeCache
 from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.models import SD15Wrapper
 from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
-from rainbowneko.parser import CfgWDModelParser
+from rainbowneko.parser import CfgWDModelParser, neko_cfg
 from rainbowneko.data import RatioBucket, FixedBucket
-from rainbowneko.utils import neko_cfg
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[train_base, tuning_base],
         mixed_precision='fp16',
 
@@ -54,7 +54,7 @@ def make_cfg():
 
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(
@@ -63,7 +63,13 @@ def cfg_data():
                     prompt_template='prompt_template/caption.txt',
                 ),
             ),
-            handler=StableDiffusionHandler(bucket=RatioBucket),
+            handler=StableDiffusionHandler(
+                bucket=RatioBucket,
+                word_names={
+                    'pt1': '[V]',
+                    'class': 'dog'
+                }
+            ),
             bucket=RatioBucket.from_files(
                 target_area=512*512,
                 num_bucket=6,
@@ -78,7 +84,10 @@ def cfg_data():
                     prompt_template='prompt_template/caption.txt',
                 ),
             ),
-            handler=StableDiffusionHandler(bucket=FixedBucket),
+            handler=StableDiffusionHandler(
+                bucket=FixedBucket,
+                word_names={'class': 'dog'}
+            ),
             bucket=FixedBucket(
                 target_size=(512, 512),
             ),

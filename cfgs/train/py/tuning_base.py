@@ -1,6 +1,8 @@
-from rainbowneko.parser import CfgModelParser
+from rainbowneko.parser import neko_cfg
+
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         model_part=None,
         model_plugin=None,
         emb_pt=None

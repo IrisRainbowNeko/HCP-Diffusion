@@ -1,8 +1,7 @@
 from bitsandbytes.optim import AdamW8bit
 from rainbowneko.data import RatioBucket
-from rainbowneko.parser import CfgWDModelParser
+from rainbowneko.parser import CfgWDModelParser, neko_cfg
 from rainbowneko.utils import ConstantLR
-from rainbowneko.utils import neko_cfg
 
 from cfgs.train.py.examples import SD_FT
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
@@ -10,8 +9,9 @@ from hcpdiff.data import VaeCache
 from hcpdiff.easy import SDXL_auto_loader
 from hcpdiff.models import SDXLWrapper
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[SD_FT],
         mixed_precision='fp16',
 
@@ -48,7 +48,7 @@ def make_cfg():
 
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(

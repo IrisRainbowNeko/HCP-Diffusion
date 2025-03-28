@@ -1,3 +1,4 @@
+import torch
 from cfgs.train.py import train_base, tuning_base
 from hcpdiff.ckpt_manager.format import DiffusersSD15Format
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
@@ -5,12 +6,13 @@ from hcpdiff.data import VaeCache
 from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.models import SD15Wrapper
 from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
-from rainbowneko.parser import CfgWDModelParser
+from rainbowneko.parser import CfgWDModelParser, neko_cfg
 from rainbowneko.data import RatioBucket
-from rainbowneko.utils import neko_cfg
+from rainbowneko.utils import ConstantLR
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[train_base, tuning_base],
         mixed_precision='fp16',
 
@@ -28,10 +30,17 @@ def make_cfg():
         train=dict(
             train_steps=5000,
             save_step=500,
+
+            optimizer=torch.optim.AdamW(_partial_=True),
+
+            scheduler=ConstantLR(
+                _partial_=True,
+                warmup_steps=500,
+            ),
         ),
 
         model=dict(
-            name='model',
+            name='SD15',
 
             ## Full config
             # wrapper=StableDiffusionWrapper.from_pretrained(
@@ -54,7 +63,7 @@ def make_cfg():
 
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(

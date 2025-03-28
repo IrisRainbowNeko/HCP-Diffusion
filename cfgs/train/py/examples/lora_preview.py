@@ -5,10 +5,9 @@ from hcpdiff.data import VaeCache
 from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.models import SD15Wrapper
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from rainbowneko.parser import CfgWDPluginParser
+from rainbowneko.parser import CfgWDPluginParser, neko_cfg
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import ConstantLR
-from rainbowneko.utils import neko_cfg
 from hcpdiff.evaluate import HCPPreviewer
 
 from cfgs.workflow import t2i_lora
@@ -19,8 +18,9 @@ t2i_lora.prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, lo
 t2i_lora.negative_prompt = ('lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality,'
                    ' normal quality, jpeg artifacts, signature, watermark, username, blurry')
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[SD_FT],
         mixed_precision='fp16',
 
@@ -68,7 +68,7 @@ def make_cfg():
 
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
             source=dict(
                 data_source1=Text2ImageSource(

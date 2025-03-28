@@ -3,7 +3,7 @@ from hcpdiff.workflow import LoadImageAction, EncodeAction
 
 @neko_cfg
 def config_diffusion() -> Actions:
-    Actions([
+    return Actions([
         SeedAction(42),
         MakeTimestepsAction(N_steps=20, strength=0.6),
         LoadImageAction(image_paths='cond.png'),
@@ -11,8 +11,9 @@ def config_diffusion() -> Actions:
         MakeLatentAction(width=512, height=512)
     ])
 
+@neko_cfg
 def make_cfg():
-    dict(workflow=Actions(actions=[
+    return dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),

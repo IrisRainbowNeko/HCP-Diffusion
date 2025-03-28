@@ -5,14 +5,14 @@ from hcpdiff.workflow import (BuildModelsAction, PrepareDiffusionAction, Xformer
                               DecodeAction, SaveImageAction)
 from rainbowneko.ckpt_manager import ModelManager, LocalCkptSource
 from rainbowneko.infer.workflow import (Actions, PrepareAction, LoopAction)
-from rainbowneko.utils import neko_cfg
+from rainbowneko.parser import neko_cfg
 from diffusers import DPMSolverMultistepScheduler
 from hcpdiff.easy import Diffusers_SD, SD15_auto_loader
 
 ## Full config
 # @neko_cfg
 # def build_model(pretrained_model='ckpts/any5') -> Actions:
-#     Actions([
+#     return Actions([
 #         PrepareAction(device='cuda', dtype=torch.float16),
 #         BuildModelsAction(
 #             model_loader=ModelManager(
@@ -33,7 +33,7 @@ from hcpdiff.easy import Diffusers_SD, SD15_auto_loader
 ## Easy config
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:
-    Actions([
+    return Actions([
         PrepareAction(device='cuda', dtype=torch.float16),
         BuildModelsAction(
             model_loader=SD15_auto_loader(_partial_=True,
@@ -45,7 +45,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
 
 @neko_cfg
 def optimize_model() -> Actions:
-    Actions([
+    return Actions([
         PrepareDiffusionAction(),
         XformersEnableAction(),
         VaeOptimizeAction(slicing=True),
@@ -53,7 +53,7 @@ def optimize_model() -> Actions:
 
 @neko_cfg
 def text(bs=4) -> Actions:
-    Actions([
+    return Actions([
         TextHookAction(N_repeats=1, layer_skip=1),
         AttnMultTextEncodeAction(
             prompt='masterpiece, best quality, 1girl, cat ears, outside',
@@ -64,7 +64,7 @@ def text(bs=4) -> Actions:
 
 @neko_cfg
 def config_diffusion() -> Actions:
-    Actions([
+    return Actions([
         SeedAction(42),
         MakeTimestepsAction(N_steps=20),
         MakeLatentAction(width=512, height=512)
@@ -72,7 +72,7 @@ def config_diffusion() -> Actions:
 
 @neko_cfg
 def diffusion() -> Actions:
-    Actions([
+    return Actions([
         LoopAction(
             iterator=time_iter,
             actions=[
@@ -83,13 +83,13 @@ def diffusion() -> Actions:
 
 @neko_cfg
 def decode() -> Actions:
-    Actions([
+    return Actions([
         DecodeAction(),
         SaveImageAction(save_root='output_pipe/', image_type='png'),
     ])
 
 def make_cfg():
-    dict(workflow=Actions(actions=[
+    return dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),

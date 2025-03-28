@@ -1,11 +1,11 @@
 from hcpdiff.data.handler import ControlNetHandler, StableDiffusionHandler
 from hcpdiff.models import ControlNetPlugin
 from rainbowneko.data import SyncHandler
-from rainbowneko.utils import neko_cfg
+from rainbowneko.parser import neko_cfg
 
 @neko_cfg
 def ControlNet_SD15(lr=1e-4):
-    ControlNetPlugin(
+    return ControlNetPlugin(
         _partial_=True,
         lr=lr,
         from_layers=[

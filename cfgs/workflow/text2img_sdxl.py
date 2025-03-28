@@ -1,16 +1,10 @@
-from cfgs.workflow.text2img import *
-from rainbowneko.infer.workflow import Actions, PrepareAction
-from hcpdiff.workflow import BuildModelsAction
 import torch
-from rainbowneko.ckpt_manager import ModelManager, LocalCkptSource
-from hcpdiff.ckpt_manager import DiffusersSD15Format
-from diffusers import DPMSolverMultistepScheduler
-from rainbowneko.utils import neko_cfg
-from rainbowneko.infer import BuildPluginAction, LoadModelAction
-from rainbowneko.parser import CfgWDPluginParser
-from hcpdiff.models.lora_layers_patch import LoraLayer
+from rainbowneko.infer.workflow import Actions, PrepareAction
+from rainbowneko.parser import neko_cfg
+
+from cfgs.workflow.text2img import *
 from hcpdiff.easy import SDXL_auto_loader, Diffusers_SD
-from hcpdiff.parser import HCPLoraLoader
+from hcpdiff.workflow import BuildModelsAction
 
 prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
           ' :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up,'
@@ -20,7 +14,7 @@ negative_prompt = ('lowres, bad anatomy, bad hands, text, error, missing fingers
 
 @neko_cfg
 def build_model(pretrained_model='ckpts/any5') -> Actions:
-    Actions([
+    return Actions([
         PrepareAction(device='cuda', dtype=torch.float16),
         ## Easy config
         BuildModelsAction(
@@ -33,7 +27,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
 
 @neko_cfg
 def text(bs=4) -> Actions:
-    Actions([
+    return Actions([
         TextHookAction(N_repeats=1, layer_skip=1, TE_final_norm=False),
         AttnMultTextEncodeAction(
             prompt=prompt,
@@ -44,14 +38,15 @@ def text(bs=4) -> Actions:
 
 @neko_cfg
 def config_diffusion() -> Actions:
-    Actions([
+    return Actions([
         SeedAction(42),
         MakeTimestepsAction(N_steps=20),
         MakeLatentAction(width=1024, height=1024)
     ])
 
+@neko_cfg
 def make_cfg():
-    dict(workflow=Actions(actions=[
+    return dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors'),
         optimize_model(),
         text(),

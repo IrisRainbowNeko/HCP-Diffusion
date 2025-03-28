@@ -3,7 +3,7 @@ from hcpdiff.workflow import ImageResizeAction, DecodeAction, EncodeAction, Save
 
 @neko_cfg
 def resize():
-    Actions([
+    return Actions([
         DecodeAction(),
         SaveImageAction(save_root='output_pipe/', image_type='webp'),
         ImageResizeAction(width=1024, height=1024, mode='lanczos'),
@@ -12,15 +12,15 @@ def resize():
 
 @neko_cfg
 def config_highres():
-    Actions([
+    return Actions([
         SeedAction(42),
         MakeTimestepsAction(N_steps=20, strength=0.6),
         MakeLatentAction(width=1024, height=1024)
     ])
 
-
+@neko_cfg
 def make_cfg():
-    dict(workflow=Actions(actions=[
+    return dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),
