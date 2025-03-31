@@ -93,8 +93,8 @@ class VaeCache(DataCache):
                     for img_id, latent, coord in zip(data['id'], latents, data['coord']):
                         self.cache[img_id] = {'latent': latent, 'coord': coord}
 
-        #model.vae.to('cpu')
-        model.vae = None
+        model.vae.to('cpu')
+        #model.vae = None
         torch.cuda.empty_cache()
 
         cache_all = all_gather(self.cache)

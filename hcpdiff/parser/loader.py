@@ -44,7 +44,7 @@ class HCPLoraLoader(NekoPluginLoader):
             lora_layer_cls, rank = get_lora_rank_and_cls(lora_state)
 
             if 'alpha' in lora_state:
-                lora_state['alpha'] *= self.plugin_kwargs.pop('alpha', 1.0)
+                lora_state['alpha'] *= self.plugin_kwargs.get('alpha', 1.0)
 
             parent_name, host_name = split_module_name(layer_name)
 

@@ -52,7 +52,7 @@ class DiffusionImageHandler(DataHandler):
 class StableDiffusionHandler(DataHandler):
     def __init__(self, bucket, encoder_attention_mask=False, key_map_in=('image -> image', 'image_size -> image_size', 'prompt -> prompt'),
                  key_map_out=('image -> image', 'coord -> coord', 'prompt -> prompt'),
-                 erase=0.15, dropout=0.0, shuffle=0.0, word_names={}):
+                 erase=0.15, dropout=0.0, shuffle=0.0, word_names={}, tokenize=True):
         super().__init__(key_map_in, key_map_out)
 
         self.image_handlers = DiffusionImageHandler(bucket)
@@ -65,7 +65,8 @@ class StableDiffusionHandler(DataHandler):
         if shuffle>0:
             text_handlers['shuffle'] = TagShuffleHandler()
         text_handlers['fill'] = TemplateFillHandler(word_names)
-        text_handlers['tokenize'] = TokenizeHandler(encoder_attention_mask)
+        if tokenize:
+            text_handlers['tokenize'] = TokenizeHandler(encoder_attention_mask)
         self.text_handlers = HandlerChain(**text_handlers)
 
     def handle(self, image: Image.Image, image_size: np.ndarray[int], prompt: str):

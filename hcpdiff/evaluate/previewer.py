@@ -48,6 +48,7 @@ class HCPPreviewer(WorkflowPreviewer):
         if self.trainer.pt_trainable:
             self.trainer.cfgs.emb_pt.embedding_hook.N_repeats = N_repeats
 
+        model.tokenizer.N_repeats = N_repeats
         model.text_enc_hook.N_repeats = N_repeats
         model.text_enc_hook.clip_skip = clip_skip
         model.text_enc_hook.clip_final_norm = clip_final_norm

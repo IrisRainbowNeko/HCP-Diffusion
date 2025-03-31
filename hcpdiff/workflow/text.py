@@ -24,6 +24,7 @@ class TextHookAction(BasicAction):
             emb_hook.N_repeats = self.N_repeats
         else:
             emb_hook, _ = ComposeEmbPTHook.hook_from_dir(self.emb_dir, tokenizer, TE, N_repeats=self.N_repeats)
+            tokenizer.N_repeats = self.N_repeats
 
         if in_preview:
             te_hook.N_repeats = self.N_repeats
@@ -80,8 +81,8 @@ class AttnMultTextEncodeAction(TextEncodeAction):
 
     def forward(self, te_hook, token_ex, TE, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None,
                 model_offload=False, **states):
-        prompt_all = prompt_all or self.prompt
-        negative_prompt_all = negative_prompt_all or self.negative_prompt
+        prompt_all = prompt_all if prompt_all is not None else self.prompt
+        negative_prompt_all = negative_prompt_all if negative_prompt_all is not None else self.negative_prompt
 
         if gen_step is not None:
             idx = (gen_step*self.bs)%len(prompt_all)
