@@ -11,7 +11,7 @@ class LoraConverter:
     com_name_TE = ['self_attn', 'q_proj', 'v_proj', 'k_proj', 'out_proj', 'text_model']
     prefix_unet = 'lora_unet_'
     prefix_TE = 'lora_te_'
-    prefix_TE_xl_clip_B = 'lora_te1_'
+    prefix_TE_xl_clip_L = 'lora_te1_'
     prefix_TE_xl_clip_bigG = 'lora_te2_'
 
     lora_w_map = {'lora_down.weight': 'W_down', 'lora_up.weight':'W_up'}
@@ -26,14 +26,14 @@ class LoraConverter:
             sd_TE = self.convert_from_webui_(state, prefix=self.prefix_TE, com_name=self.com_name_TE, com_name_tmp=self.com_name_TE_tmp)
         else:
             sd_unet = self.convert_from_webui_xl_unet_(state, prefix=self.prefix_unet, com_name=self.com_name_unet, com_name_tmp=self.com_name_unet_tmp)
-            sd_TE = self.convert_from_webui_xl_te_(state, prefix=self.prefix_TE_xl_clip_B, com_name=self.com_name_TE, com_name_tmp=self.com_name_TE_tmp)
+            sd_TE = self.convert_from_webui_xl_te_(state, prefix=self.prefix_TE_xl_clip_L, com_name=self.com_name_TE, com_name_tmp=self.com_name_TE_tmp)
             sd_TE2 = self.convert_from_webui_xl_te_(state, prefix=self.prefix_TE_xl_clip_bigG, com_name=self.com_name_TE, com_name_tmp=self.com_name_TE_tmp)
             sd_TE.update(sd_TE2)
 
         if auto_scale_alpha:
             sd_unet = self.alpha_scale_from_webui(sd_unet)
             sd_TE = self.alpha_scale_from_webui(sd_TE)
-        return {'lora': sd_TE},  {'lora': sd_unet}
+        return {'plugin': sd_TE},  {'plugin': sd_unet}
 
     def convert_to_webui(self, sd_unet, sd_TE, auto_scale_alpha=False, sdxl=False):
         sd_unet = self.convert_to_webui_(sd_unet, prefix=self.prefix_unet)
@@ -90,7 +90,7 @@ class LoraConverter:
 
             new_k = f"{prefix}{model_k.replace('.', '_')}.{lora_k}"
             if 'clip' in new_k:
-                new_k = new_k.replace('_clip_B', '1') if 'clip_B' in new_k else new_k.replace('_clip_bigG', '2')
+                new_k = new_k.replace('_clip_L', '1') if 'clip_L' in new_k else new_k.replace('_clip_bigG', '2')
             sd_convert[new_k] = v
         return sd_convert
     
@@ -103,7 +103,7 @@ class LoraConverter:
             model_k, lora_k = k[prefix_len:].split('.', 1)
             model_k = self.replace_all(model_k, com_name, com_name_tmp).replace('_', '.').replace('%', '_')
             if prefix == 'lora_te1_':
-                model_k = f'clip_B.{model_k}'
+                model_k = f'clip_L.{model_k}'
             else:
                 model_k = f'clip_bigG.{model_k}'
 
@@ -240,7 +240,7 @@ if __name__ == '__main__':
         print('save unet lora to:', unet_path)
     elif args.to_webui:
         sd_unet = ckpt_manager.load_ckpt(args.lora_path)
-        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE) if args.lora_path_TE else {'lora':{}}
-        state = converter.convert_to_webui(sd_unet['lora'], sd_TE['lora'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
+        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE) if args.lora_path_TE else {'plugin':{}}
+        state = converter.convert_to_webui(sd_unet['plugin'], sd_TE['plugin'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
         ckpt_manager._save_ckpt(state, save_path=args.dump_path)
         print('save lora to:', args.dump_path)

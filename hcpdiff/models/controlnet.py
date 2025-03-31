@@ -55,25 +55,25 @@ class ControlNetPlugin(MultiPluginBlock):
         self.cond_head = nn.Sequential(*cond_head)
 
     def reset_parameters(self) -> None:
-        def weight_init(m):
-            if isinstance(m, nn.Conv2d):
-                nn.init.constant_(m.weight, 0)
-        self.controlnet_down_blocks.apply(weight_init)
-        self.controlnet_mid_block.apply(weight_init)
-        self.cond_head[-1].apply(weight_init)
+        def zero_weight_init(m):
+            for p in m.parameters():
+                p.detach().zero_()
+        self.controlnet_down_blocks.apply(zero_weight_init)
+        self.controlnet_mid_block.apply(zero_weight_init)
+        self.cond_head[-1].apply(zero_weight_init)
 
-    def from_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
+    def from_layer_hook(self, host, idx: int, args: Tuple[Any, ...], kwargs: Dict[str, Any], fea_out: Any=None):
         if idx==0:
-            self.data_input = fea_in
+            self.data_input = (args, kwargs)
         elif idx==1:
-            self.feat_to = self(*self.data_input)
+            self.feat_to = self(*self.data_input[0], **self.data_input[1])
 
-    def to_layer_hook(self, host, fea_in:Tuple[torch.Tensor], fea_out:Tuple[torch.Tensor], idx: int):
+    def to_layer_hook(self, host, idx: int, args: Tuple[Any, ...], kwargs: Dict[str, Any], fea_out: Any=None):
         if idx == 5:
-            sp = fea_in[0].shape[1]//2
-            new_feat = fea_in[0].clone()
-            new_feat[:, sp:, ...] = fea_in[0][:, sp:, ...] + self.feat_to[0]
-            return (new_feat, fea_in[1])
+            sp = args[0].shape[1]//2
+            new_feat = args[0].clone()
+            new_feat[:, sp:, ...] = args[0][:, sp:, ...] + self.feat_to[0]
+            return (new_feat, args[1])
         elif idx == 3:
             return (fea_out[0], tuple(fea_out[1][i] + self.feat_to[(idx) * 3 + i+1] for i in range(2)))
         elif idx == 4:

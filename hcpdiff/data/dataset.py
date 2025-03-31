@@ -8,11 +8,13 @@ pair_dataset.py
     :Licence:     Apache-2.0
 """
 
-from rainbowneko.data import CacheableDataset
+from typing import Union, Dict
 
-class TextImagePairDataset(CacheableDataset):
-    """
-    A dataset to prepare the instance and class images with the prompts for fine-tuning the model.
-    It pre-processes the images and the tokenizes prompts.
-    """
-    pass
+from rainbowneko.data import CacheableDataset, BaseDataset, BaseBucket, DataSource, DataHandler, DataCache
+
+def TextImagePairDataset(bucket: BaseBucket = None, source: Dict[str, DataSource] = None, handler: DataHandler = None,
+                         batch_handler: DataHandler = None, cache: DataCache = None, **kwargs) -> Union[CacheableDataset, BaseDataset]:
+    if cache is None:
+        return BaseDataset(bucket=bucket, source=source, handler=handler, batch_handler=batch_handler, **kwargs)
+    else:
+        return CacheableDataset(bucket=bucket, source=source, handler=handler, batch_handler=batch_handler, cache=cache, **kwargs)
