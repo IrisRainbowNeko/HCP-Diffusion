@@ -125,11 +125,8 @@ python -m hcpdiff.tools.sd2diffusers \
 ```
 
 ### Tutorials
-+ [Model Training Tutorial](doc/guide_train.md)
-+ [DreamArtist++ Tutorial](doc/guide_DA.md)
-+ [Model Inference Tutorial](doc/guide_infer.md)
-+ [Configuration File Explanation](doc/guide_cfg.md)
-+ [webui Model Conversion Tutorial](doc/guide_webui_lora.md)
++ [DreamArtist++ Tutorial](docs/en/tutorial/DA.md)
++ [LoRA Anime Model Tutorial](docs/en/tutorial/lora_anime.md)
 
 ## Contributing
 

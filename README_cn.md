@@ -114,11 +114,9 @@ python -m hcpdiff.tools.sd2diffusers \
 ```
 
 ### 教程
-+ [模型训练教程](doc/guide_train_cn.md)
-+ [DreamArtist++使用教程](doc/guide_DA_cn.md)
-+ [图像生成教程](doc/guide_infer_cn.md)
-+ [配置文件说明](doc/guide_cfg_cn.md)
-+ [webui模型转换教程](doc/guide_webui_lora_cn.md)
++ [DreamArtist++使用教程](docs/zh_CN/tutorial/DA.md)
++ [LoRA 动漫模型教程](docs/zh_CN/tutorial/lora_anime.md)
++ [ControlNet 使用教程](docs/zh_CN/tutorial/controlnet.md)
 
 ## 做出贡献
 
