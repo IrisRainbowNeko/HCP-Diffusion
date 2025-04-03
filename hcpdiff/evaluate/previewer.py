@@ -28,7 +28,7 @@ class HCPPreviewer(WorkflowPreviewer):
         preview_root = Path(self.trainer.exp_dir)/'imgs'
         preview_root.mkdir(parents=True, exist_ok=True)
 
-        states = self.workflow_runner.run(denoiser=model.denoiser, TE=model.TE, vae=model.vae, in_preview=True, te_hook=model.text_enc_hook,
+        states = self.workflow_runner.run(model=model, in_preview=True, te_hook=model.text_enc_hook,
                                           device=self.device, dtype=self.dtype, preview_root=preview_root, preview_step=step,
                                           world_size=self.trainer.world_size, local_rank=self.trainer.local_rank,
                                           emb_hook=self.trainer.cfgs.emb_pt.embedding_hook if self.trainer.pt_trainable else None)

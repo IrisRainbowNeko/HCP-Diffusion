@@ -1,15 +1,14 @@
 import os
+from functools import partial
 from typing import List, Union
 
 import torch
 from hcpdiff.utils import to_validate_file
-from rainbowneko.utils.img_size_tool import types_support
 from hcpdiff.utils.net_utils import get_dtype
-from omegaconf import OmegaConf
 from rainbowneko.ckpt_manager import ModelManager
 from rainbowneko.infer import BasicAction
 from rainbowneko.infer import LoadImageAction as Neko_LoadImageAction
-from functools import partial
+from rainbowneko.utils.img_size_tool import types_support
 
 class BuildModelsAction(BasicAction):
     def __init__(self, model_loader: partial[ModelManager.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
@@ -18,9 +17,9 @@ class BuildModelsAction(BasicAction):
         self.dtype = get_dtype(dtype)
         self.device = device
 
-    def forward(self, in_preview=False, denoiser=None, TE=None, vae=None, **states):
+    def forward(self, in_preview=False, model=None, **states):
         if in_preview:
-            model = self.model_loader(dtype=self.dtype, device=self.device, denoiser=denoiser, TE=TE, vae=vae)
+            model = self.model_loader(dtype=self.dtype, device=self.device, denoiser=model.denoiser, TE=model.TE, vae=model.vae)
         else:
             model = self.model_loader(dtype=self.dtype, device=self.device)
 
