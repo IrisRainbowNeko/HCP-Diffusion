@@ -7,7 +7,7 @@ text_emb_ex.py
     :Created:     10/03/2023
     :Licence:     Apache-2.0
 """
-from typing import Tuple
+from typing import Tuple, Dict, Any
 
 import torch
 from torch import nn
@@ -38,7 +38,7 @@ class EmbeddingPTHook(SinglePluginBlock):
         self.input_ids = rearrange(input_ids[0], '(b r) w -> b (r w)', r=self.N_repeats)  # 兼容Attention mask
         return self.input_ids.clip(0, self.num_embeddings-1)
 
-    def forward(self, fea_in:Tuple[torch.Tensor], inputs_embeds:torch.Tensor):
+    def forward(self, inputs_embeds:torch.Tensor, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]):
         '''
         :param input_ids: [B, N_ids]
         :param inputs_embeds: [B, N_repeat*(N_word+2), N_emb]
