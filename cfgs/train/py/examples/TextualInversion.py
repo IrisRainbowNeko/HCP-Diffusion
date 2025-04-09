@@ -1,16 +1,16 @@
+from rainbowneko.data import RatioBucket
+from rainbowneko.parser import neko_cfg
+
 from cfgs.train.py import train_base, tuning_base
-from hcpdiff.ckpt_manager.format import DiffusersSD15Format
+from cfgs.workflow import t2i_TextualInversion
+from hcpdiff.ckpt_manager import easy_emb_saver
 from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
 from hcpdiff.data import VaeCache
 from hcpdiff.easy import SD15_auto_loader
-from hcpdiff.models import SD15Wrapper
-from rainbowneko.ckpt_manager import ckpt_saver, LAYERS_TRAINABLE, LocalCkptSource
-from rainbowneko.parser import neko_cfg
-from rainbowneko.data import RatioBucket
-from hcpdiff.parser import CfgEmbPTParser
 from hcpdiff.evaluate import HCPPreviewer
+from hcpdiff.models import SD15Wrapper
+from hcpdiff.parser import CfgEmbPTParser
 
-from cfgs.workflow import t2i_TextualInversion
 # replace the prompt and negative_prompt
 t2i_TextualInversion.prompt = ('pt-paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
           ' :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up,'
@@ -32,11 +32,7 @@ def make_cfg():
         ),
 
         ckpt_saver=dict(
-            SD15=ckpt_saver(
-                ckpt_type='safetensors',
-                target_module='denoiser',
-                layers=LAYERS_TRAINABLE,
-            )
+            emb=easy_emb_saver()
         ),
 
         train=dict(
