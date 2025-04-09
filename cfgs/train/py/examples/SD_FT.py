@@ -5,7 +5,7 @@ from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusion
 from hcpdiff.data import VaeCache
 from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.models import SD15Wrapper
-from rainbowneko.ckpt_manager import ckpt_manager, ModelManager, LocalCkptSource
+from rainbowneko.ckpt_manager import ckpt_saver, NekoLoader, LocalCkptSource, LAYERS_TRAINABLE
 from rainbowneko.parser import CfgWDModelParser, neko_cfg
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import ConstantLR
@@ -23,9 +23,13 @@ def make_cfg():
             )
         ], weight_decay=1e-2),
 
-        ckpt_manager=[
-            ckpt_manager('safetensors', saved_model=({'model':'denoiser', 'trainable':True},))
-        ],
+        ckpt_saver=dict(
+            SD15=ckpt_saver(
+                ckpt_type='safetensors',
+                target_module='denoiser',
+                layers=LAYERS_TRAINABLE,
+            )
+        ),
 
         train=dict(
             train_steps=5000,
@@ -43,12 +47,12 @@ def make_cfg():
             name='SD15',
 
             ## Full config
-            # wrapper=StableDiffusionWrapper.from_pretrained(
+            # wrapper=SD15Wrapper.from_pretrained(
             #     _partial_=True,
-            #     models=ModelManager(
+            #     models=NekoLoader(
             #         format=DiffusersSD15Format(),
             #         source=LocalCkptSource(),
-            #     ).load(name='Lykon/DreamShaper', _partial_=True)
+            #     ).load(path='Lykon/DreamShaper', _partial_=True)
             # ),
 
             ## Easy config

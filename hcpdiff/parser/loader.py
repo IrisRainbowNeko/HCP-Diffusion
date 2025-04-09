@@ -1,9 +1,9 @@
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from rainbowneko.ckpt_manager import CkptManagerBase
 from torch import nn
 from hcpdiff.utils.net_utils import split_module_name
-from rainbowneko.parser.model import NekoPluginLoader
-from rainbowneko.parser.model.locator import get_match_layers
+from rainbowneko.ckpt_manager import NekoPluginLoader, LocalCkptSource, CkptFormat
+from rainbowneko.ckpt_manager.locator import get_match_layers
+from rainbowneko.models.plugin import PluginGroup
 
 def get_lora_rank_and_cls(lora_state):
     if 'layer.W_down' in lora_state:
@@ -13,13 +13,18 @@ def get_lora_rank_and_cls(lora_state):
         raise ValueError('Unknown lora format.')
 
 class HCPLoraLoader(NekoPluginLoader):
+    def __init__(self, format: CkptFormat, source: LocalCkptSource, path: str = None, layers='all', target_plugin=None,
+                 state_prefix=None, base_model_alpha=0.0, load_ema=False, module_to_load='', **plugin_kwargs):
+        super().__init__(format, source, path=path, layers=layers, target_plugin=target_plugin, state_prefix=state_prefix,
+                         base_model_alpha=base_model_alpha, load_ema=load_ema, **plugin_kwargs)
+        self.module_to_load = module_to_load
 
     def load_to(self, name, model):
         # get model to load plugin and its named_modules
         model = model if self.module_to_load == '' else eval(f"model.{self.module_to_load}")
 
         named_modules = {k:v for k, v in model.named_modules()}
-        plugin_state = self.ckpt_manager.load(self.path, map_location='cpu')['plugin_ema' if self.load_ema else 'plugin']
+        plugin_state = self.load(self.path, map_location='cpu')['base_ema' if self.load_ema else 'base']
 
         # filter layers to load
         if self.layers != 'all':
@@ -40,6 +45,7 @@ class HCPLoraLoader(NekoPluginLoader):
             lora_block_state[prefix][block_name] = p
 
         # add lora to host and load weights
+        lora_blocks = {}
         for layer_name, lora_state in lora_block_state.items():
             lora_layer_cls, rank = get_lora_rank_and_cls(lora_state)
 
@@ -51,12 +57,8 @@ class HCPLoraLoader(NekoPluginLoader):
             lora_block = lora_layer_cls.wrap_layer(name, named_modules[layer_name], rank=rank, bias='layer.bias' in lora_state,
                                                 parent_block=named_modules[parent_name], host_name=host_name)
             lora_block.set_hyper_params(**self.plugin_kwargs)
+            lora_blocks[layer_name] = lora_block
             load_info = lora_block.load_state_dict(lora_state, strict=False)
             if len(load_info.unexpected_keys) > 0:
                 print(name, 'unexpected_keys', load_info.unexpected_keys)
-
-        # Load state to plugin
-        # plugin_state = {k.replace('___', name): v for k, v in plugin_state.items()}  # replace placeholder to target plugin name
-        # load_info = model.load_state_dict(plugin_state, strict=False)
-        # if len(load_info.unexpected_keys) > 0:
-        #     print(name, 'unexpected_keys', load_info.unexpected_keys)
+        return PluginGroup(lora_blocks)

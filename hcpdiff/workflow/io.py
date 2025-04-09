@@ -5,13 +5,13 @@ from typing import List, Union
 import torch
 from hcpdiff.utils import to_validate_file
 from hcpdiff.utils.net_utils import get_dtype
-from rainbowneko.ckpt_manager import ModelManager
+from rainbowneko.ckpt_manager import NekoLoader
 from rainbowneko.infer import BasicAction
 from rainbowneko.infer import LoadImageAction as Neko_LoadImageAction
 from rainbowneko.utils.img_size_tool import types_support
 
 class BuildModelsAction(BasicAction):
-    def __init__(self, model_loader: partial[ModelManager.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
+    def __init__(self, model_loader: partial[NekoLoader.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
         self.model_loader = model_loader
         self.dtype = get_dtype(dtype)

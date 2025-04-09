@@ -4,7 +4,7 @@ from io import BytesIO
 import numpy as np
 from PIL import Image
 from hcpdiff.utils import to_validate_file
-from hcpdiff.utils.img_size_tool import types_support
+from rainbowneko.utils import types_support
 from matplotlib import pyplot as plt
 from rainbowneko.infer import BasicAction, Actions
 

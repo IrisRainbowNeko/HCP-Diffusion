@@ -6,7 +6,7 @@ from hcpdiff.easy import SD15_auto_loader
 from hcpdiff.evaluate import HCPPreviewer
 from hcpdiff.models import SD15Wrapper
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from rainbowneko.ckpt_manager import ckpt_manager
+from rainbowneko.ckpt_manager import plugin_saver, LAYERS_ALL
 from rainbowneko.data import RatioBucket
 from rainbowneko.parser import CfgWDPluginParser, neko_cfg
 from rainbowneko.utils import ConstantLR
@@ -49,12 +49,15 @@ def make_cfg():
             )
         ), weight_decay=0.1),
 
-        ckpt_manager=[
-            ckpt_manager('safetensors', saved_model=(
-                {'model':'denoiser', 'trainable':True},
-                {'model':'TE', 'trainable':True},
-            ))
-        ],
+        ckpt_saver=dict(
+            _replace_=True,
+            lora_denoiser=plugin_saver(
+                target_plugin='lora1_unet',
+            ),
+            lora_TE=plugin_saver(
+                target_plugin='lora1_TE',
+            )
+        ),
 
         train=dict(
             train_steps=1000,

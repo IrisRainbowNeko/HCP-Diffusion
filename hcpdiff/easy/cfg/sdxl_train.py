@@ -1,5 +1,5 @@
 import torch
-from rainbowneko.ckpt_manager import ckpt_manager
+from rainbowneko.ckpt_manager import ckpt_saver, plugin_saver, LAYERS_TRAINABLE
 from rainbowneko.parser import CfgWDPluginParser, neko_cfg, CfgWDModelParser, disable_neko_cfg
 from rainbowneko.utils import ConstantLR
 
@@ -29,9 +29,13 @@ def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int =
             )
         ], weight_decay=1e-2),
 
-        ckpt_manager=[
-            ckpt_manager('safetensors', saved_model=({'model':'denoiser', 'trainable':True},))
-        ],
+        ckpt_saver=dict(
+            SDXL=ckpt_saver(
+                ckpt_type='safetensors',
+                target_module='denoiser',
+                layers=LAYERS_TRAINABLE,
+            )
+        ),
 
         train=dict(
             train_steps=train_steps,
@@ -102,6 +106,13 @@ def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
                 layers=lora_layers
             )
         ), weight_decay=0.1),
+
+        ckpt_saver=dict(
+            lora_unet=plugin_saver(
+                ckpt_type='safetensors',
+                target_plugin='lora1',
+            )
+        ),
 
         train=dict(
             train_steps=train_steps,

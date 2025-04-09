@@ -3,7 +3,7 @@ from hcpdiff.ckpt_manager import DiffusersSD15Format
 from hcpdiff.workflow import (BuildModelsAction, PrepareDiffusionAction, XformersEnableAction, VaeOptimizeAction, TextHookAction,
                               AttnMultTextEncodeAction, SeedAction, MakeTimestepsAction, MakeLatentAction, DiffusionStepAction, time_iter,
                               DecodeAction, SaveImageAction)
-from rainbowneko.ckpt_manager import ModelManager, LocalCkptSource
+from rainbowneko.ckpt_manager import NekoLoader, LocalCkptSource
 from rainbowneko.infer.workflow import (Actions, PrepareAction, LoopAction)
 from rainbowneko.parser import neko_cfg
 from diffusers import DPMSolverMultistepScheduler
@@ -15,10 +15,10 @@ from hcpdiff.easy import Diffusers_SD, SD15_auto_loader
 #     return Actions([
 #         PrepareAction(device='cuda', dtype=torch.float16),
 #         BuildModelsAction(
-#             model_loader=ModelManager(
+#             model_loader=NekoLoader(
 #                 source=LocalCkptSource(),
 #                 format=DiffusersSD15Format()
-#             ).load(_partial_=True, name=pretrained_model,
+#             ).load(_partial_=True, path=pretrained_model,
 #                 noise_sampler=DPMSolverMultistepScheduler(
 #                     beta_start=0.00085,
 #                     beta_end=0.012,

@@ -3,8 +3,7 @@ import os.path
 from typing import List
 import math
 
-from hcpdiff.ckpt_manager import auto_manager
-from hcpdiff.deprecated import convert_to_webui_maybe_old, convert_to_webui_xl_maybe_old
+from rainbowneko.ckpt_manager import auto_ckpt_loader, NekoModelSaver
 
 class LoraConverter:
     com_name_unet = ['down_blocks', 'up_blocks', 'mid_block', 'transformer_blocks', 'to_q', 'to_k', 'to_v', 'to_out', 'proj_in', 'proj_out', 'input_blocks', 'middle_block', 'output_blocks']
@@ -59,7 +58,6 @@ class LoraConverter:
                 sd_covert[f'{model_k}.___.layer.{self.lora_w_map[lora_k]}'] = v
         return sd_covert
 
-    @convert_to_webui_maybe_old
     def convert_to_webui_(self, state, prefix):
         sd_covert = {}
         for k, v in state.items():
@@ -75,7 +73,6 @@ class LoraConverter:
             sd_covert[f"{prefix}{model_k.replace('.', '_')}.{lora_k}"] = v
         return sd_covert
 
-    @convert_to_webui_xl_maybe_old
     def convert_to_webui_xl_(self, state, prefix):
         sd_convert = {}
         for k, v in state.items():
@@ -224,23 +221,27 @@ if __name__ == '__main__':
 
     # load lora model
     print('convert lora model')
-    ckpt_manager = auto_manager(args.lora_path)
+    ckpt_loader = auto_ckpt_loader(args.lora_path)
+    ckpt_saver = NekoModelSaver(
+        format=ckpt_loader.format,
+        source=ckpt_loader.source,
+    )
 
     if args.from_webui:
-        state = ckpt_manager.load_ckpt(args.lora_path)
+        state = ckpt_loader.load(args.lora_path)
         # convert the weight name
         sd_TE, sd_unet = converter.convert_from_webui(state, auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
         # wegiht save
         os.makedirs(args.dump_path, exist_ok=True)
         TE_path = os.path.join(args.dump_path, 'TE-'+lora_name)
         unet_path = os.path.join(args.dump_path, 'unet-'+lora_name)
-        ckpt_manager._save_ckpt(sd_TE, save_path=TE_path)
-        ckpt_manager._save_ckpt(sd_unet, save_path=unet_path)
+        ckpt_saver.save(sd_TE, TE_path)
+        ckpt_saver.save(sd_unet, unet_path)
         print('save text encoder lora to:', TE_path)
         print('save unet lora to:', unet_path)
     elif args.to_webui:
-        sd_unet = ckpt_manager.load_ckpt(args.lora_path)
-        sd_TE = ckpt_manager.load_ckpt(args.lora_path_TE) if args.lora_path_TE else {'plugin':{}}
-        state = converter.convert_to_webui(sd_unet['plugin'], sd_TE['plugin'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
-        ckpt_manager._save_ckpt(state, save_path=args.dump_path)
+        sd_unet = ckpt_loader.load(args.lora_path)
+        sd_TE = ckpt_loader.load(args.lora_path_TE) if args.lora_path_TE else {'base':{}}
+        state = converter.convert_to_webui(sd_unet['base'], sd_TE['base'], auto_scale_alpha=args.auto_scale_alpha, sdxl=args.sdxl)
+        ckpt_saver.save(state, args.dump_path)
         print('save lora to:', args.dump_path)

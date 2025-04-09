@@ -43,6 +43,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
         LoadModelAction(cfg=dict(
             lora1=HCPLoraLoader(
                 path='exps/lora_sdxl_paimeng/ckpts/model-1000-lora1.safetensors',
+                state_prefix='denoiser.',
                 alpha=1,
             )
         ), key_map_in=('denoiser -> model', 'in_preview -> in_preview'))

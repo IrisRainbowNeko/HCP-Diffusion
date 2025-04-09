@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from hcpdiff.utils.img_size_tool import types_support
+from rainbowneko.utils import types_support
 
 parser = argparse.ArgumentParser(description='Stable Diffusion Training')
 parser.add_argument('--data_root', type=str, default='')

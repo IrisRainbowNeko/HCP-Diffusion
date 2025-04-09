@@ -17,7 +17,7 @@ def config_highres():
 
 @neko_cfg
 def make_cfg():
-    return ict(workflow=Actions(actions=[
+    return dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
         optimize_model(),
         text(),

@@ -8,6 +8,7 @@ from hcpdiff.models.lora_layers_patch import LoraLayer
 from rainbowneko.parser import CfgWDPluginParser, neko_cfg
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import ConstantLR
+from rainbowneko.ckpt_manager import plugin_saver
 
 @neko_cfg
 def make_cfg():
@@ -28,6 +29,13 @@ def make_cfg():
                 ]
             )
         ), weight_decay=0.1),
+
+        ckpt_saver=dict(
+            lora_unet=plugin_saver(
+                ckpt_type='safetensors',
+                target_plugin='lora1',
+            )
+        ),
 
         train=dict(
             train_steps=1000,

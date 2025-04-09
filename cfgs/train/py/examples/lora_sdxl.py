@@ -9,6 +9,7 @@ from hcpdiff.evaluate import HCPPreviewer
 from rainbowneko.parser import CfgWDPluginParser, neko_cfg
 from rainbowneko.data import RatioBucket
 from rainbowneko.utils import ConstantLR
+from rainbowneko.ckpt_manager import plugin_saver
 
 from cfgs.workflow import t2i_lora_sdxl
 # replace the prompt and negative_prompt in t2i_lora
@@ -37,6 +38,13 @@ def make_cfg():
                 ]
             )
         ), weight_decay=0.1),
+
+        ckpt_saver=dict(
+            lora_unet=plugin_saver(
+                ckpt_type='safetensors',
+                target_plugin='lora1',
+            )
+        ),
 
         train=dict(
             train_steps=1000,
