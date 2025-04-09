@@ -3,6 +3,7 @@ import warnings
 
 import torch
 from rainbowneko.parser import load_config_with_cli
+from rainbowneko.ckpt_manager import NekoSaver
 from rainbowneko.train import Trainer
 from rainbowneko.utils import xformers_available, is_dict
 from hcpdiff.ckpt_manager import EmbFormat
@@ -49,37 +50,13 @@ class HCPTrainer(Trainer):
         return loss
 
     def save_model(self, from_raw=False):
-        for manager in self.ckpt_manager:
-            manager.save_step(
-                self.model_raw,
-                name=self.cfgs.model.name,
-                step=self.real_step,
-                prefix=self.ckpt_dir,
-                model_ema=getattr(self, "ema_model", None),
-            )
-            try:
-                manager.save_plugins_step(
-                    self.model_raw,
-                    self.all_plugin,
-                    name=self.cfgs.model.name,
-                    step=self.real_step,
-                    prefix=self.ckpt_dir,
-                    model_ema=getattr(self, "ema_model", None),
-                )
-            except:
-                self.loggers.info(f"{manager} not support to save plugin!")
-
-                import traceback
-                traceback.print_exc()
-
-            try:
-                for pt_name, pt in self.train_pts.items():
-                    manager.source.put(f'{pt_name}-{self.real_step}.{self.emb_format.EXT}', (pt_name, pt), self.emb_format, prefix=self.ckpt_dir)
-                    manager.source.put(f'{pt_name}.{self.emb_format.EXT}', (pt_name, pt), self.emb_format, prefix=self.ckpt_dir)
-            except:
-                self.loggers.info(f"{manager} not support to save embedding!")
-                import traceback
-                traceback.print_exc()
+        NekoSaver.save_all(
+            self.model_raw,
+            plugin_groups={**self.all_plugin, 'embs': self.train_pts},
+            cfg=self.ckpt_saver,
+            model_ema=getattr(self, "ema_model", None),
+            name_template=f'{{}}-{self.real_step}',
+        )
 
         self.loggers.info(f"Saved state, step: {self.real_step}")
 

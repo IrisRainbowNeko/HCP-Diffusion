@@ -2,6 +2,7 @@ import torch
 from rainbowneko.data import RatioBucket
 from rainbowneko.parser import CfgWDPluginParser, neko_cfg
 from rainbowneko.utils import ConstantLR
+from rainbowneko.ckpt_manager import plugin_saver
 
 from cfgs.train.py.examples import SD_FT
 from hcpdiff.data import TextImagePairDataset, Text2ImageCondSource
@@ -19,6 +20,13 @@ def make_cfg():
         model_plugin=CfgWDPluginParser(cfg_plugin=dict(
             cnet=ControlNet_SD15(lr=1e-4)
         ), weight_decay=1e-2),
+
+        ckpt_saver=dict(
+            cnet=plugin_saver(
+                ckpt_type='safetensors',
+                target_plugin='cnet',
+            )
+        ),
 
         train=dict(
             train_steps=10000,
