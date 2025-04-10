@@ -5,7 +5,7 @@ from rainbowneko.parser import neko_cfg
 
 from cfgs.workflow.text2img import *
 from hcpdiff.easy import SDXL_auto_loader, Diffusers_SD
-from hcpdiff.parser import HCPLoraLoader
+from hcpdiff.ckpt_manager import HCPLoraLoader
 from hcpdiff.workflow import BuildModelsAction
 
 prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'

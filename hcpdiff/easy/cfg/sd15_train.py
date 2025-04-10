@@ -113,6 +113,7 @@ def SD15_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
         ), weight_decay=0.1),
 
         ckpt_saver=dict(
+            _replace_ = True,
             lora_unet=plugin_saver(
                 ckpt_type='safetensors',
                 target_plugin='lora1',

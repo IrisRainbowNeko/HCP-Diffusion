@@ -40,6 +40,7 @@ def make_cfg():
         ), weight_decay=0.1),
 
         ckpt_saver=dict(
+            _replace_ = True,
             lora_unet=plugin_saver(
                 ckpt_type='safetensors',
                 target_plugin='lora1',

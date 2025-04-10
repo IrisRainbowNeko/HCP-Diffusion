@@ -1,6 +1,10 @@
 from rainbowneko.parser import neko_cfg
-from hcpdiff.easy.cfg import SDXL_lora_train, cfg_data_SD_ARB, SD15_t2i
+from hcpdiff.easy.cfg import SDXL_lora_train, cfg_data_SD_ARB, SDXL_t2i
 from hcpdiff.evaluate import HCPPreviewer
+
+prompt = ('paimeng, 1girl, halo, white_hair, solo, smile, blue_eyes, looking_at_viewer, open_mouth, long_sleeves, white_dress, dress, single_thighhigh,'
+          ' :d, cape, hair_between_eyes, thighhighs, hair_ornament, blush, white_outline, outline, sky, scarf, cloud, white_thighhighs, arm_up,'
+          ' notice_lines, paimon_(genshin_impact)')
 
 @neko_cfg
 def make_cfg():
@@ -23,6 +27,9 @@ def make_cfg():
         ),
         evaluator=HCPPreviewer(_partial_=True,
             interval=100,
-            workflow=SD15_t2i,
+            workflow=SDXL_t2i(
+                pretrained_model='${model.wrapper.models.ckpt_path}',
+                prompt=prompt
+            ),
         ),
     )

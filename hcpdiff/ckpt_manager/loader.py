@@ -13,7 +13,7 @@ def get_lora_rank_and_cls(lora_state):
         raise ValueError('Unknown lora format.')
 
 class HCPLoraLoader(NekoPluginLoader):
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, path: str = None, layers='all', target_plugin=None,
+    def __init__(self, format: CkptFormat=None, source: LocalCkptSource=None, path: str = None, layers='all', target_plugin=None,
                  state_prefix=None, base_model_alpha=0.0, load_ema=False, module_to_load='', **plugin_kwargs):
         super().__init__(format, source, path=path, layers=layers, target_plugin=target_plugin, state_prefix=state_prefix,
                          base_model_alpha=base_model_alpha, load_ema=load_ema, **plugin_kwargs)
