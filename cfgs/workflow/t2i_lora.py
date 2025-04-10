@@ -42,7 +42,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
         ),
         LoadModelAction(cfg=dict(
             lora1=HCPLoraLoader(
-                path='exps/lora_paimeng/ckpts/model-1000-lora1.safetensors',
+                path='exps/lora_paimeng/ckpts/lora_unet-1000.safetensors',
                 state_prefix='denoiser.',
                 alpha=1,
             )
