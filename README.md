@@ -28,6 +28,8 @@ Compared to the original DreamArtist, it offers better stability, image quality,
 
 ## Installation
 
+Install [pytorch](https://pytorch.org/)
+
 Install via pip:
 
 ```bash

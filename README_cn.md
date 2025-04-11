@@ -13,6 +13,9 @@ HCP-Diffusion可以通过一个```.py```配置文件用相似的配置方式，�
 好主意！用表格确实可以让信息更紧凑、层次更清晰，尤其在 README 页面中，便于快速浏览和对比。下面是使用表格格式重新排版后的版本，保持专业和美观：
 
 ## 安装
+
+安装 [pytorch](https://pytorch.org/)
+
 通过pip安装:
 ```bash
 pip install hcpdiff
