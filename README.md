@@ -1,4 +1,4 @@
-# HCP-Diffusion
+# HCP-Diffusion V2
 
 [![PyPI](https://img.shields.io/pypi/v/hcpdiff)](https://pypi.org/project/hcpdiff/)
 [![GitHub stars](https://img.shields.io/github/stars/7eu7d7/HCP-Diffusion)](https://github.com/7eu7d7/HCP-Diffusion/stargazers)
@@ -12,136 +12,224 @@
 [📘中文文档](https://hcpdiff.readthedocs.io/zh_CN/latest/)
 
 ## Introduction
-HCP-Diffusion is a toolbox for Stable Diffusion models based on [🤗 Diffusers](https://github.com/huggingface/diffusers).
-It facilitates flexiable configurations and component support for training, in comparison with [webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
 
-This toolbox supports [**Colossal-AI**](https://github.com/hpcaitech/ColossalAI), which can significantly reduce GPU memory usage.
+**HCP-Diffusion** is a Diffusion model toolbox built on top of the [🐱 RainbowNeko Engine](https://github.com/IrisRainbowNeko/RainbowNekoEngine).  
+It features a clean code structure and a flexible **Python-based configuration file**, making it easier to conduct and manage complex experiments. It includes a wide variety of training components, and compared to existing frameworks, it's more extensible, flexible, and user-friendly.
 
-HCP-Diffusion can unify existing training methods for text-to-image generation (e.g., Prompt-tuning, Textual Inversion, DreamArtist, Fine-tuning, DreamBooth, LoRA, ControlNet, etc) and model structures through a single ```.yaml``` configuration file.
+HCP-Diffusion allows you to use a single `.py` config file to unify training workflows across popular methods and model architectures, including Prompt-tuning (Textual Inversion), DreamArtist, Fine-tuning, DreamBooth, LoRA, ControlNet, ....  
+Different techniques can also be freely combined.
 
-The toolbox has also implemented an upgraded version of DreamArtist with LoRA, named DreamArtist++, for one-shot text-to-image generation.
-Compared to DreamArtist, DreamArtist++ is more stable with higher image quality and generation controllability, and faster training speed.
+This framework also implements **DreamArtist++**, an upgraded version of DreamArtist based on LoRA. It enables high generalization and controllability with just a single image for training.  
+Compared to the original DreamArtist, it offers better stability, image quality, controllability, and faster training.
 
-## Features
+---
 
-* Layer-wise LoRA (with Conv2d)
-* Layer-wise fine-tuning
-* Layer-wise model ensemble
-* Prompt-tuning with multiple words
-* DreamArtist and DreamArtist++
-* Aspect Ratio Bucket (ARB) with automatic clustering
-* Multiple datasets with multiple data sources
-* Image attention mask
-* Word attention multiplier
-* Custom words that occupy multiple words
-* Maximum sentence length expansion
-* [🤗 Accelerate](https://github.com/huggingface/accelerate)
-* [Colossal-AI](https://github.com/hpcaitech/ColossalAI)
-* [xFormers](https://github.com/facebookresearch/xformers) for UNet and text-encoder
-* CLIP skip
-* Tag shuffle and dropout
-* [Safetensors](https://github.com/huggingface/safetensors) support
-* [Controlnet](https://github.com/lllyasviel/ControlNet) (support training)
-* Min-SNR loss
-* Custom optimizer (Lion, DAdaptation, pytorch-optimizer, ...)
-* Custom lr scheduler
-* SDXL support
+## Installation
 
-## Install
+Install via pip:
 
-Install with pip:
 ```bash
 pip install hcpdiff
-# Start a new project and make initialization
+# Initialize configuration
 hcpinit
 ```
 
 Install from source:
+
 ```bash
 git clone https://github.com/7eu7d7/HCP-Diffusion.git
 cd HCP-Diffusion
 pip install -e .
-# Modified based on this project or start a new project and make initialization
-## hcpinit
+# Initialize configuration
+hcpinit
 ```
 
-To use xFormers to reduce VRAM usage and accelerate training:
+Use xFormers to reduce memory usage and accelerate training:
+
 ```bash
-# use conda
-conda install xformers -c xformers
-
-# use pip
-pip install xformers>=0.0.17
+# Choose the appropriate xformers version for your PyTorch version
+pip install xformers==?
 ```
 
-## User guidance
+## 🚀 Python Configuration Files
+RainbowNeko Engine supports configuration files written in a Python-like syntax. This allows users to call functions and classes directly within the configuration file, with function parameters inheritable from parent configuration files. The framework automatically handles the formatting of these configuration files.
+
+For example, consider the following configuration file:
+```python
+dict(
+    layer=Linear(in_features=4, out_features=4)
+)
+```
+During parsing, this will be automatically compiled into:
+```python
+dict(
+    layer=dict(_target_=Linear, in_features=4, out_features=4)
+)
+```
+After parsing, the framework will instantiate the components accordingly. This means users can write configuration files using familiar Python syntax.
+
+---
+
+## ✨ Features
+
+<details>
+<summary>Features</summary>
+
+### 📦 Model Support
+
+| Model Name                | Status      |
+|--------------------------|-------------|
+| Stable Diffusion 1.5     | ✅ Supported |
+| Stable Diffusion XL (SDXL)| ✅ Supported |
+| PixArt                   | ✅ Supported |
+| FLUX                     | 🚧 In Development |
+| Stable Diffusion 3 (SD3) | 🚧 In Development |
+
+---
+
+### 🧠 Fine-Tuning Capabilities
+
+| Feature                         | Description/Support |
+|----------------------------------|---------------------|
+| LoRA Layer-wise Configuration   | ✅ Supported (including Conv2d) |
+| Layer-wise Fine-Tuning          | ✅ Supported |
+| Multi-token Prompt-Tuning       | ✅ Supported |
+| Layer-wise Model Merging        | ✅ Supported |
+| Custom Optimizers               | ✅ Supported (Lion, DAdaptation, pytorch-optimizer, etc.) |
+| Custom LR Schedulers            | ✅ Supported |
+
+---
+
+### 🧩 Extension Method Support
+
+| Method                         | Status      |
+|--------------------------------|-------------|
+| ControlNet (including training)| ✅ Supported |
+| DreamArtist / DreamArtist++    | ✅ Supported |
+| Token Attention Adjustment     | ✅ Supported |
+| Max Sentence Length Extension  | ✅ Supported |
+| Textual Inversion (Custom Tokens)| ✅ Supported |
+| CLIP Skip                      | ✅ Supported |
+
+---
+
+### 🚀 Training Acceleration
+
+| Tool/Library                                       | Supported Modules        |
+|---------------------------------------------------|---------------------------|
+| [🤗 Accelerate](https://github.com/huggingface/accelerate)    | ✅ Supported |
+| [Colossal-AI](https://github.com/hpcaitech/ColossalAI)       | ✅ Supported |
+| [xFormers](https://github.com/facebookresearch/xformers)     | ✅ Supported (UNet and text encoder) |
+
+---
+
+### 🗂 Dataset Support
+
+| Feature                         | Description |
+|----------------------------------|-------------|
+| Aspect Ratio Bucket (ARB)       | ✅ Auto-clustering supported |
+| Multi-source / Multi-dataset    | ✅ Supported |
+| LMDB                            | ✅ Supported |
+| webdataset                      | 🚧 In Development |
+| Local Attention Enhancement     | ✅ Supported |
+| Tag Shuffling & Dropout         | ✅ Multiple tag editing strategies |
+
+---
+
+### 📉 Supported Loss Functions
+
+| Loss Type  | Description |
+|------------|-------------|
+| Min-SNR    | ✅ Supported |
+| SSIM       | ✅ Supported |
+| GWLoss     | ✅ Supported |
+
+---
+
+### 🌫 Supported Diffusion Strategies
+
+| Strategy Type   | Status       |
+|------------------|--------------|
+| DDPM             | ✅ Supported |
+| EDM              | ✅ Supported |
+| Flow Matching    | ✅ Supported |
+
+---
+
+### 🧠 Automatic Evaluation (Step Selection Assistant)
+
+| Feature         | Description/Status                       |
+|------------------|------------------------------------------|
+| Image Preview    | ✅ Supported (workflow preview)           |
+| FID              | 🚧 In Development                        |
+| CLIP Score       | 🚧 In Development                        |
+| CCIP Score       | 🚧 In Development                        |
+| Corrupt Score    | 🚧 In Development                        |
+
+</details>
+
+---
+
+## Getting Started
 
 ### Training
 
-Training scripts based on 🤗 Accelerate or Colossal-AI are provided.
-+ For 🤗 Accelerate, you may need to [configure the environment](https://github.com/huggingface/accelerate/tree/main#launching-script) before launching the scripts.
-+ For Colossal-AI, you can use [torchrun](https://pytorch.org/docs/stable/elastic/run.html) to launch the scripts.
-
-```yaml
-# with Accelerate
-accelerate launch -m hcpdiff.train_ac --cfg cfgs/train/cfg_file.yaml
-# with Accelerate and only one GPU
-accelerate launch -m hcpdiff.train_ac_single --cfg cfgs/train/cfg_file.yaml
-# with Colossal-AI
-# pip install colossalai
-torchrun --nproc_per_node 1 -m hcpdiff.train_colo --cfg cfgs/train/cfg_file.yaml
-```
-
-### Inference
-```yaml
-python -m hcpdiff.visualizer --cfg cfgs/infer/cfg.yaml pretrained_model=pretrained_model_path \
-        prompt='positive_prompt' \
-        neg_prompt='negative_prompt' \
-        seed=42
-```
-
-### Conversion of Stable Diffusion models
-The framework is based on 🤗 Diffusers. So it needs to convert the original Stable Diffusion model into a supported format using the [scripts provided by 🤗 Diffusers](https://github.com/huggingface/diffusers/blob/main/scripts/convert_original_stable_diffusion_to_diffusers.py).
-+ Download the [config file](https://huggingface.co/runwayml/stable-diffusion-v1-5/blob/main/v1-inference.yaml)
-+ Convert models based on config file
+HCP-Diffusion provides training scripts based on 🤗 Accelerate.
 
 ```bash
-python -m hcpdiff.tools.sd2diffusers \
-    --checkpoint_path "path_to_stable_diffusion_model" \
-    --original_config_file "path_to_config_file" \
-    --dump_path "save_directory" \
-    [--extract_ema] # Extract EMA model
-    [--from_safetensors] # Whether the original model is in safetensors format
-    [--to_safetensors] # Whether to save to safetensors format
+# Multi-GPU training, configure GPUs in cfgs/launcher/multi.yaml
+hcp_train --cfg cfgs/train/py/your_config.py
+
+# Single-GPU training, configure GPU in cfgs/launcher/single.yaml
+hcp_train_1gpu --cfg cfgs/train/py/your_config.py
 ```
 
-Convert VAE:
+You can also override config items via command line:
+
 ```bash
-python -m hcpdiff.tools.sd2diffusers \
-    --vae_pt_path "path_to_VAE_model" \
-    --original_config_file "path_to_config_file" \
-    --dump_path "save_directory"
-    [--from_safetensors]
+# Override base model path
+hcp_train --cfg cfgs/train/py/your_config.py model.wrapper.models.ckpt_path=pretrained_model_path
+```
+
+### Image Generation
+
+Use the workflow defined in the Python config to generate images:
+
+```bash
+hcp_run --cfg cfgs/workflow/text2img.py
+```
+
+Or override parameters via command line:
+
+```bash
+hcp_run --cfg cfgs/workflow/text2img_cli.py \
+    pretrained_model=pretrained_model_path \
+    prompt='positive_prompt' \
+    negative_prompt='negative_prompt' \
+    seed=42
 ```
 
 ### Tutorials
-+ [Model Training Tutorial](doc/guide_train.md)
-+ [DreamArtist++ Tutorial](doc/guide_DA.md)
-+ [Model Inference Tutorial](doc/guide_infer.md)
-+ [Configuration File Explanation](doc/guide_cfg.md)
-+ [webui Model Conversion Tutorial](doc/guide_webui_lora.md)
+
+🚧 In Development
+
+---
 
 ## Contributing
 
-You are welcome to contribute more models and features to this toolbox!
+We welcome contributions to support more models and features.
+
+---
 
 ## Team
 
-This toolbox is maintained by [HCP-Lab, SYSU](https://www.sysu-hcp.net/).
+Maintained by [HCP-Lab at Sun Yat-sen University](https://www.sysu-hcp.net/).
+
+---
 
 ## Citation
 
-```
+```bibtex
 @article{DBLP:journals/corr/abs-2211-11337,
   author    = {Ziyi Dong and
                Pengxu Wei and

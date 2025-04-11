@@ -37,20 +37,12 @@ def text(bs=4) -> Actions:
     ])
 
 @neko_cfg
-def config_diffusion() -> Actions:
-    return Actions([
-        SeedAction(42),
-        MakeTimestepsAction(N_steps=20),
-        MakeLatentAction(width=1024, height=1024)
-    ])
-
-@neko_cfg
 def make_cfg():
     return dict(workflow=Actions(actions=[
         build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors'),
         optimize_model(),
         text(),
-        config_diffusion(),
+        config_diffusion(width=1024, height=1024),
         diffusion(),
         decode()
     ]))
