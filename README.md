@@ -11,6 +11,8 @@
 [📘English document](https://hcpdiff.readthedocs.io/en/latest/)
 [📘中文文档](https://hcpdiff.readthedocs.io/zh_CN/latest/)
 
+Old HCP-Diffusion V1 at [main branch](https://github.com/IrisRainbowNeko/HCP-Diffusion/tree/main)
+
 ## Introduction
 
 **HCP-Diffusion** is a Diffusion model toolbox built on top of the [🐱 RainbowNeko Engine](https://github.com/IrisRainbowNeko/RainbowNekoEngine).  
