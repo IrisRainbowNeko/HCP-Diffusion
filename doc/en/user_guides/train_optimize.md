@@ -2,24 +2,19 @@
 
 ## Training with DeepSpeed
 
-> DeepSpeed is not supported on Windows. If needed, please use WSL2.
-
-Start by configuring DeepSpeed using `accelerate config`:
-```bash
-multi-GPU
-How many different machines will you use (use more than 1 for multi-node training)? [1]:
-Should distributed operations be checked while running for errors? This can avoid timeout issues but will be slower. [yes/NO]:
-Do you wish to optimize your script with torch dynamo?[yes/NO]:
-Do you want to use DeepSpeed? [yes/NO]: yes
-Do you want to specify a json file to a DeepSpeed config? [yes/NO]: yes
-Please enter the path to the json DeepSpeed config file: cfgs/zero2.json
-Do you want to enable `deepspeed.zero.Init` when using ZeRO Stage-3 for constructing massive models? [yes/NO]: 
-How many GPU(s) should be used for distributed training? [1]:
+```{important}
+DeepSpeed is not supported on Windows. If you're using Windows, please use WSL2.
 ```
 
-Currently, two options are provided for DeepSpeed configuration: `zero2.json` and `zero3.json`. `zero3` supports offload, which saves GPU memory but may result in slower training and may require larger memory.
+First, specify the desired DeepSpeed configuration file by setting deepspeed_config.deepspeed_config_file in cfgs/launcher/deepspeed.yaml. Currently, two configuration files are provided: zero2.json and zero3.json.
 
-After configuring, start training with the following command:
+- zero2: Standard ZeRO Stage 2 optimization.
+- zero3: Supports parameter offloading, which significantly saves GPU memory but may lead to slower training and higher system memory usage.
+
+The number of GPUs used for training is configured via the num_processes parameter.
+
+After configuration, start training with the following command:
+
 ```bash
-accelerate launch -m hcpdiff.train_deepspeed --cfg cfgs/train/cfg_file.yaml
+hcp_train --launch_cfg cfgs/launcher/deepspeed.yaml --cfg cfgs/train/cfg_file.yaml
 ```

@@ -8,28 +8,52 @@ textencoder_ex.py
     :Licence:     Apache-2.0
 """
 
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional
 
 import torch
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
+from loguru import logger
 from torch import nn
+from transformers import CLIPTextModelWithProjection, T5EncoderModel
 from transformers.models.clip.modeling_clip import CLIPAttention
-from transformers import CLIPTextModelWithProjection
 
 class TEEXHook:
-    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
+    def __init__(self, text_enc: nn.Module, tokenizer, N_repeats=1, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
         self.text_enc = text_enc
         self.tokenizer = tokenizer
 
         self.N_repeats = N_repeats
         self.clip_skip = clip_skip
         self.clip_final_norm = clip_final_norm
-        self.device = device
         self.use_attention_mask = use_attention_mask
 
         text_enc.register_forward_hook(self.forward_hook)
         text_enc.register_forward_pre_hook(self.forward_hook_input)
+
+    def find_final_norm(self, text_enc: nn.Module):
+        for module in text_enc.modules():
+            if 'final_layer_norm' in module._modules:
+                logger.info(f'find final_layer_norm in {type(module)}')
+                return module.final_layer_norm
+
+        logger.info(f'final_layer_norm not found in {type(text_enc)}')
+        return None
+
+    @property
+    def clip_final_norm(self):
+        return self.final_layer_norm is not None
+
+    @clip_final_norm.setter
+    def clip_final_norm(self, value: bool):
+        if value:
+            self.final_layer_norm = self.find_final_norm(self.text_enc)
+        else:
+            self.final_layer_norm = None
+
+    @property
+    def device(self):
+        return self.text_enc.device
 
     def encode_prompt_to_emb(self, prompt):
         text_inputs = self.tokenizer(
@@ -54,12 +78,19 @@ class TEEXHook:
         if isinstance(self.text_enc, CLIPTextModelWithProjection):
             self.text_enc.text_projection.weight.data = self.text_enc.text_projection.weight.data.t()
 
-        prompt_embeds, pooled_output = self.text_enc(
-            text_input_ids.to(self.device),
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            output_hidden_states=True,
-        )
+        if isinstance(self.text_enc, T5EncoderModel):
+            prompt_embeds, pooled_output = self.text_enc(
+                text_input_ids.to(self.device),
+                attention_mask=attention_mask,
+                output_hidden_states=True,
+            )
+        else:
+            prompt_embeds, pooled_output = self.text_enc(
+                text_input_ids.to(self.device),
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                output_hidden_states=True,
+            )
         return prompt_embeds, pooled_output, attention_mask
 
     def forward_hook_input(self, host, feat_in):
@@ -68,13 +99,12 @@ class TEEXHook:
 
     def forward_hook(self, host, feat_in: Tuple[torch.Tensor], feat_out):
         encoder_hidden_states = feat_out['hidden_states'][-self.clip_skip-1]
-        if self.clip_final_norm:
-            encoder_hidden_states = self.text_enc.text_model.final_layer_norm(encoder_hidden_states)
+        if self.clip_final_norm and self.final_layer_norm is not None:
+            encoder_hidden_states = self.final_layer_norm(encoder_hidden_states)
         if self.text_enc.training and self.clip_skip>0:
             encoder_hidden_states = encoder_hidden_states+0*feat_out['last_hidden_state'].mean()  # avoid unused parameters, make gradient checkpointing happy
-
         encoder_hidden_states = rearrange(encoder_hidden_states, '(b r) ... -> b r ...', r=self.N_repeats)  # [B, N_repeat, N_word+2, N_emb]
-        pooled_output = feat_out.pooler_output
+        pooled_output = feat_out.get('pooler_output', feat_out.get('text_embeds', None))
         # TODO: may have better fusion method
         if pooled_output is not None:
             pooled_output = rearrange(pooled_output, '(b r) ... -> b r ...', r=self.N_repeats).mean(dim=1)
@@ -85,7 +115,7 @@ class TEEXHook:
         return encoder_hidden_states, pooled_output
 
     def pool_hidden_states(self, encoder_hidden_states, input_ids):
-        pooled_output = encoder_hidden_states[:, :, -1, :].mean(dim=1) # [B, N_emb]
+        pooled_output = encoder_hidden_states[:, :, -1, :].mean(dim=1)  # [B, N_emb]
         return pooled_output
 
     @staticmethod
@@ -151,9 +181,11 @@ class TEEXHook:
         layer.forward = forward
 
     @classmethod
-    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, device='cuda', use_attention_mask=False):
-        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm, device=device, use_attention_mask=use_attention_mask)
+    def hook(cls, text_enc: nn.Module, tokenizer, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
+        return cls(text_enc, tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm,
+                   use_attention_mask=use_attention_mask)
 
     @classmethod
     def hook_pipe(cls, pipe, N_repeats=3, clip_skip=0, clip_final_norm=True, use_attention_mask=False):
-        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, device='cuda', clip_skip=clip_skip, clip_final_norm=clip_final_norm, use_attention_mask=use_attention_mask)
+        return cls(pipe.text_encoder, pipe.tokenizer, N_repeats=N_repeats, clip_skip=clip_skip, clip_final_norm=clip_final_norm,
+                   use_attention_mask=use_attention_mask)

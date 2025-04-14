@@ -1,17 +1,13 @@
-import inspect
+import random
+import warnings
 from typing import Dict, Any, Union, List
 
 import torch
-from torch.cuda.amp import autocast
-
-from .base import BasicAction, from_memory_context, feedback_input
-
-
-
+from hcpdiff.diffusion.sampler import BaseSampler, DiffusersSampler
 from hcpdiff.utils import prepare_seed
-from hcpdiff.utils.net_utils import get_dtype
-import random
-import warnings
+from hcpdiff.utils.net_utils import get_dtype, to_cuda
+from rainbowneko.infer import BasicAction
+from torch.cuda.amp import autocast
 
 try:
     from diffusers.utils import randn_tensor
@@ -20,103 +16,93 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 
 class InputFeederAction(BasicAction):
-    @from_memory_context
-    def __init__(self, ex_inputs: Dict[str, Any], unet=None):
-        super().__init__()
+    def __init__(self, ex_inputs: Dict[str, Any], key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.ex_inputs = ex_inputs
-        self.unet = unet
 
-    @feedback_input
-    def forward(self, **states):
-        if hasattr(self.unet, 'input_feeder'):
-            for feeder in self.unet.input_feeder:
-                feeder(self.ex_inputs)
+    def forward(self, model, ex_inputs=None, **states):
+        ex_inputs = self.ex_inputs if ex_inputs is None else {**ex_inputs, **self.ex_inputs}
+        if hasattr(model, 'input_feeder'):
+            for feeder in model.input_feeder:
+                feeder(ex_inputs)
 
 class SeedAction(BasicAction):
-    @from_memory_context
-    def __init__(self, seed: Union[int, List[int]], bs: int = 1):
-        super().__init__()
+    def __init__(self, seed: Union[int, List[int]], bs: int = 1, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.seed = seed
         self.bs = bs
 
-    @feedback_input
-    def forward(self, device, **states):
+    def forward(self, device, seed=None, **states):
         bs = states['prompt_embeds'].shape[0]//2 if 'prompt_embeds' in states else self.bs
-        if self.seed is None:
+        seed = seed or self.seed
+        if seed is None:
             seeds = [None]*bs
-        elif isinstance(self.seed, int):
-            seeds = list(range(self.seed, self.seed+bs))
+        elif isinstance(seed, int):
+            seeds = list(range(seed, seed+bs))
         else:
-            seeds = self.seed
+            seeds = seed
         seeds = [s or random.randint(0, 1 << 30) for s in seeds]
 
         G = prepare_seed(seeds, device=device)
         return {'seeds':seeds, 'generator':G}
 
 class PrepareDiffusionAction(BasicAction):
-    def __init__(self, dtype='fp32', amp=None):
-        self.dtype = dtype
-        self.amp = amp or dtype
+    def __init__(self, model_offload=False, amp=torch.float16, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
+        self.model_offload = model_offload
+        self.amp = amp
 
-    @feedback_input
-    def forward(self, memory, **states):
-        dtype = get_dtype(self.dtype)
-        memory.unet.to(dtype=dtype)
-        memory.text_encoder.to(dtype=dtype)
-        memory.vae.to(dtype=dtype)
+    def forward(self, device, denoiser, TE, vae, **states):
+        denoiser.to(device)
+        TE.to(device)
+        vae.to(device)
 
-        memory.text_encoder.eval()
-        memory.unet.eval()
-
-        device = memory.unet.device
-        vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
-        return {'dtype':self.dtype, 'amp':self.amp, 'device':device, 'vae_scale_factor':vae_scale_factor}
+        TE.eval()
+        denoiser.eval()
+        vae.eval()
+        return {'amp':self.amp, 'model_offload':self.model_offload}
 
 class MakeTimestepsAction(BasicAction):
-    @from_memory_context
-    def __init__(self, scheduler=None, N_steps: int = 30, strength: float = None):
-        self.scheduler = scheduler
+    def __init__(self, N_steps: int = 30, strength: float = None, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.N_steps = N_steps
         self.strength = strength
 
-    def get_timesteps(self, timesteps, strength):
+    def get_timesteps(self, noise_sampler:BaseSampler, timesteps, strength):
         # get the original timestep using init_timestep
         num_inference_steps = len(timesteps)
         init_timestep = min(int(num_inference_steps*strength), num_inference_steps)
 
         t_start = max(num_inference_steps-init_timestep, 0)
-        timesteps = timesteps[t_start*self.scheduler.order:]
+        if isinstance(noise_sampler, DiffusersSampler):
+            timesteps = timesteps[t_start*noise_sampler.scheduler.order:]
+        else:
+            timesteps = timesteps[t_start:]
 
         return timesteps
 
-    @feedback_input
-    def forward(self, memory, device, **states):
-        self.scheduler = self.scheduler or memory.scheduler
-
-        self.scheduler.set_timesteps(self.N_steps, device=device)
-        timesteps = self.scheduler.timesteps
-        alphas_cumprod = self.scheduler.alphas_cumprod.to(timesteps.device)
+    def forward(self, noise_sampler:BaseSampler, device, **states):
+        timesteps = noise_sampler.get_timesteps(self.N_steps, device=device)
         if self.strength:
-            timesteps = self.get_timesteps(timesteps, self.strength)
-            return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod, 'start_timestep':timesteps[:1]}
+            timesteps = self.get_timesteps(noise_sampler, timesteps, self.strength)
+            return {'timesteps':timesteps, 'start_timestep':timesteps[:1]}
         else:
-            return {'timesteps':timesteps, 'alphas_cumprod':alphas_cumprod}
+            return {'timesteps':timesteps}
 
 class MakeLatentAction(BasicAction):
-    @from_memory_context
-    def __init__(self, scheduler=None, N_ch=4, height=None, width=None):
-        self.scheduler = scheduler
+    def __init__(self, N_ch=4, height=None, width=None, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.N_ch = N_ch
         self.height = height
         self.width = width
 
-    @feedback_input
-    def forward(self, memory, generator, device, dtype, bs=None, latents=None, vae_scale_factor=8, start_timestep=None,
+    def forward(self, noise_sampler:BaseSampler, vae, generator, device, dtype, bs=None, latents=None, start_timestep=None,
                 pooled_output=None, crop_coord=None, **states):
         if bs is None:
             if 'prompt' in states:
                 bs = len(states['prompt'])
-        scheduler = self.scheduler or memory.scheduler
+        vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        device = torch.device(device)
 
         if latents is None:
             shape = (bs, self.N_ch, self.height//vae_scale_factor, self.width//vae_scale_factor)
@@ -130,14 +116,14 @@ class MakeLatentAction(BasicAction):
                 f" size of {bs}. Make sure the batch size matches the length of the generators."
             )
 
-        noise = randn_tensor(shape, generator=generator, device=device, dtype=get_dtype(dtype))
         if latents is None:
-            # scale the initial noise by the standard deviation required by the scheduler
-            latents = noise*scheduler.init_noise_sigma
+            # scale the initial noise by the standard deviation required by the noise_sampler
+            noise_sampler.generator = generator
+            latents = noise_sampler.init_noise(shape, device=device, dtype=get_dtype(dtype))
         else:
             # image to image
             latents = latents.to(device)
-            latents = scheduler.add_noise(latents, noise, start_timestep)
+            latents, noise = noise_sampler.add_noise(latents, start_timestep)
 
         output = {'latents':latents}
 
@@ -156,32 +142,29 @@ class MakeLatentAction(BasicAction):
 
         return output
 
-
-class NoisePredAction(BasicAction):
-    @from_memory_context
-    def __init__(self, unet=None, scheduler=None, guidance_scale: float = 7.0):
+class DenoiseAction(BasicAction):
+    def __init__(self, guidance_scale: float = 7.0, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.guidance_scale = guidance_scale
-        self.unet = unet
-        self.scheduler = scheduler
 
-    @feedback_input
-    def forward(self, memory, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
-                cross_attention_kwargs=None, dtype='fp32', amp=None, **states):
-        self.scheduler = self.scheduler or memory.scheduler
-        self.unet = self.unet or memory.unet
+    def forward(self, denoiser, noise_sampler: BaseSampler, t, latents, prompt_embeds, text_embeds=None, encoder_attention_mask=None, crop_info=None,
+                cross_attention_kwargs=None, dtype='fp32', amp=None, model_offload=False, **states):
+
+        if model_offload:
+            to_cuda(denoiser)  # to_cpu in VAE
 
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
-            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+            latent_model_input = noise_sampler.c_in(t)*latent_model_input
 
             if text_embeds is None:
-                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
-                                       cross_attention_kwargs=cross_attention_kwargs, ).sample
+                noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                                  cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
                 added_cond_kwargs = {"text_embeds":text_embeds, "time_ids":crop_info}
                 # predict the noise residual
-                noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
-                                       cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+                noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                                  cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
             # perform guidance
             if self.guidance_scale>1:
@@ -191,55 +174,26 @@ class NoisePredAction(BasicAction):
         return {'noise_pred':noise_pred}
 
 class SampleAction(BasicAction):
-    @from_memory_context
-    def __init__(self, scheduler=None, eta=0.0):
-        self.scheduler = scheduler
-        self.eta = eta
-
-    def prepare_extra_step_kwargs(self, generator, eta):
-        # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
-        # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
-        # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
-        # and should be between [0, 1]
-
-        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
-        extra_step_kwargs = {}
-        if accepts_eta:
-            extra_step_kwargs["eta"] = eta
-
-        # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys())
-        if accepts_generator:
-            extra_step_kwargs["generator"] = generator
-        return extra_step_kwargs
-
-    @feedback_input
-    def forward(self, memory, noise_pred, t, latents, generator, **states):
-        self.scheduler = self.scheduler or memory.scheduler
-
-        extra_step_kwargs = self.prepare_extra_step_kwargs(generator, self.eta)
-
+    def forward(self, noise_sampler: BaseSampler, noise_pred, t, latents, generator, **states):
         # compute the previous noisy sample x_t -> x_t-1
-        sc_out = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)
-        latents = sc_out.prev_sample
+        latents = noise_sampler.denoise(latents, t, noise_pred, generator=generator)
         return {'latents':latents}
 
 class DiffusionStepAction(BasicAction):
-    @from_memory_context
-    def __init__(self, unet=None, scheduler=None, guidance_scale: float = 7.0):
-        self.act_noise_pred = NoisePredAction(unet, scheduler, guidance_scale)
-        self.act_sample = SampleAction(scheduler)
+    def __init__(self, guidance_scale: float = 7.0, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
+        self.act_noise_pred = DenoiseAction(guidance_scale)
+        self.act_sample = SampleAction()
 
-    def forward(self, memory, **states):
-        states = self.act_noise_pred(memory=memory, **states)
-        states = self.act_sample(memory=memory, **states)
+    def forward(self, denoiser, noise_sampler, **states):
+        states = self.act_noise_pred(denoiser=denoiser, noise_sampler=noise_sampler, **states)
+        states = self.act_sample(**states)
         return states
 
 class X0PredAction(BasicAction):
-    @feedback_input
-    def forward(self, latents, alphas_cumprod, t, noise_pred, **states):
-        # x_t -> x_0
-        alpha_prod_t = alphas_cumprod[t.long()]
-        beta_prod_t = 1-alpha_prod_t
-        latents_x0 = (latents-beta_prod_t**(0.5)*noise_pred)/alpha_prod_t**(0.5)  # approximate x_0
+    def forward(self, latents, noise_sampler: BaseSampler, t, noise_pred, **states):
+        latents_x0 = noise_sampler.eps_to_x0(noise_pred, latents, t)
         return {'latents_x0':latents_x0}
+
+def time_iter(timesteps, **states):
+    return [{'t':t} for t in timesteps]

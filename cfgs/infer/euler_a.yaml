@@ -1,8 +1,0 @@
-_base_: [cfgs/infer/text2img.yaml]
-
-new_components:
-  scheduler:
-    _target_: diffusers.EulerAncestralDiscreteScheduler # change Sampler
-    beta_start: 0.00085
-    beta_end: 0.012
-    beta_schedule: 'scaled_linear'

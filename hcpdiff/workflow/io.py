@@ -1,54 +1,40 @@
 import os
+from functools import partial
 from typing import List, Union
-import warnings
 
-from diffusers import UNet2DConditionModel, AutoencoderKL, PNDMScheduler
-
-from hcpdiff.utils import auto_text_encoder, auto_tokenizer, to_validate_file
-from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
-from hcpdiff.utils.img_size_tool import types_support
+import torch
+from hcpdiff.utils import to_validate_file
 from hcpdiff.utils.net_utils import get_dtype
-from .base import BasicAction, from_memory_context, feedback_input
-from PIL import Image
-from omegaconf import OmegaConf
+from rainbowneko.ckpt_manager import NekoLoader
+from rainbowneko.infer import BasicAction
+from rainbowneko.infer import LoadImageAction as Neko_LoadImageAction
+from rainbowneko.utils.img_size_tool import types_support
 
-class LoadModelsAction(BasicAction):
-    @from_memory_context
-    def __init__(self, pretrained_model: str, dtype: str, unet=None, text_encoder=None, tokenizer=None, vae=None, scheduler=None):
-        self.pretrained_model = pretrained_model
+class BuildModelsAction(BasicAction):
+    def __init__(self, model_loader: partial[NekoLoader.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
+        self.model_loader = model_loader
         self.dtype = get_dtype(dtype)
+        self.device = device
 
-        self.unet = unet
-        self.text_encoder = text_encoder
-        self.tokenizer = tokenizer
-        self.vae = vae
-        self.scheduler = scheduler
-
-    @feedback_input
-    def forward(self, memory, **states):
-        memory.unet = self.unet or UNet2DConditionModel.from_pretrained(self.pretrained_model, subfolder="unet", torch_dtype=self.dtype)
-        memory.text_encoder = self.text_encoder or auto_text_encoder(self.pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype)
-        memory.tokenizer = self.tokenizer or auto_tokenizer(self.pretrained_model, subfolder="tokenizer", use_fast=False)
-        memory.vae = self.vae or AutoencoderKL.from_pretrained(self.pretrained_model, subfolder="vae", torch_dtype=self.dtype)
-        memory.scheduler = self.scheduler or PNDMScheduler.from_pretrained(self.pretrained_model, subfolder="scheduler", torch_dtype=self.dtype)
-
-class LoadImageAction(BasicAction):
-    @from_memory_context
-    def __init__(self, image_path: Union[str, List[str]], key_target: str = 'images'):
-        self.image_path = image_path
-        self.key_target = key_target
-
-    @feedback_input
-    def forward(self, **states):
-        if isinstance(self.image_path, str):
-            images = Image.open(self.image_path).convert('RGB')
+    def forward(self, in_preview=False, model=None, **states):
+        if in_preview:
+            model = self.model_loader(dtype=self.dtype, device=self.device, denoiser=model.denoiser, TE=model.TE, vae=model.vae)
         else:
-            images = [Image.open(path).convert('RGB') for path in self.image_path]
-        return {self.key_target:images}
+            model = self.model_loader(dtype=self.dtype, device=self.device)
+
+        if isinstance(model, dict):
+            return model
+        else:
+            return {'model':model}
+
+class LoadImageAction(Neko_LoadImageAction):
+    def __init__(self, image_paths: Union[str, List[str]], image_transforms=None, key_map_in=None, key_map_out=('input.x -> images',)):
+        super().__init__(image_paths, image_transforms, key_map_in, key_map_out)
 
 class SaveImageAction(BasicAction):
-    @from_memory_context
-    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95, save_cfg=True):
+    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95, save_cfg=True, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.save_root = save_root
         self.image_type = image_type
         self.quality = quality
@@ -56,106 +42,15 @@ class SaveImageAction(BasicAction):
 
         os.makedirs(save_root, exist_ok=True)
 
-    @feedback_input
-    def forward(self, images, prompt, negative_prompt, cfgs, seeds=None, **states):
-        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(self.save_root) if x.rsplit('.', 1)[-1] in types_support])+1
+    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, preview_root=None, preview_step=None, **states):
+        save_root = preview_root or self.save_root
+        num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
-            img_path = os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
+            img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
             img.save(img_path, quality=self.quality)
             num_img_exist += 1
 
             if self.save_cfg:
-                with open(os.path.join(self.save_root, f"{num_img_exist}-{seeds[bid]}-info.yaml"), 'w', encoding='utf-8') as f:
-                    cfgs.seed = seeds[bid]
-                    f.write(OmegaConf.to_yaml(cfgs))
-
-class BuildModelLoaderAction(BasicAction):
-
-    def forward(self, memory, **states):
-        memory.model_loader_unet = HCPModelLoader(memory.unet)
-        memory.model_loader_TE = HCPModelLoader(memory.text_encoder)
-        return states
-
-class LoadPartAction(BasicAction):
-    @from_memory_context
-    def __init__(self, model: str, cfg):
-        self.model = model
-        self.cfg = cfg
-
-    def forward(self, memory, **states):
-        model_loader = memory[f"model_loader_{self.model}"]
-        model_loader.load_part(self.cfg)
-        return states
-
-class LoadLoraAction(BasicAction):
-    @from_memory_context
-    def __init__(self, name: str, model: str, cfg, base_model_alpha=1.0, load_ema=False):
-        self.name = name
-        self.model = model
-        self.cfg_lora = cfg
-        self.base_model_alpha = base_model_alpha
-        self.load_ema = load_ema
-
-    def forward(self, memory, **states):
-        model_loader = memory[f"model_loader_{self.model}"]
-        lora_group = model_loader.load_lora(self.cfg_lora)
-
-        if 'lora_dict' not in memory:
-            memory.lora_dict = {}
-        # remove if exist
-        if self.name in memory.lora_dict:
-            warnings.warn(f"Lora {self.name} already loaded, and will be replaced!")
-            memory.lora_dict[self.name].remove()
-        memory.lora_dict[self.name] = lora_group
-        return states
-
-class LoadPluginAction(BasicAction):
-    @from_memory_context
-    def __init__(self, model: str, cfg):
-        self.model = model
-        self.cfg = cfg
-
-    def forward(self, memory, **states):
-        model_loader = memory[f"model_loader_{self.model}"]
-        model_loader.load_plugin(self.cfg)
-        return states
-
-class RemoveLoraAction(BasicAction):
-    @from_memory_context
-    def __init__(self, path_list: List[str]):
-        self.path_list = path_list
-
-    def forward(self, memory, **states):
-        for path in self.path_list:
-            if path in memory.lora_dict:
-                memory.lora_dict[path].remove()
-                del memory.lora_dict[path]
-            else:
-                warnings.warn(f"Lora {path} not loaded!")
-        return states
-
-class RemovePluginAction(BasicAction):
-    @from_memory_context
-    def __init__(self, name_list: List[str]):
-        self.name_list = name_list
-
-    def forward(self, memory, **states):
-        for name in self.name_list:
-            if name in memory.plugin_dict:
-                memory.plugin_dict[name].remove()
-                del memory.plugin_dict[name]
-            else:
-                warnings.warn(f"Plugin {name} not loaded!")
-        return states
-
-class FeedInputAction(BasicAction):
-    @from_memory_context
-    def __init__(self, model):
-        self.model = model
-
-    def forward(self, memory, _ex_input=None, **states):
-        if hasattr(self.model, 'input_feeder') and _ex_input is not None:
-            for feeder in self.model.input_feeder:
-                feeder(_ex_input)
-        return states
+                cfgs.seed = seeds[bid]
+                parser.save_configs(cfgs, os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-info"))

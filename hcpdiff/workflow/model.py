@@ -1,95 +1,70 @@
+import torch
 from accelerate import infer_auto_device_map, dispatch_model
 from diffusers.utils.import_utils import is_xformers_available
+from rainbowneko.infer import BasicAction
 
-from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
+from hcpdiff.utils.net_utils import get_dtype
+from hcpdiff.utils.net_utils import to_cpu
 from hcpdiff.utils.utils import size_to_int, int_to_size
-from hcpdiff.utils import load_config
-from hcpdiff.utils.cfg_net_tools import make_plugin
-import hydra
-from .base import BasicAction, from_memory_context, feedback_input
 
 class VaeOptimizeAction(BasicAction):
-    @from_memory_context
-    def __init__(self, vae=None, slicing=True, tiling=False):
-        super().__init__()
+    def __init__(self, slicing=True, tiling=False, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.slicing = slicing
         self.tiling = tiling
-        self.vae = vae
 
-    def forward(self, memory, **states):
-        vae = self.vae or memory.vae
-
+    def forward(self, vae, **states):
         if self.tiling:
             vae.enable_tiling()
         if self.slicing:
             vae.enable_slicing()
-        return states
 
 class BuildOffloadAction(BasicAction):
-    @from_memory_context
-    def __init__(self, max_VRAM: str, max_RAM: str):
-        super().__init__()
+    def __init__(self, max_VRAM: str, max_RAM: str, vae_cpu=False, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
         self.max_VRAM = max_VRAM
         self.max_RAM = max_RAM
+        self.vae_cpu = vae_cpu
 
-    @feedback_input
-    def forward(self, memory, dtype: str, **states):
+    def forward(self, vae, denoiser, dtype: str, **states):
+        # denoiser offload
         torch_dtype = get_dtype(dtype)
         vram = size_to_int(self.max_VRAM)
-        device_map = infer_auto_device_map(memory.unet, max_memory={0:int_to_size(vram >> 1), "cpu":self.max_RAM}, dtype=torch_dtype)
-        memory.unet = dispatch_model(memory.unet, device_map)
+        device_map = infer_auto_device_map(denoiser, max_memory={0:int_to_size(vram >> 1), "cpu":self.max_RAM}, dtype=torch_dtype)
+        denoiser = dispatch_model(denoiser, device_map)
 
-        device_map = infer_auto_device_map(memory.vae, max_memory={0:int_to_size(vram >> 5), "cpu":self.max_RAM}, dtype=torch_dtype)
-        memory.vae = dispatch_model(memory.vae, device_map)
+        device_map = infer_auto_device_map(vae, max_memory={0:int_to_size(vram >> 5), "cpu":self.max_RAM}, dtype=torch_dtype)
+        vae = dispatch_model(vae, device_map)
+        # VAE offload
+        vram = size_to_int(self.max_VRAM)
+        if not self.vae_cpu:
+            device_map = infer_auto_device_map(vae, max_memory={0:int_to_size(vram >> 5), "cpu":self.max_RAM}, dtype=torch.float32)
+            vae = dispatch_model(vae, device_map)
+        else:
+            to_cpu(vae)
+            vae_decode_raw = vae.decode
+
+            def vae_decode_offload(latents, return_dict=True, decode_raw=vae.decode):
+                vae.to(dtype=torch.float32)
+                res = decode_raw(latents.cpu().to(dtype=torch.float32), return_dict=return_dict)
+                return res
+
+            vae.decode = vae_decode_offload
+
+            vae_encode_raw = vae.encode
+
+            def vae_encode_offload(x, return_dict=True, encode_raw=vae.encode):
+                vae.to(dtype=torch.float32)
+                res = encode_raw(x.cpu().to(dtype=torch.float32), return_dict=return_dict)
+                return res
+
+            vae.encode = vae_encode_offload
+            return {'denoiser':denoiser, 'vae':vae, 'vae_decode_raw':vae_decode_raw, 'vae_encode_raw':vae_encode_raw}
+
+        return {'denoiser':denoiser, 'vae':vae}
 
 class XformersEnableAction(BasicAction):
-    def forward(self, memory, **states):
+    def forward(self, denoiser, **states):
         if is_xformers_available():
-            memory.unet.enable_xformers_memory_efficient_attention()
+            denoiser.enable_xformers_memory_efficient_attention()
             # self.te_hook.enable_xformers()
-        return states
-
-class StartTextEncode(BasicAction):
-    def forward(self, memory, **states):
-        to_cuda(memory.text_encoder)
-        return states
-
-class EndTextEncode(BasicAction):
-    def forward(self, memory, **states):
-        to_cpu(memory.text_encoder)
-        return states
-
-class StartDiffusion(BasicAction):
-    def forward(self, memory, **states):
-        to_cuda(memory.unet)
-        return states
-
-class EndDiffusion(BasicAction):
-    def forward(self, memory, **states):
-        to_cpu(memory.unet)
-        return states
-
-class BuildPluginAction(BasicAction):
-    @from_memory_context
-    def __init__(self, cfg):
-        self.plugin_cfg = cfg
-
-    def forward(self, memory, **states):
-        if isinstance(self.plugin_cfg, str):
-            plugin_cfg = load_config(self.plugin_cfg)
-            plugin_cfg = {'plugin_unet':hydra.utils.instantiate(plugin_cfg['plugin_unet']),
-                'plugin_TE':hydra.utils.instantiate(plugin_cfg['plugin_TE'])}
-        else:
-            plugin_cfg = self.plugin_cfg
-        _, all_plugin_group_unet = make_plugin(memory.unet, plugin_cfg['plugin_unet'])
-        _, all_plugin_group_TE = make_plugin(memory.text_encoder, plugin_cfg['plugin_TE'])
-
-        if 'plugin_dict' not in memory:
-            memory.plugin_dict = {}
-
-        for name, plugin_group in all_plugin_group_unet.items():
-            memory.plugin_dict[name] = plugin_group
-        for name, plugin_group in all_plugin_group_TE.items():
-            memory.plugin_dict[name] = plugin_group
-
-        return states

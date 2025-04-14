@@ -6,8 +6,10 @@ import torch
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from torch import nn
 from torch.optim import lr_scheduler
-from transformers import PretrainedConfig, AutoTokenizer
+from transformers import PretrainedConfig, AutoTokenizer, T5EncoderModel, CLIPTextModel
 from functools import partial
+from huggingface_hub import hf_hub_download
+import json
 
 dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
@@ -96,7 +98,7 @@ def auto_tokenizer_cls(pretrained_model_name_or_path: str, revision: str = None)
             revision=revision, use_fast=False,
         )
         return SDXLTokenizer
-    except OSError:
+    except:
         # not sdxl, only one tokenizer
         return AutoTokenizer
 
@@ -108,8 +110,10 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
             subfolder="text_encoder_2",
             revision=revision,
         )
+        if text_encoder_config.architectures is None:
+            raise ValueError()
         return SDXLTextEncoder
-    except OSError:
+    except:
         text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
             subfolder="text_encoder",
@@ -118,15 +122,25 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
         model_class = text_encoder_config.architectures[0]
 
         if model_class == "CLIPTextModel":
-            from transformers import CLIPTextModel
-
             return CLIPTextModel
         elif model_class == "RobertaSeriesModelWithTransformation":
             from diffusers.pipelines.alt_diffusion.modeling_roberta_series import RobertaSeriesModelWithTransformation
 
             return RobertaSeriesModelWithTransformation
+        elif model_class == "T5EncoderModel":
+            return T5EncoderModel
         else:
             raise ValueError(f"{model_class} is not supported.")
+
+def get_pipe_name(path: str):
+    if os.path.isdir(path):
+        json_file = os.path.join(path, "model_index.json")
+    else:
+        json_file = hf_hub_download(path, "model_index.json")
+    with open(json_file, "r", encoding="utf-8") as reader:
+        text = reader.read()
+        data = json.loads(text)
+    return data['_class_name']
 
 def auto_tokenizer(pretrained_model_name_or_path: str, revision: str = None, **kwargs):
     return auto_tokenizer_cls(pretrained_model_name_or_path, revision).from_pretrained(pretrained_model_name_or_path, revision=revision, **kwargs)
@@ -231,4 +245,7 @@ def split_module_name(layer_name):
     return parent_name, host_name
 
 def get_dtype(dtype):
-    return dtype_dict.get(dtype, torch.float32)
+    if isinstance(dtype, torch.dtype):
+        return dtype
+    else:
+        return dtype_dict.get(dtype, torch.float32)

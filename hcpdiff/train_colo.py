@@ -23,7 +23,7 @@ from colossalai.utils.model.colo_init_context import ColoInitContext
 from colossalai.utils.model.colo_init_context import _convert_to_coloparam
 from colossalai.tensor import ColoParameter
 
-from hcpdiff.train_ac import Trainer, get_scheduler, ModelEMA
+from hcpdiff.train_ac_old import Trainer, get_scheduler, ModelEMA
 from diffusers import UNet2DConditionModel
 from hcpdiff.utils.colo_utils import gemini_zero_dpp, GeminiAdamOptimizerP
 from hcpdiff.utils.utils import load_config_with_cli

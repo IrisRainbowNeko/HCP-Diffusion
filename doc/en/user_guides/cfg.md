@@ -1,200 +1,258 @@
-# Configuration file explanation
+# Configuration File Explanation
 
-This section primarily introduces the training parameter settings in the ```cfgs/train/train_base.yaml``` configuration file.
-The configuration file is in the ```yaml``` format, supporting extended syntaxes of ```OmegaConf``` and ```hydra```.
+This section mainly introduces the training parameter settings in ```cfgs/train/train_base.py```. It defines the base training configuration, and all other training configuration files should inherit from this file.
 
-## Training configurations
+The configuration file uses Python syntax and supports OmegaConf and Hydra extension syntax.
 
-```yaml
-train:
-  # Gradient accumulation steps
-  # Total batch size batch_size = the sum of the batch sizes of each dataset * Gradient accumulation steps * GPU count
-  gradient_accumulation_steps: 1
-  
-  workers: 4 # The number of processes used for parallel data loading. It can be adjusted based on the number of CPU cores.
-  max_grad_norm: 1.0 # Gradient clipping is used to prevent gradient explosion.
-  set_grads_to_none: False # Whether to set the gradient to None when resetting it.
-  save_step: 100 # Saving model interval 
-  
-  # The CFG scale for DreamArtist, that 1.0 indicates disable DreamArtist.
-  # DreamArtist supports dynamic CFG, which varies dynamically with the diffusion time steps. 
-  # It format is as follows: lower-upper:activation function. The default activation function is linear, 
-  # while cos is used for the 0-π/2 interval of the cos function and cos2 for the π/2-π interval of the cos function.
-  cfg_scale: '1.0' 
-
-  resume: # Continue the previous training, or start a new training by set it to null
-    ckpt_path:
-      unet: [] # All checkpoint path of unet
-      TE: [] # All checkpoint path of text-encoder
-      words: {} # All checkpoint path of custom words
-    start_step: 0 # Steps at the end of the previous training
-
-  loss: # Loss function configuration
-    criterion:
-      # Here using the syntax of hydra.utils.installate
-      # All modules with the _target_ attribute will be instantiated as the corresponding python object
-      _target_: torch.nn.MSELoss # Loss function class
-      _partial_: True
-      reduction: 'none' # support for attention mask
-    # The weight of the loss of the data from data_class
-    # Make data.batch_size/(data_class.batch_size*prior_loss_weight) = 4/1 can get better results
-    prior_loss_weight: 1.0 
-    type: 'eps'
-
-  optimizer: # Optimizer for model parameters 
-    _target_: torch.optim.AdamW # class path to optimizer
-    _partial_: True
-    weight_decay: 1e-3
-    
-  optimizer_pt:
-    _target_: torch.optim.AdamW
-    _partial_: True
-    weight_decay: 5e-4
-
-  scale_lr: True # Whether to automatically scale the learning rate by total batch size
-  scheduler: # Learning rate adjustment strategies, see next section for options
-    name: 'one_cycle' # scheduler type
-    num_warmup_steps: 200 # Learning rate progressively increasing steps
-    num_training_steps: 1000 # Total train steps
-    scheduler_kwargs: {} # Other parameters for scheduler
-
-  scale_lr_pt: True # Whether to automatically scale the learning rate of word training by total batch size
-  scheduler_pt: ${.scheduler} # Learning rate adjustment strategy for word training. OmegaConf syntax, consistent with scheduler content above
+For example, referencing other values within the configuration:
+```python
+dict(
+    total_steps = 1000,
+    train=dict(
+        train_steps='${total_steps}', # Root path reference
+        save_step='${.train_steps}'   # Reference within the same level
+    ),
+    save_step = '${train.train_steps}', # Root path reference
+)
 ```
 
-## Learning rate adjustment strategy
-
-![](../imgs/lr.webp)
-
-The figure shows the changes in learning rate strategy with steps, and the recommended strategies are ```one_cycle``` or ```constant_with_warmup```. 
-The ascending part of the learning rate is set by ```num_warmup_steps```, and the total number of steps is set by ```num_training_steps```.
-
-```one_cycle``` can be adjusted by the following two parameters, which can be written into the ```scheduler_kwargs```:
-+ div_factor: max_lr/initial_lr
-+ final_div_factor: max_lr/end_lr
-
-## Model configurations
-
-```yaml
-model:
-  revision: null # revision of pretrainedmodel
-  pretrained_model_name_or_path: null # pretrained model name or path
-  tokenizer_name: null # The tokenizer can be specified individually
-  tokenizer_repeats: 1 # Expand the sentence length by N times, if the caption exceeds the upper limit you can increase the tokenizer_repeats
-  enable_xformers: True # enable xformers
-  gradient_checkpointing: True # Enable optimization to save VRAM
-  ema_unet: 0 # The hyperparameter of the unet ema model, 0 to disable. Usually set to 0.9995
-  ema_text_encoder: 0 # Hyperparameters of the text-encoder ema model
-  clip_skip: 0 # Skip the last N layers of text-encoder, the value of 0 is consistent with webui's clip_skip=1
-  clip_final_norm: True # Using the last normalization layer of CLIP
+```{note}
+For other advanced usage, refer to the [RainbowNeko Engine Configuration Guide](https://rainbownekoengine.readthedocs.io/en/stable/guide/cfg.html)
 ```
 
-## Dataset configurations
+## Overall Training Configuration
 
-You can define multiple parallel datasets, each of which can have multiple data sources. During each training step, a batch is taken from each dataset and trained together.
-All data sources from each dataset will be processed by the dataset's bucket, and will be iterated in order.
+```python
+# Import necessary Python packages
+import time
+from functools import partial
 
-```yaml
-data:
-  # Multiple parallel datasets can be defined.
-  # Each training step will take one batch from all datasets and train them together.
-  dataset1:
-    _target_: hcpdiff.data.TextImagePairDataset # Package path to dataset class
-    _partial_: True # Required, in order to add additional parameters later
-    batch_size: 4 # batch_size of this part of the data
-    cache_latents: True # Whether pre-encoding the image with VAE, which can speed up the training
-    att_mask_encode: False # Whether to apply self-attention in VAE to attention_mask
-    loss_weight: 1.0 # The weight of this dataset in calculating the loss.
-    
-    # Define a universal image preprocessing that can be applied to all data sources.
-    # For more details, refer to torchvision.transforms.
-    image_transforms:
-      _target_: torchvision.transforms.Compose # "_target_" for hydra.utils.instantiate
-      transforms:
-        - _target_: torchvision.transforms.ToTensor
-        - _target_: torchvision.transforms.Normalize
-          _args_: [[0.5], [0.5]]
-    
-    # Data source. All images from all sources will be processed with this dataset's bucket.
-    # Each dataset can have multiple data sources.
-    source:
-      data_source1: # Data source 1
-        img_root: 'imgs/train' # images path
-        # prompt template, the fill word is configured in the following utils.caption_tools.TemplateFill
-        prompt_template: 'prompt_tuning_template/object.txt'
-        caption_file: null # path to image captions (file_words)
-        att_mask: null # path to attention_mask
-        bg_color: [255, 255, 255] # Fill background color when reading transparent images
-        image_transforms: ${...image_transforms} # Image augmentation and preprocessing
-        text_transforms: # Text augmentation and preprocessing
-          _target_: torchvision.transforms.Compose
-          transforms:
-            - _target_: hcpdiff.utils.caption_tools.TagShuffle # Shuffle the caption by ","
-            - _target_: hcpdiff.utils.caption_tools.TagDropout # Split the caption by "," and random delete
-              p: 0.1 # Probability of deletion
-            - _target_: hcpdiff.utils.caption_tools.TemplateFill # Fill the prompt template, randomly choice one line in template to fill
-              word_names:
-                pt1: pt-cat1 # Replace {pt1} in the template with pt-cat1
-                class: cat # Replace {class} in the template with cat
-      data_source2: ... # Data source 2
-      data_source3: ... # Data source 3
-    bucket: # What bucket to use for image processing and grouping
-      _target_: hcpdiff.data.bucket.RatioBucket.from_files # Automatic clustering and grouping of all images in aspect ratio, avoiding crop as much as possible
-      # Image size used for training, value is area
-      # Here we use the hydra syntax and call python's eval function to calculate the area
-      target_area: {_target_: "builtins.eval", _args_: ['512*512']}
-      num_bucket: 5 # The number of groups
-  
-  dataset_class: # Regularization dataset. Same as above.
-    _target_: hcpdiff.data.TextImagePairDataset
-    _partial_: True
-    batch_size: 1
-    cache_latents: True
-    att_mask_encode: False
-    loss_weight: 0.8
+import torch
+from torch.nn import MSELoss
 
-    source:
-      data_source1:
-        img_root: 'imgs/db_class'
-        prompt_template: 'prompt_tuning_template/object.txt'
-        caption_file: null
-        att_mask: null
-        bg_color: [255, 255, 255] # RGB; for ARGB -> RGB
-        image_transforms: ${....dataset1.source.data_source1.image_transforms}
-        text_transforms:
-          _target_: torchvision.transforms.Compose
-          transforms:
-            - _target_: hcpdiff.utils.caption_tools.TagShuffle
-            - _target_: hcpdiff.utils.caption_tools.TagDropout
-              p: 0.1
-            - _target_: hcpdiff.utils.caption_tools.TemplateFill
-              word_names:
-                class: cat
-    bucket:
-      _target_: hcpdiff.data.bucket.FixedBucket # Resize and crop images to fixed size
-      target_size: [512, 512]
+from rainbowneko.ckpt_manager import ckpt_saver
+from rainbowneko.train.loggers import CLILogger
+from rainbowneko.utils import ConstantLR
+from rainbowneko.parser import neko_cfg
+from hcpdiff.loss import DiffusionLossContainer
+
+# You can define global variables
+time_format="%Y-%m-%d-%H-%M-%S"
+
+@neko_cfg # Only functions decorated with @neko_cfg will be compiled into configuration
+def make_cfg(): # make_cfg is the entry point of the configuration file; the parser reads and uses the return value as the configuration
+    return dict(
+        exp_dir=f'exps/{time.strftime(time_format)}', # Directory to save experiment data
+        mixed_precision=None, # Precision used for training; supports fp32, fp16, bf16, fp8. None means fp32.
+        allow_tf32=True, # Enable TF32 to accelerate training
+        seed=114514, # Random seed for training; fixing the seed helps with reproducibility
+
+        ckpt_saver=dict( # Model checkpoint saver
+            model=ckpt_saver() # The default saver saves all models and plugins
+        ),
+
+        train=dict(
+            train_steps=1000, # Total number of training steps
+            train_epochs=None,  # Total number of training epochs; has higher priority than train_steps
+            gradient_accumulation_steps=1, # Gradient accumulation steps
+            workers=4, # Number of worker processes for data loading
+            max_grad_norm=1.0, # Gradient clipping
+            set_grads_to_none=False, # Whether to set gradients to None to save memory
+            retain_graph=False, # Whether to retain the computation graph
+            save_step=100, # Interval (in steps) to save the model
+
+            resume=None, # Path to resume training from a previous checkpoint
+
+            loss=DiffusionLossContainer(MSELoss(reduction='none')), # Loss function, default is MSE loss
+            optimizer=torch.optim.AdamW(_partial_=True, weight_decay=1e-2), # Optimizer
+            scale_lr=False,  # Automatically scale learning rate based on batch size
+            scheduler=ConstantLR( # Learning rate scheduler
+                _partial_=True,
+                warmup_steps=500,
+            ),
+
+            metrics=None,  # Evaluation metrics during training
+        ),
+
+        logger=[
+            partial(CLILogger, out_path='train.log', log_step=20), # Logger that outputs to console
+        ],
+
+        model=dict(
+            name='model', # Model name used when saving
+
+            enable_xformers=False, # Whether to enable xformers optimization
+            gradient_checkpointing=True, # Whether to enable gradient checkpointing to save memory
+            force_cast_precision=False, # Whether to forcibly cast precision to save memory at the cost of accuracy
+            ema=None, # Whether to use EMA (Exponential Moving Average) model to improve performance
+
+            wrapper=None, # Model wrapper
+        ),
+
+        evaluator=None, # Evaluator during training; can be used for previewing images or evaluating the model
+        data_train=None, # Training dataset configuration
+    )
+
 ```
 
-## Loss configurations
-
-Min-SNR loss:
-```yaml
-loss:
-  criterion:
-    # The other properties are inherited from train_base
-    _target_: hcpdiff.loss.MinSNRLoss # Loss function class
-    gamma: 2.0
+```{tip}
+You can inherit the base configuration by adding `_base_=[train_base]` in your new configuration. Simply override or add the parts you need. Overrides are applied recursively at the same level. To completely replace a node, add `_replace_=True` within that node.
 ```
 
-## Other configurations
-```yaml
-# Parent configuration file to inherite, which modifies the parameters of the parent file, can inherit multiple files.
-# Only the parameters that have been modified need to be written, while the default values of the other parameters will be used.
-# The list will be entirely replaced and cannot modify one item, so it is necessary to write them completely.
-_base_: [cfgs/train/train_base.yaml, cfgs/train/tuning_base.yaml]
+## Learning Rate Schedulers
 
-exp_dir: exps/ # Output folder
-mixed_precision: 'fp16' # Whether to use half-precision training acceleration
-seed: 114514 # Random seeds for training
-ckpt_type: 'safetensors' # [torch, safetensors], save torch or safetensors format
+![](../../imgs/lr.webp)
+
+The chart above shows how different learning rate strategies evolve over training steps. It is recommended to use either ```one_cycle``` or ```constant_with_warmup```.
+The warmup phase is controlled by ```warmup_steps```, and the total training steps are defined by ```training_steps``` (default is total training steps).
+
+:::{dropdown} Supported Learning Rate Schedulers
+:animate: fade-in
+
+**constant and constant_with_warmup** Fixed learning rate
+```python
+from rainbowneko.utils.lr_scheduler import ConstantLR
+
+ConstantLR(
+    _partial_=True,
+    warmup_steps=200, # Number of warmup steps
+)
 ```
+
+**cosine** Cosine annealing learning rate
+```python
+from rainbowneko.utils.lr_scheduler import CosineLR
+
+CosineLR(
+    _partial_=True,
+    warmup_steps=200, # Number of warmup steps
+    # num_cycles=0.5, # Number of cycles, default is 0.5 as shown in the chart
+)
+```
+
+**one_cycle** Cosine increase followed by cosine decay
+```python
+from rainbowneko.utils.lr_scheduler import OneCycleLR
+
+OneCycleLR(
+    _partial_=True,
+    warmup_steps=200, # Number of warmup steps
+
+    # Optional parameters
+    # div_factor=, # max_lr / initial_lr
+    # final_div_factor=, # max_lr / final_lr
+)
+```
+
+**polynomial** Polynomial decay learning rate
+```python
+from rainbowneko.utils.lr_scheduler import PolynomialLR
+
+PolynomialLR(
+    _partial_=True,
+    warmup_steps=200, # Number of warmup steps
+    lr_end=1e-7, # Final learning rate
+    power=1.0 # Power of the polynomial
+)
+```
+
+**MultiStepLR** Step-wise learning rate decay
+```python
+from rainbowneko.utils.lr_scheduler import MultiStepLR
+
+MultiStepLR(
+    _partial_=True,
+    step_rules='1:100,0.1:200,0.01:300,0.005' # LR=1 before step 100, 0.1 from 100–200, 0.01 from 200–300, 0.005 after 300
+)
+```
+
+**CosineRestartLR** Cosine annealing with restarts
+```python
+from rainbowneko.utils.lr_scheduler import CosineRestartLR
+
+CosineRestartLR(
+    _partial_=True,
+    warmup_steps=200, # Number of warmup steps
+    num_cycles=5, # Number of restart cycles
+)
+```
+
+```{note}
+The optimizer and training_steps parameters will be automatically provided by the framework.
+```
+
+:::
+
+## Model Configuration
+
+The model body is defined in `model.wrapper`. You can use any model wrapper or define a custom one.
+
+::::{tab-set}
+:::{tab-item} Full Configuration
+
+```python
+from rainbowneko.ckpt_manager import NekoLoader, LocalCkptSource
+from hcpdiff.ckpt_manager import DiffusersSD15Format
+from hcpdiff.models import SD15Wrapper
+
+wrapper=SD15Wrapper.from_pretrained( # Initialize from a pre-trained model
+    _partial_=True,
+    models=NekoLoader(
+        format=DiffusersSD15Format(), # Model format
+        source=LocalCkptSource(),     # Use local source
+    ).load(
+        path='Lykon/DreamShaper',     # Path to the pre-trained model
+        _partial_=True
+    )
+),
+```
+
+```{note}
+For detailed configuration of `models`, see [Model Format Guide](./model_format.md)
+```
+
+:::
+
+:::{tab-item} Simplified Configuration
+
+```python
+from hcpdiff.easy import SD15_auto_loader
+from hcpdiff.models import SD15Wrapper
+
+wrapper=SD15Wrapper.from_pretrained(
+    _partial_=True,
+    models=SD15_auto_loader(
+        ckpt_path='Lykon/DreamShaper', # Path to the pre-trained model
+        _partial_=True
+    ),
+),
+```
+
+```{note}
+For detailed configuration of `models`, see [Model Format Guide](./model_format.md)
+```
+
+:::
+::::
+
+## Loss Configuration
+
+To add Min-SNR weighting to the loss:
+```python
+from torch import nn
+from hcpdiff.loss import MinSNRWeight, DiffusionLossContainer
+
+loss=MinSNRWeight(
+    DiffusionLossContainer(nn.MSELoss()),
+    gamma=5, # Parameter for Min-SNR
+)
+```
+
+To use SSIM loss:
+```python
+from hcpdiff.loss import SSIMLoss, DiffusionLossContainer
+
+loss=DiffusionLossContainer(SSIMLoss())
+```
+
+Let me know if you need help translating other parts of the documentation or have questions about specific configurations!

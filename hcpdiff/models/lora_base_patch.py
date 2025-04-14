@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from hcpdiff.utils.utils import make_mask, low_rank_approximate, isinstance_list
-from .plugin import PatchPluginBlock, PluginGroup, PatchPluginContainer
+from rainbowneko.models.plugin import PatchPluginBlock, PluginGroup, PatchPluginContainer
 
 from typing import Union, Tuple, Dict, Type
 
@@ -38,9 +38,9 @@ class LoraBlock(PatchPluginBlock):
     container_cls = LoraPatchContainer
     wrapable_classes = (nn.Linear, nn.Conv2d)
 
-    def __init__(self, lora_id:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
+    def __init__(self, name:int, host:Union[nn.Linear, nn.Conv2d], rank, dropout=0.1, alpha=1.0, bias=False,
                  alpha_auto_scale=True, parent_block=None, host_name=None, **kwargs):
-        super().__init__(f'lora_block_{lora_id}', host, parent_block=parent_block, host_name=host_name)
+        super().__init__(name, host, parent_block=parent_block, host_name=host_name)
 
         self.bias=bias
 
@@ -56,7 +56,13 @@ class LoraBlock(PatchPluginBlock):
         self.dropout = nn.Dropout(dropout)
 
         self.rank = self.layer.rank
+        self.alpha_auto_scale = alpha_auto_scale
         self.register_buffer('alpha', torch.tensor(alpha/self.rank if alpha_auto_scale else alpha))
+
+    def set_hyper_params(self, alpha=None, **kwargs):
+        if alpha is not None:
+            self.register_buffer('alpha', torch.tensor(alpha/self.rank if self.alpha_auto_scale else alpha))
+        super().set_hyper_params(**kwargs)
 
     def get_weight(self):
         return self.layer.get_weight() * self.alpha
@@ -91,7 +97,7 @@ class LoraBlock(PatchPluginBlock):
             host.weight.data * base_alpha + alpha * re_w.to(host.weight.device, dtype=host.weight.dtype)
         )
 
-        if self.layer.lora_up.bias is not None:
+        if re_b is not None:
             if host.bias is None:
                 host.bias = nn.Parameter(re_b.to(host.weight.device, dtype=host.weight.dtype))
             else:
@@ -145,32 +151,15 @@ class LoraBlock(PatchPluginBlock):
             pass
 
     @classmethod
-    def wrap_layer(cls, lora_id:int, layer: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, alpha=1.0, svd_init=False,
+    def wrap_layer(cls, name:str, host: Union[nn.Linear, nn.Conv2d], rank=1, dropout=0.0, alpha=1.0, svd_init=False,
                    bias=False, mask=None, **kwargs):# -> LoraBlock:
-        lora_block = cls(lora_id, layer, rank, dropout, alpha, bias=bias, **kwargs)
+        lora_block = cls(name, host, rank, dropout, alpha, bias=bias, **kwargs)
         lora_block.init_weights(svd_init)
         return lora_block
 
     @classmethod
-    def wrap_model(cls, lora_id:int, model: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
-        return super(LoraBlock, cls).wrap_model(lora_id, model, exclude_classes=(LoraBlock,), **kwargs)
-
-    @staticmethod
-    def extract_lora_state(model:nn.Module):
-        return {k:v for k,v in model.state_dict().items() if 'lora_block_' in k}
-
-    @staticmethod
-    def extract_state_without_lora(model:nn.Module):
-        return {k:v for k,v in model.state_dict().items() if 'lora_block_' not in k}
-
-    @staticmethod
-    def extract_param_without_lora(model:nn.Module):
-        return {k:v for k,v in model.named_parameters() if 'lora_block_' not in k}
-
-    @staticmethod
-    def extract_trainable_state_without_lora(model:nn.Module):
-        trainable_keys = {k for k,v in model.named_parameters() if ('lora_block_' not in k) and v.requires_grad}
-        return {k: v for k, v in model.state_dict().items() if k in trainable_keys}
+    def wrap_model(cls, name:str, host: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
+        return super().wrap_model(name, host, exclude_classes=(LoraBlock,), **kwargs)
 
 class LoraGroup(PluginGroup):
     def set_mask(self, batch_mask):

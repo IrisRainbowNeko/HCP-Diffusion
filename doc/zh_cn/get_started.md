@@ -6,14 +6,25 @@
 conda create --name hcpdiff python=3.10 -y
 conda activate hcpdiff
 ```
-3. 安装pytorch
-```bash
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-```
+
+3. 安装 [pytorch](https://pytorch.org/)
 
 4. 下载并安装HCP-Diffusion
+
+::::{tab-set}
+:::{tab-item} 从源码安装
 ```bash
-git clone https://github.com/7eu7d7/HCP-Diffusion.git
+git clone https://github.com/IrisRainbowNeko/HCP-Diffusion.git
 cd HCP-Diffusion
 pip install -e .
+hcpinit
 ```
+:::
+:::{tab-item} 从pip安装
+```bash
+pip install hcpdiff
+# 初始化配置文件
+hcpinit
+```
+:::
+::::

@@ -1,21 +1,22 @@
-# Guide to Training Anime Waifu LoRA Models
+# LoRA Training Tutorial (Anime Characters)
 
-This section provides an introduction to training models for anime characters.
+This section provides a guide for training anime-style characters.
 
-## Process and Principles
+## Workflow and Principle
 
-For this task, the recommended approach by the author of HCP-Diffusion, [7eu7e7](https://github.com/7eu7d7), is to train an embedding model and a Lora model together. During the actual inference (i.e., generating images of anime characters), both the embedding and Lora models are used simultaneously. This achieves the desired effect and results in a more stable performance compared to traditional Lora, as the trigger words are fixed in the embedding model.
+For this task, the method recommended by HCP-Diffusion author [IrisRainbowNeko](https://github.com/IrisRainbowNeko) involves training an embedding model and a LoRA model together. During inference (i.e., generating images of anime characters), both the embedding and LoRA models are used simultaneously. This approach helps achieve the desired results and offers more stable performance than traditional LoRA methods, as the trigger word is embedded directly into the embedding model.
 
-The training process consists of the following steps:
-* Prepare the dataset
-* Create the embedding
-* Train the model
-* Model inference
-* Model format conversion
+Thus, the overall training process consists of the following steps:
 
-## Prepare the Dataset
+- Prepare the dataset
+- Create the embedding
+- Train the model
+- Perform inference
+- Save in SD WebUI format
 
-The first step is to prepare the dataset. We need to gather several images with the same dimensions (preferably in png format) and assign corresponding text labels to each image (using txt format). The dataset should have a structure similar to the following (in this case, the dataset is saved in `/data/surtr_dataset`, and all images have dimensions of 512x704):
+## Preparing the Dataset
+
+The first step is to prepare the dataset. You need a set of images with identical dimensions (PNG format is recommended for better training quality), and each image should have a corresponding text label (in .txt format). The final dataset should look like the following structure (in this case, the dataset is stored in /data/surtr_dataset, and each image is 512x704):
 
 ```text
 /data/surtr_dataset
@@ -28,161 +29,177 @@ The first step is to prepare the dataset. We need to gather several images with 
 ├── ......
 ```
 
-One recommended way to prepare the dataset is to use the [waifuc](https://github.com/deepghs/waifuc) project. By inputting the English name of a character, it automates the process of crawling, cleaning, processing, and labeling character images from multiple image websites (e.g., pixiv, danbooru, zerochan).
-
-## Creating Embedding
-
-To improve the stability of trigger words during image generation, this training method requires an embedding (similar to Texture Inversion), which can be roughly understood as representing a keyword.
-
-First, we use the following command to create the embedding:
-
-```shell
-python -m hcpdiff.tools.create_embedding <pretrained_model_path> <word_name> <word_size> [--init_text <initialization_word>]
+```{tip}
+A recommended tool for this step is the [waifuc](https://github.com/deepghs/waifuc) project, which can automatically crawl, clean, process, and label images from over a dozen image sites (such as Pixiv, Danbooru, Zerochan, etc.) with just the English name of the character.
 ```
 
-For example, for the character Surtr (with the keyword name: `surtr_arknights`), we can create the embedding as follows:
+## Creating the Embedding
+
+To improve the stability of trigger words during image generation, this guide uses an embedding (similar to Textual Inversion), where each embedding represents a keyword.
+
+Use the following command to create an embedding:
+
+```shell
+python -m hcpdiff.tools.create_embedding <pretrained_model_path> <word_name> <num_vectors_per_token> [--init_text <initial_word>]
+```
+
+For example, if you're training the character Surtr (with the keyword name: surtr_arknights), use:
 
 ```shell
 python -m hcpdiff.tools.create_embedding deepghs/animefull-latest surtr_arknights 4
 ```
 
-Now, the `embs` directory will contain a file named `surtr_arknights.pt`.
+This will generate a file named surtr_arknights.pt in the embs directory.
 
 ## Model Training
 
-After completing the preparations above, we can begin the training process.
+Once the preparations are complete, you can begin training.
 
-First, we need to install Tensorboard to monitor the training progress in real-time:
+First, install TensorBoard to monitor training progress in real-time:
 
 ```shell
 pip install tensorboard
 ```
 
-For running on a single GPU (multiple GPU environments are similar, see README), we can execute the following command to start the training:
+::::{tab-set}
+:::{tab-item} Single-GPU Training
+
+For single-GPU environments, use the following command:
 
 ```shell
-accelerate launch -m hcpdiff.train_ac_single \
-    --cfg cfgs/train/examples/lora_anime_character.yaml \
-    character_name=surtr_arknights \
-    dataset_dir=/data/surtr_dataset
+hcp_train_1gpu --cfg cfgs/train/py/examples/lora_preview.py \
+    model.wrapper.models.ckpt_path=deepghs/animefull-latest \  # Base model
+    data_train.dataset1.handler.word_names.pt1=surtr_arknights \  # Trigger word
+    data_train.dataset1.source.data_source1.img_root=/data/surtr_dataset  # Dataset path
 ```
 
-Where:
-* `character_name` is the name of the character to be trained, which should match the name of the embedding created in the previous section, in this case, `surtr_arknights`.
-* `dataset_dir` is the path to the dataset, which should be filled with `/data/surtr_dataset`.
-* [Optional] `exp_dir` is the path to save the experimental data. By default, it will create a subpath in `exps` directory named with the current date and time, such as `exps/2023-07-26-01-05-35`.
-* [Optional] `train.train_steps` is the total number of training steps, with a default value of `1000`.
-* [Optional] `train.save_step` is the interval at which the model is saved during training, with a default value of `100` (i.e., saving the model every 100 steps).
-* [Optional] `model.pretrained_model_name_or_path` is the diffusion model used for training, with a default value of `deepghs/animefull-latest`, which is the leaked model from NovelAI and approximately 7GB in size. The model is a general model for training anime characters and will be downloaded from the HuggingFace repository automatically for training.
+:::
 
-After training, you will obtain an experimental data path as follows:
+:::{tab-item} Multi-GPU Training
+
+For multi-GPU environments, specify the GPU IDs and number of GPUs in cfgs/launcher/multi.yaml, then run:
+
+```shell
+hcp_train --cfg cfgs/train/py/examples/lora_preview.py \
+    model.wrapper.models.ckpt_path=deepghs/animefull-latest \  # Base model
+    data_train.dataset1.handler.word_names.pt1=surtr_arknights \  # Trigger word
+    data_train.dataset1.source.data_source1.img_root=/data/surtr_dataset  # Dataset path
+```
+
+:::
+::::
+
+```{note}
+Details:
+- data_train.dataset1.handler.word_names.pt1: The name of the character to be trained, must match the embedding name created earlier. In this case, surtr_arknights.
+- data_train.dataset1.source.data_source1.img_root: Path to the dataset, here it's /data/surtr_dataset.
+- [Optional] exp_dir: Directory to save experiment data. By default, a subdirectory named with the current timestamp will be created under exps/, e.g., exps/2023-07-26-01-05-35.
+- [Optional] train.train_steps: Total training steps. Default is 1000.
+- [Optional] train.save_step: Interval for saving model checkpoints. Default is 100 (i.e., save every 100 steps).
+- [Optional] model.wrapper.models.ckpt_path: Base diffusion model used for training. Default is deepghs/animefull-latest, which is a leaked official NovelAI model (~7GB). This is a general-purpose anime model and will be automatically downloaded from Hugging Face if not present locally.
+```
+
+After training, you will get an experiment directory like this:
 
 ```text
 exps/2023-07-26-01-05-35
 ├── cfg.yaml
 ├── ckpts
-│   ├── surtr_arknights-1000.pt
-│   ├── surtr_arknights-100.pt
-│   ├── surtr_arknights-200.pt
-│   ├── surtr_arknights-300.pt
-│   ├── surtr_arknights-400.pt
-│   ├── surtr_arknights-500.pt
-│   ├── surtr_arknights-600.pt
-│   ├── surtr_arknights-700.pt
-│   ├── surtr_arknights-800.pt
-│   ├── surtr_arknights-900.pt
-│   ├── text_encoder-1000.safetensors
-│   ├── text_encoder-100.safetensors
-│   ├── text_encoder-200.safetensors
-│   ├── text_encoder-300.safetensors
-│   ├── text_encoder-400.safetensors
-│   ├── text_encoder-500.safetensors
-│   ├── text_encoder-600.safetensors
-│   ├── text_encoder-700.safetensors
-│   ├── text_encoder-800.safetensors
-│   ├── text_encoder-900.safetensors
-│   ├── unet-1000.safetensors
-│   ├── unet-100.safetensors
-│   ├── unet-200.safetensors
-│   ├── unet-300.safetensors
-│   ├── unet-400.safetensors
-│   ├── unet-500.safetensors
-│   ├── unet-600.safetensors
-│   ├── unet-700.safetensors
-│   ├── unet-800.safetensors
-│   └── unet-900.safetensors
+│   ├── surtr_arknights-1000.pt
+│   ├── surtr_arknights-100.pt
+│   ├── ...
+│   ├── text_encoder-1000.safetensors
+│   ├── ...
+│   ├── unet-1000.safetensors
+│   ├── ...
 ├── tblog
-│   └── events.out.tfevents.1690346085.myenvironment.210494.0
+│   └── events.out.tfevents.1690346085.myenvironment.210494.0
 └── train.log
 ```
 
-Where:
-* `surtr_arknights-xxx.pt` is the obtained embedding from training.
-* `text_encoder-xxx.safetensors` and `unet-xxx.safetensors` are the trained Lora models. (Note: In the HCP-Diffusion framework, the Lora model is divided into two parts. If you need to convert it into a Lora model format supported by webui
-
-, please refer to the last section, [Model Format Conversion](#model-format-conversion)).
+```{note}
+Explanation:
+- surtr_arknights-xxx.pt: The trained embedding file.
+- text_encoder-xxx.safetensors and unet-xxx.safetensors: The trained LoRA model files. (Note: In HCP-Diffusion, LoRA models are split into two parts. To convert them into a format compatible with WebUI, see the Model File Format Guide.)
+```
 
 ## Model Inference
 
-After completing the training, we use the previously trained models to generate images.
+After training, you can use the trained model to generate images.
+
+::::{tab-set}
+:::{tab-item} Using a Configuration File
+
+Copy cfgs/workflow/easy/t2i_lora.py to cfgs/workflow/easy/t2i_lora_surtr.py and modify the configuration:
+
+```python
+@neko_cfg
+def make_cfg():
+    return SD15_t2i_lora(
+        pretrained_model='stablediffusionapi/anything-v5',  # Replace base model
+        lora_info=[
+            ('exps/2023-07-26-01-05-35/lora1-1000.safetensors', 0.8),  # (LoRA model path, weight)
+        ],
+        prompt='masterpiece, best quality, 1girl, solo, {surtr_arknights-1000:1.2}',  # Prompt
+        bs=4,
+        width=512,
+        height=768,
+        guidance_scale=7.5
+    )
+```
+
+```{note}
+Details:
+- lora_info: Add the trained LoRA model path and its weight. Adjust the weight as needed.
+- prompt: Prompt for image generation. When using an embedding trigger word, use the format character_name-xxxx, where xxxx is the training step number. In this example: surtr_arknights-1000.
+- [Optional] negative_prompt: Negative prompt for image generation. Defaults to a general-purpose negative prompt.
+- [Optional] N_repeats: Prompt capacity. Default is 1. Increase if prompt is too long and causes errors.
+- [Optional] pretrained_model: Base model used for generation. Default is stablediffusionapi/anything-v5, which performs better than deepghs/animefull-latest for anime images.
+- [Optional] width: Image width (must be a multiple of 8). Default is 512.
+- [Optional] height: Image height (must be a multiple of 8). Default is 768.
+- [Optional] guidance_scale: Higher value increases prompt influence, resulting in more consistent images. Default is 7.5.
+- [Optional] N_steps: Number of inference steps. Default is 20.
+- [Optional] bs: Number of images to generate. Default is 4.
+- [Optional] seed: Random seed. Using the same seed with the same settings produces identical images. If not specified, a random seed is used and logged in the Python config file.
+- [Optional] save_root: Output directory for generated images. Default is output_pipe/.
+```
+
+Run the following command to generate images:
 
 ```shell
-python -m hcpdiff.visualizer \
-    --cfg cfgs/infer/anime/text2img_anime_lora.yaml \
-    exp_dir=exps/2023-07-26-01-05-35 \
-    model_steps=1000 \
+hcp_run --cfg cfgs/workflow/easy/t2i_lora_surtr.yaml
+```
+
+:::
+
+:::{tab-item} Using CLI Arguments with Predefined Config
+
+```shell
+hcp_run --cfg cfgs/workflow/easy/t2i_lora_cli.yaml \
+    lora_path=exps/2023-07-26-01-05-35/lora1-1000.safetensors \
     prompt='masterpiece, best quality, 1girl, solo, {surtr_arknights-1000:1.2}'
 ```
 
-Here are the details:
-* `exp_dir`: The path where the training data is located, which should be consistent with the `exp_dir` used during training.
-* `model_steps`: The step number of the Lora model to be loaded. For example, if the value here is `1000`, it will load `text_encoder-1000.safetensors` and `unet-1000.safetensors`.
-* `prompt`: The prompt word used to generate images. Please note that when using the trigger words from the embedding, the format should be `character_name-xxxx`, where `xxxx` is the step number, and this value should be consistent with `model_steps`. In this example, it would be `surtr_arknights-1000`.
-* 【Optional】`neg_prompt`: The negative prompt word used to generate images. The default value is a common negative prompt word.
-* 【Optional】`N_repeats`: The capacity of the prompt word. The default value is `2`, and it can be increased if the prompt word is long and causes an error.
-* 【Optional】`pretrained_model`: The base model used for generating images. The default value is `stablediffusionapi/anything-v5`, which has better performance in actual anime image generation than `deepghs/animefull-latest`.
-* 【Optional】`infer_args.width`: The width of the generated images, which should be a multiple of 8. The default value is `512`.
-* 【Optional】`infer_args.height`: The height of the generated images, which should be a multiple of 8. The default value is `768`.
-* 【Optional】`infer_args.guidance_scale`: The scale used during image generation, where a higher value gives more control to the prompt words and leads to more similar generated images. The default value is `7.5`.
-* 【Optional】`infer_args.num_inference_steps`: The number of steps used during image generation. The default value is `30`.
-* 【Optional】`merge.alpha`: The weight of the Lora model during image generation. The default value is `0.85`.
-* 【Optional】`num`: The number of generated images. The default value is `1`.
-* 【Optional】`bs`: The batch size used during image generation. The total number of generated images will be `num x bs`. The default value is `1`.
-* 【Optional】`seed`: The random seed used during image generation. When using the same seed and other configurations are the same, the generated images will be completely deterministic. If `seed` is not specified, a random seed will be used, and the specific value can be found in the corresponding YAML configuration file of the generated image.
-* 【Optional】`output_dir`: The export path for the image files. The default value is `output`.
+:::
+::::
 
-After running the process, you will find a PNG image and a YAML configuration file generated in the `output` directory. The PNG image represents the generated picture, and the YAML file contains detailed configuration information used during the generation process. An example of the generated image is shown below (please note that the seed is randomly selected, so the actual image may differ from the one shown below, it is for reference only):
+After execution, a PNG image and a Python config file will be generated in the output directory. These represent the generated image and the configuration used, respectively.
 
-![surtr_arknight_sample](../imgs/surtr_arknights_sample.png)
+An example image might look like this (note that your result may vary due to the random seed):
 
-## Model Format Conversion
+![surtr_arknight_sample](../../imgs/surtr_arknights_sample.png)
 
-Once you're satisfied with the generated model, you can export the HCP-format Lora model to a format supported by a1111's webui using the following command:
+## Using the Model in WebUI
 
-```shell
-python -m hcpdiff.tools.lora_convert --to_webui \
-    --lora_path unet-xxxx.safetensors \
-    --lora_path_TE text_encoder-xxxx.safetensors \
-    --dump_path lora-xxxx.safetensors \
-    --auto_scale_alpha # The existing webui model doesn't have alpha auto scaling, so it needs to be converted
-```
+To use the trained LoRA model in a1111's WebUI, you need to save it in a compatible format. For details, refer to the [LoRA Training Guide](./lora.md).
 
-In this example, the actual command used is as follows:
+The WebUI-compatible LoRA model files will be located in:
 
-```shell
-python -m hcpdiff.tools.lora_convert --to_webui \
-    --lora_path exps/2023-07-26-01-05-35/ckpts/unet-1000.safetensors \
-    --lora_path_TE exps/2023-07-26-01-05-35/ckpts/text_encoder-1000.safetensors \
-    --dump_path exps/2023-07-26-01-05-35/ckpts/lora-1000.safetensors \
-    --auto_scale_alpha
-```
+- exps/2023-07-26-01-05-35/ckpts/
 
-The webui version of the Lora model file will be exported to `exps/2023-07-26-01-05-35/ckpts/lora-1000.safetensors`.
+If you want to publish the model on civitai.com, upload the following files:
 
-If you want to publish the file on civitai.com, you just need to upload the following files:
-* `exps/2023-07-26-01-05-35/ckpts/lora-1000.safetensors` - Lora model file
-* `exps/2023-07-26-01-05-35/ckpts/surtr_arknights-1000.pt` - Embedding trigger word file
+- exps/2023-07-26-01-05-35/ckpts/lora_webui-1000.safetensors – the LoRA model file
+- exps/2023-07-26-01-05-35/ckpts/surtr_arknights-1000.pt – the embedding trigger word file
 
-On the webui, as long as you use these two models simultaneously, you can draw your anime waifu~~~
-
-
+Once both models are loaded in WebUI, you’ll be able to generate beautiful anime waifus with ease! ✨
