@@ -21,8 +21,8 @@ sys.path.insert(0, os.path.abspath('../../'))
 # -- Project information -----------------------------------------------------
 
 project = 'HCP-Diffusion'
-copyright = '2018-2021, HCP Lab'
-author = '7eu7d7'
+copyright = 'IrisRainbowNeko'
+author = 'IrisRainbowNeko'
 
 # The full version, including alpha/beta/rc tags
 release = '0.1.0'
@@ -36,12 +36,14 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
+    'sphinx.ext.mathjax',
     'myst_parser',
     'sphinx_markdown_tables',
     'sphinx_copybutton',
+    'sphinx_design',
 ]
 
-myst_enable_extensions = ['colon_fence']
+myst_enable_extensions = ['colon_fence', 'dollarmath']
 myst_heading_anchors = 3
 
 autodoc_mock_imports = [
@@ -80,7 +82,7 @@ html_theme_options = {
     'menu': [
         {
             'name': 'GitHub',
-            'url': 'https://github.com/7eu7d7/HCP-Diffusion/'
+            'url': 'https://github.com/IrisRainbowNeko/HCP-Diffusion'
         },
     ],
     # Specify the language of shared menu

@@ -170,6 +170,18 @@ After parsing, the framework will instantiate the components accordingly. This m
 | CCIP Score       | 🚧 In Development                        |
 | Corrupt Score    | 🚧 In Development                        |
 
+---
+
+### ⚡️ Image Generation
+
+| 功能                           | 描述/支持情况                            |
+|------------------------------|------------------------------------|
+| Batch Generation             | ✅ Supported                   |
+| Generate from Prompt Dataset | ✅ Supported                               |
+| Image to Image               | ✅ Supported                               |
+| Inpaint                      | ✅ Supported                               |
+| Token Weight                 | ✅ Supported |
+
 </details>
 
 ---

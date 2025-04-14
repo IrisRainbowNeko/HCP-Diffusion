@@ -13,16 +13,17 @@ Welcome to HCP-Diffusion documentation!
 
    user_guides/train.md
    user_guides/train_optimize.md
-   user_guides/infer.md
+   user_guides/workflow.md
    user_guides/cfg.md
-   user_guides/model_convert.md
+   user_guides/model_format.md
 
 .. toctree::
    :maxdepth: 1
    :caption: Tutorial
 
+   tutorial/ft.md
+   tutorial/lora.md
    tutorial/lora_anime.md
-   tutorial/DA.md
 
 .. toctree::
    :maxdepth: 1
