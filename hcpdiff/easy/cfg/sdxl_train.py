@@ -1,11 +1,12 @@
 import torch
-from rainbowneko.ckpt_manager import ckpt_saver, plugin_saver, LAYERS_TRAINABLE
+from rainbowneko.ckpt_manager import ckpt_saver, NekoPluginSaver, LAYERS_TRAINABLE, SafeTensorFormat
 from rainbowneko.parser import CfgWDPluginParser, neko_cfg, CfgWDModelParser, disable_neko_cfg
 from rainbowneko.utils import ConstantLR
 
 from hcpdiff.easy import SDXL_auto_loader
 from hcpdiff.models import SDXLWrapper
 from hcpdiff.models.lora_layers_patch import LoraLayer
+from hcpdiff.ckpt_manager import LoraWebuiFormat
 
 @neko_cfg
 def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int = 500, lr: float = 1e-5,
@@ -64,7 +65,8 @@ def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int =
 
 @neko_cfg
 def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int = 200, lr: float = 1e-4, rank: int = 4, alpha: float = None,
-                    with_conv: bool = False, dtype: str = 'fp16', low_vram: bool = False, warmup_steps: int = 0, name: str = 'SD15'):
+                    with_conv: bool = False, dtype: str = 'fp16', low_vram: bool = False, warmup_steps: int = 0, name: str = 'SDXL',
+                    save_webui_format=False):
     with disable_neko_cfg:
         if alpha is None:
             alpha = rank
@@ -90,6 +92,11 @@ def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
     else:
         optimizer = torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99))
 
+    if save_webui_format:
+        lora_format = LoraWebuiFormat()
+    else:
+        lora_format = SafeTensorFormat()
+
     from cfgs.train.py.examples import SD_FT
 
     return dict(
@@ -109,8 +116,8 @@ def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
 
         ckpt_saver=dict(
             _replace_ = True,
-            lora_unet=plugin_saver(
-                ckpt_type='safetensors',
+            lora_unet=NekoPluginSaver(
+                format=lora_format,
                 target_plugin='lora1',
             )
         ),

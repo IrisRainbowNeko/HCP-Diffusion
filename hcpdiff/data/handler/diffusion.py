@@ -49,13 +49,10 @@ class DiffusionImageHandler(DataHandler):
         else:
             return self.handlers(dict(image=image, image_size=image_size))
 
-class StableDiffusionHandler(DataHandler):
-    def __init__(self, bucket, encoder_attention_mask=False, key_map_in=('image -> image', 'image_size -> image_size', 'prompt -> prompt'),
-                 key_map_out=('image -> image', 'coord -> coord', 'prompt -> prompt'),
-                 erase=0.15, dropout=0.0, shuffle=0.0, word_names={}, tokenize=True):
+class DiffusionTextHandler(DataHandler):
+    def __init__(self, encoder_attention_mask=False, erase=0.0, dropout=0.0, shuffle=0.0, word_names={}, tokenize=True,
+                 key_map_in=('prompt -> prompt', ), key_map_out=('prompt -> prompt', )):
         super().__init__(key_map_in, key_map_out)
-
-        self.image_handlers = DiffusionImageHandler(bucket)
 
         text_handlers = {}
         if dropout>0:
@@ -67,7 +64,20 @@ class StableDiffusionHandler(DataHandler):
         text_handlers['fill'] = TemplateFillHandler(word_names)
         if tokenize:
             text_handlers['tokenize'] = TokenizeHandler(encoder_attention_mask)
-        self.text_handlers = HandlerChain(**text_handlers)
+        self.handlers = HandlerChain(**text_handlers)
+
+    def handle(self, prompt: Union[str, Dict[str, str]]):
+        return self.handlers(dict(prompt=prompt))
+
+class StableDiffusionHandler(DataHandler):
+    def __init__(self, bucket, encoder_attention_mask=False, key_map_in=('image -> image', 'image_size -> image_size', 'prompt -> prompt'),
+                 key_map_out=('image -> image', 'coord -> coord', 'prompt -> prompt'),
+                 erase=0.0, dropout=0.0, shuffle=0.0, word_names={}, tokenize=True):
+        super().__init__(key_map_in, key_map_out)
+
+        self.image_handlers = DiffusionImageHandler(bucket)
+        self.text_handlers = DiffusionTextHandler(encoder_attention_mask=encoder_attention_mask, erase=erase, dropout=dropout, shuffle=shuffle,
+                                                  word_names=word_names, tokenize=tokenize)
 
     def handle(self, image: Image.Image, image_size: np.ndarray[int], prompt: str):
         return dict(**self.image_handlers(dict(image=image, image_size=image_size)), **self.text_handlers(dict(prompt=prompt)))

@@ -20,7 +20,7 @@ def make_cfg():
         allow_tf32=True,
         seed=114514,
 
-        ckpt_manager=dict(
+        ckpt_saver=dict(
             model=ckpt_saver()
         ),
 

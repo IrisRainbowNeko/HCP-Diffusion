@@ -29,7 +29,8 @@ def make_cfg():
             interval=100,
             workflow=SDXL_t2i(
                 pretrained_model='${model.wrapper.models.ckpt_path}',
-                prompt=prompt
+                prompt=prompt,
+                seed=42
             ),
         ),
     )

@@ -2,7 +2,7 @@ import math
 import re
 from typing import List, Dict, Any
 
-from rainbowneko.ckpt_manager.format import CkptFormat
+from rainbowneko.ckpt_manager.format import CkptFormat, SafeTensorFormat
 from torch.serialization import FILE_LIKE
 
 class LoraConverter:
@@ -36,7 +36,12 @@ class LoraConverter:
         if auto_scale_alpha:
             sd_unet = self.alpha_scale_from_webui(sd_unet)
             sd_TE = self.alpha_scale_from_webui(sd_TE)
-        return {'plugin':sd_TE}, {'plugin':sd_unet}
+
+        sd = {
+            **{f'denoiser.{k}':v for k,v in sd_unet.items()},
+            **{f'TE.{k}':v for k,v in sd_TE.items()},
+        }
+        return {'base': sd}
 
     def convert_to_webui(self, sd_unet, sd_TE, auto_scale_alpha=False, sdxl=False):
         sd_unet = self.convert_to_webui_(sd_unet, prefix=self.prefix_unet)
@@ -207,9 +212,12 @@ class LoraConverter:
         return state
 
 class LoraWebuiFormat(CkptFormat):
-    def __init__(self, format, auto_scale_alpha=False):
+    def __init__(self, format=None, auto_scale_alpha=False):
         self.converter = LoraConverter()
         self.auto_scale_alpha = auto_scale_alpha
+
+        if format is None:
+            format = SafeTensorFormat()
         self.format = format
 
     def save_ckpt(self, sd_model: Dict[str, Any], save_f: FILE_LIKE):
@@ -240,5 +248,5 @@ class LoraWebuiFormat(CkptFormat):
                 sdxl = True
                 break
 
-        sd_TE, sd_unet = self.converter.convert_from_webui(sd_webui, auto_scale_alpha=self.auto_scale_alpha, sdxl=sdxl)
-        return sd_TE, sd_unet
+        sd_all = self.converter.convert_from_webui(sd_webui, auto_scale_alpha=self.auto_scale_alpha, sdxl=sdxl)
+        return sd_all

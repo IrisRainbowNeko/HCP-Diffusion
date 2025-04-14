@@ -32,14 +32,15 @@ class SeedAction(BasicAction):
         self.seed = seed
         self.bs = bs
 
-    def forward(self, device, gen_step=0, **states):
+    def forward(self, device, seed=None, **states):
         bs = states['prompt_embeds'].shape[0]//2 if 'prompt_embeds' in states else self.bs
-        if self.seed is None:
+        seed = seed or self.seed
+        if seed is None:
             seeds = [None]*bs
-        elif isinstance(self.seed, int):
-            seeds = list(range(self.seed+gen_step*bs, self.seed+(gen_step+1)*bs))
+        elif isinstance(seed, int):
+            seeds = list(range(seed, seed+bs))
         else:
-            seeds = self.seed
+            seeds = seed
         seeds = [s or random.randint(0, 1 << 30) for s in seeds]
 
         G = prepare_seed(seeds, device=device)

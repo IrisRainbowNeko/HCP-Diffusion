@@ -1,5 +1,5 @@
 import torch
-from rainbowneko.infer import LoadModelAction
+from rainbowneko.infer import LoadModelAction, BuildPluginAction
 from rainbowneko.infer.workflow import Actions, PrepareAction
 from rainbowneko.parser import neko_cfg
 

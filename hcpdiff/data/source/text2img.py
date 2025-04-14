@@ -25,7 +25,7 @@ class Text2ImageSource(ImageLabelSource):
 
     def __getitem__(self, index) -> Dict[str, Any]:
         img_name = self.img_ids[index]
-        path = os.path.join(self.img_root, img_name)
+        path = self.img_root / img_name
 
         return {
             'id':img_name,

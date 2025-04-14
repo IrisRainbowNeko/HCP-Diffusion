@@ -48,18 +48,9 @@ class TextEncodeAction(BasicAction):
         self.negative_prompt = negative_prompt
         self.bs = bs
 
-    def forward(self, te_hook, TE, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None, model_offload=False,
-                **states):
-        prompt_all = prompt_all or self.prompt
-        negative_prompt_all = negative_prompt_all or self.negative_prompt
-
-        if gen_step is not None:
-            idx = (gen_step*self.bs)%len(prompt_all)
-            prompt = prompt_all[idx:idx+self.bs]
-            negative_prompt = negative_prompt_all[idx:idx+self.bs]
-        else:
-            prompt = prompt_all
-            negative_prompt = negative_prompt_all
+    def forward(self, te_hook, TE, dtype: str, device, amp=None, prompt=None, negative_prompt=None, model_offload=False, **states):
+        prompt = prompt or self.prompt
+        negative_prompt = negative_prompt or self.negative_prompt
 
         if model_offload:
             to_cuda(TE)
@@ -78,19 +69,9 @@ class TextEncodeAction(BasicAction):
             'pooled_output':pooled_output}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
-
-    def forward(self, te_hook, token_ex, TE, dtype: str, device, amp=None, gen_step=None, prompt_all=None, negative_prompt_all=None,
-                model_offload=False, **states):
-        prompt_all = prompt_all if prompt_all is not None else self.prompt
-        negative_prompt_all = negative_prompt_all if negative_prompt_all is not None else self.negative_prompt
-
-        if gen_step is not None:
-            idx = (gen_step*self.bs)%len(prompt_all)
-            prompt = prompt_all[idx:idx+self.bs]
-            negative_prompt = negative_prompt_all[idx:idx+self.bs]
-        else:
-            prompt = prompt_all
-            negative_prompt = negative_prompt_all
+    def forward(self, te_hook, token_ex, TE, dtype: str, device, amp=None, prompt=None, negative_prompt=None, model_offload=False, **states):
+        prompt = prompt or self.prompt
+        negative_prompt = negative_prompt or self.negative_prompt
 
         if model_offload:
             to_cuda(TE)
