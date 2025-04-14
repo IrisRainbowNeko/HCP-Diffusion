@@ -206,8 +206,13 @@ hcp_run --cfg cfgs/workflow/text2img_cli.py \
 ```
 
 
-### 教程
-🚧 开发中
+### 📚 教程
+
++ 🧠 [模型训练教程](https://hcpdiff.readthedocs.io/zh-cn/latest/user_guides/train.html)
++ 🔧 [lora训练教程](https://hcpdiff.readthedocs.io/zh-cn/latest/tutorial/lora.html)
++ 🎨 [图像生成教程](https://hcpdiff.readthedocs.io/zh-cn/latest/user_guides/workflow.html)
++ ⚙️ [配置文件说明](https://hcpdiff.readthedocs.io/zh-cn/latest/user_guides/cfg.html)
++ 🧩 [模型格式说明](https://hcpdiff.readthedocs.io/zh-cn/latest/user_guides/model_format.html)
 
 ## 做出贡献
 

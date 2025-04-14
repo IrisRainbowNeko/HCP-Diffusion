@@ -225,9 +225,13 @@ hcp_run --cfg cfgs/workflow/text2img_cli.py \
     seed=42
 ```
 
-### Tutorials
+### 📚 Tutorials
 
-🚧 In Development
++ 🧠 [Model Training Guide](https://hcpdiff.readthedocs.io/en/latest/user_guides/train.html)
++ 🔧 [LoRA Training Tutorial](https://hcpdiff.readthedocs.io/enlatest/tutorial/lora.html)
++ 🎨 [Image Generation Guide](https://hcpdiff.readthedocs.io/en/latest/user_guides/workflow.html)
++ ⚙️ [Configuration File Explanation](https://hcpdiff.readthedocs.io/en/latest/user_guides/cfg.html)
++ 🧩 [Model Format Explanation](https://hcpdiff.readthedocs.io/en/latest/user_guides/model_format.html)
 
 ---
 
