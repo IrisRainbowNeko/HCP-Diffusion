@@ -12,7 +12,11 @@ gen
 **/CVS/*
 .cvsignore
 */.cvsignore
-output*
+
+# HCP-Diffusion
+/output*
+/cfgs
+/prompt_template
 
 ### C++ template
 # Prerequisites

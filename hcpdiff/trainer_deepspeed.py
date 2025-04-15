@@ -8,7 +8,7 @@ from rainbowneko.utils import xformers_available
 
 from hcpdiff.trainer_ac import HCPTrainer, load_config_with_cli
 
-class HCPTrainerSingleCard(TrainerDeepspeed, HCPTrainer):
+class HCPTrainerDeepspeed(TrainerDeepspeed, HCPTrainer):
     def config_model(self):
         if self.cfgs.model.enable_xformers:
             if xformers_available:
@@ -23,9 +23,10 @@ class HCPTrainerSingleCard(TrainerDeepspeed, HCPTrainer):
         if self.cfgs.model.gradient_checkpointing:
             self.model_wrapper.enable_gradient_checkpointing()
 
-        for saver in self.ckpt_saver.values():
-            if isinstance(saver, NekoPluginSaver):
-                saver.plugin_from_raw = True
+        if self.is_local_main_process:
+            for saver in self.ckpt_saver.values():
+                if isinstance(saver, NekoPluginSaver):
+                    saver.plugin_from_raw = True
 
 def hcp_train():
     import subprocess
@@ -42,5 +43,5 @@ if __name__ == '__main__':
     args, cfg_args = parser.parse_known_args()
 
     parser, conf = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
-    trainer = HCPTrainerSingleCard(parser, conf)
+    trainer = HCPTrainerDeepspeed(parser, conf)
     trainer.train()
