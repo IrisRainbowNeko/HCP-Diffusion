@@ -42,13 +42,6 @@ class HCPTrainer(Trainer):
     def pt_trainable(self):
         return self.cfgs.emb_pt is not None
 
-    def get_loss(self, ds_name, model_pred, inputs):
-        loss = super().get_loss(ds_name, model_pred, inputs)
-        # make DDP happy
-        if len(self.train_pts)>0:
-            loss = loss+0*sum([emb.mean() for emb in self.train_pts.values()])
-        return loss
-
     def save_model(self, from_raw=False):
         NekoSaver.save_all(
             self.model_raw,

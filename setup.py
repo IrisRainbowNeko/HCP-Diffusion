@@ -12,7 +12,7 @@ with open('requirements.txt', encoding='utf8') as f:
 setuptools.setup(
     name="hcpdiff",
     py_modules=["hcpdiff"],
-    version="2.2",
+    version="2.2.1",
     author="Ziyi Dong",
     author_email="rainbow-neko@outlook.com",
     description="A universal Diffusion toolbox",
@@ -38,6 +38,7 @@ setuptools.setup(
             'hcpinit = hcpdiff.tools.init_proj:main',
             'hcp_train = hcpdiff.trainer_ac:hcp_train',
             'hcp_train_1gpu = hcpdiff.trainer_ac_single:hcp_train',
+            'hcp_train_ds = hcpdiff.trainer_deepspeed:hcp_train',
             'hcp_run = rainbowneko.infer.infer_workflow:run_workflow',
         ]
     },

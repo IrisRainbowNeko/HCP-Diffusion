@@ -126,6 +126,10 @@ class EmbeddingPTInterpHook(SinglePluginBlock):
         BOS = repeat(inputs_embeds[0,0,:], 'e -> r 1 e', r=self.N_repeats)
         EOS = repeat(inputs_embeds[0,-1,:], 'e -> r 1 e', r=self.N_repeats)
 
+        # make DDP happy
+        if len(self.emb_train) > 0:
+            BOS = BOS + sum(emb.mean()*0 for emb in self.emb_train if emb.requires_grad)
+
         replaced_embeds = []
         for item, rep_idxs, ids_raw in zip(inputs_embeds, rep_idxs_B, self.input_ids):
             # insert pt to embeddings
