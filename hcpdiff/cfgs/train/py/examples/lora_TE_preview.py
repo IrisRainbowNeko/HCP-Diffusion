@@ -65,7 +65,7 @@ def make_cfg():
 
             optimizer=torch.optim.AdamW(_partial_=True, betas=(0.9, 0.99)),
 
-            scheduler=ConstantLR(
+            lr_scheduler=ConstantLR(
                 _partial_=True,
                 warmup_steps=0,
             ),

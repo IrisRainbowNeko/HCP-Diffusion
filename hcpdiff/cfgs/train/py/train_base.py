@@ -39,10 +39,11 @@ def make_cfg():
             loss=DiffusionLossContainer(MSELoss(reduction='none')),
             optimizer=torch.optim.AdamW(_partial_=True, weight_decay=1e-2),
             scale_lr=False,  # auto scale lr with total batch size
-            scheduler=ConstantLR(
+            lr_scheduler=ConstantLR(
                 _partial_=True,
                 warmup_steps=500,
             ),
+            wd_scheduler=None,
 
             metrics=None,
         ),

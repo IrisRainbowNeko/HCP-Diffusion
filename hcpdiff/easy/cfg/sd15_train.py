@@ -47,7 +47,7 @@ def SD15_finetuning(base_model: str, train_steps: int, dataset, save_step: int =
 
             optimizer=optimizer,
 
-            scheduler=ConstantLR(
+            lr_scheduler=ConstantLR(
                 _partial_=True,
                 warmup_steps=warmup_steps,
             ),
@@ -132,7 +132,7 @@ def SD15_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
 
             optimizer=optimizer,
 
-            scheduler=ConstantLR(
+            lr_scheduler=ConstantLR(
                 _partial_=True,
                 warmup_steps=warmup_steps,
             ),

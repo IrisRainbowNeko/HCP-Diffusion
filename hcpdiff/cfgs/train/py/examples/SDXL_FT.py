@@ -28,7 +28,7 @@ def make_cfg():
 
             optimizer=AdamW8bit(_partial_=True),
 
-            scheduler=ConstantLR(
+            lr_scheduler=ConstantLR(
                 _partial_=True,
                 warmup_steps=100,
             ),
