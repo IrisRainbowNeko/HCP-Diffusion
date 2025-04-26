@@ -85,10 +85,10 @@ def diffusion(guidance_scale=7.0) -> Actions:
     ])
 
 @neko_cfg
-def decode() -> Actions:
+def decode(save_root='output_pipe/') -> Actions:
     return Actions([
         DecodeAction(),
-        SaveImageAction(save_root='output_pipe/', image_type='png'),
+        SaveImageAction(save_root=save_root, image_type='png'),
     ])
 
 @neko_cfg

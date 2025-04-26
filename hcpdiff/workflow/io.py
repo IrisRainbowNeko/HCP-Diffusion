@@ -33,12 +33,13 @@ class LoadImageAction(Neko_LoadImageAction):
         super().__init__(image_paths, image_transforms, key_map_in, key_map_out)
 
 class SaveImageAction(BasicAction):
-    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95, save_cfg=True, key_map_in=None, key_map_out=None):
+    def __init__(self, save_root: str, image_type: str = 'png', quality: int = 95, save_cfg=True, save_txt=False, key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
         self.save_root = save_root
         self.image_type = image_type
         self.quality = quality
         self.save_cfg = save_cfg
+        self.save_txt = save_txt
 
         os.makedirs(save_root, exist_ok=True)
 
@@ -49,8 +50,13 @@ class SaveImageAction(BasicAction):
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
             img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
             img.save(img_path, quality=self.quality)
-            num_img_exist += 1
 
             if self.save_cfg:
                 cfgs.seed = seeds[bid]
                 parser.save_configs(cfgs, os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-info"))
+
+            if self.save_txt:
+                txt_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.txt")
+                with open(txt_path, 'w') as f:
+                    f.write(p)
+            num_img_exist += 1
