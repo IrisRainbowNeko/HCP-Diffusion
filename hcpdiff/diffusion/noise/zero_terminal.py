@@ -8,8 +8,10 @@ class ZeroTerminalSampler:
         assert isinstance(base_sampler.sigma_scheduler, DDPMDiscreteSigmaScheduler), "ZeroTerminalScheduler only works with DDPM SigmaScheduler"
 
         alphas_cumprod = base_sampler.sigma_scheduler.alphas_cumprod
-        base_sampler.sigma_scheduler.alphas_cumprod = cls.rescale_zero_terminal_snr(alphas_cumprod)
+        alphas_cumprod = cls.rescale_zero_terminal_snr(alphas_cumprod)
+        base_sampler.sigma_scheduler.alphas_cumprod = alphas_cumprod
         base_sampler.sigma_scheduler.sigmas = ((1-alphas_cumprod)/alphas_cumprod).sqrt()
+        return base_sampler
 
 
     @staticmethod
