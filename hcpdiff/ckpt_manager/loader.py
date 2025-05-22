@@ -14,12 +14,13 @@ def get_lora_rank_and_cls(lora_state):
 
 class HCPLoraLoader(NekoPluginLoader):
     def __init__(self, format: CkptFormat=None, source: LocalCkptSource=None, path: str = None, layers='all', target_plugin=None,
-                 state_prefix=None, base_model_alpha=0.0, load_ema=False, module_to_load='', **plugin_kwargs):
+                 state_prefix=None, base_model_alpha=0.0, load_ema=False, module_to_load='', key_map=None, **plugin_kwargs):
+        key_map = key_map or ('name -> name', 'model -> model')
         super().__init__(format, source, path=path, layers=layers, target_plugin=target_plugin, state_prefix=state_prefix,
-                         base_model_alpha=base_model_alpha, load_ema=load_ema, **plugin_kwargs)
+                         base_model_alpha=base_model_alpha, load_ema=load_ema, key_map=key_map, **plugin_kwargs)
         self.module_to_load = module_to_load
 
-    def load_to(self, name, model):
+    def _load_to(self, name, model):
         # get model to load plugin and its named_modules
         model = model if self.module_to_load == '' else eval(f"model.{self.module_to_load}")
 

@@ -1,4 +1,4 @@
-rainbowneko==1.6
+rainbowneko==1.7
 diffusers
 matplotlib
 pyarrow
