@@ -48,7 +48,7 @@ class SaveImageAction(BasicAction):
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
-            img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.{self.image_type}")
+            img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(p)}.{self.image_type}")
             img.save(img_path, quality=self.quality)
 
             if self.save_cfg:
