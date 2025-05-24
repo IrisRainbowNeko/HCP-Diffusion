@@ -1,21 +1,31 @@
 import torch
-from rainbowneko.ckpt_manager import ckpt_saver, NekoPluginSaver, LAYERS_TRAINABLE, SafeTensorFormat
-from rainbowneko.parser import CfgWDPluginParser, neko_cfg, CfgWDModelParser, disable_neko_cfg
-from rainbowneko.utils import ConstantLR
-
+from hcpdiff.ckpt_manager import LoraWebuiFormat
 from hcpdiff.easy import SDXL_auto_loader
 from hcpdiff.models import SDXLWrapper
 from hcpdiff.models.lora_layers_patch import LoraLayer
-from hcpdiff.ckpt_manager import LoraWebuiFormat
+from rainbowneko.ckpt_manager import ckpt_saver, NekoPluginSaver, LAYERS_TRAINABLE, SafeTensorFormat, NekoOptimizerSaver
+from rainbowneko.parser import CfgWDPluginParser, neko_cfg, CfgWDModelParser, disable_neko_cfg
+from rainbowneko.utils import ConstantLR
 
 @neko_cfg
-def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int = 500, lr: float = 1e-5,
+def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int = 500, save_optimizer=False, lr: float = 1e-5,
                     dtype: str = 'fp16', low_vram: bool = False, warmup_steps: int = 0, name: str = 'SDXL'):
     if low_vram:
         from bitsandbytes.optim import AdamW8bit
         optimizer = AdamW8bit(_partial_=True)
     else:
         optimizer = torch.optim.AdamW(_partial_=True)
+
+    ckpt_saver_dict = dict(
+        SDXL=ckpt_saver(
+            ckpt_type='safetensors',
+            target_module='denoiser',
+            layers=LAYERS_TRAINABLE,
+        )
+    )
+
+    if save_optimizer:
+        ckpt_saver_dict['optimizer'] = NekoOptimizerSaver()
 
     from cfgs.train.py import train_base, tuning_base
 
@@ -30,13 +40,7 @@ def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int =
             )
         ], weight_decay=1e-2),
 
-        ckpt_saver=dict(
-            SDXL=ckpt_saver(
-                ckpt_type='safetensors',
-                target_module='denoiser',
-                layers=LAYERS_TRAINABLE,
-            )
-        ),
+        ckpt_saver=ckpt_saver_dict,
 
         train=dict(
             train_steps=train_steps,
@@ -64,9 +68,9 @@ def SDXL_finetuning(base_model: str, train_steps: int, dataset, save_step: int =
     )
 
 @neko_cfg
-def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int = 200, lr: float = 1e-4, rank: int = 4, alpha: float = None,
-                    with_conv: bool = False, dtype: str = 'fp16', low_vram: bool = False, warmup_steps: int = 0, name: str = 'SDXL',
-                    save_webui_format=False):
+def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int = 200, save_optimizer=False, lr: float = 1e-4, rank: int = 4,
+                    alpha: float = None, with_conv: bool = False, dtype: str = 'fp16', low_vram: bool = False, warmup_steps: int = 0,
+                    name: str = 'SDXL', save_webui_format=False):
     with disable_neko_cfg:
         if alpha is None:
             alpha = rank
@@ -97,6 +101,17 @@ def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
     else:
         lora_format = SafeTensorFormat()
 
+    ckpt_saver_dict = dict(
+        _replace_=True,
+        lora_unet=NekoPluginSaver(
+            format=lora_format,
+            target_plugin='lora1',
+        )
+    )
+
+    if save_optimizer:
+        ckpt_saver_dict['optimizer'] = NekoOptimizerSaver()
+
     from cfgs.train.py.examples import SD_FT
 
     return dict(
@@ -114,13 +129,7 @@ def SDXL_lora_train(base_model: str, train_steps: int, dataset, save_step: int =
             )
         ), weight_decay=0.1),
 
-        ckpt_saver=dict(
-            _replace_ = True,
-            lora_unet=NekoPluginSaver(
-                format=lora_format,
-                target_plugin='lora1',
-            )
-        ),
+        ckpt_saver=ckpt_saver_dict,
 
         train=dict(
             train_steps=train_steps,
