@@ -161,8 +161,8 @@ class OFTLayer(OFTBlock):
             self.block_share = block_share
 
             # self.OFT = torch.nn.Linear(in_features=self.in_features, out_features=self.out_features, bias=bias)
-            self.register_buffer("OFT_weight", host.weight.detach().clone())
-            self.register_buffer("OFT_bias", host.bias)
+            # self.register_buffer("OFT_weight", host.weight.detach().clone())
+            # self.register_buffer("OFT_bias", host.bias)
 
             if block_share:
                 self.R_shape = [self.in_features // r, self.in_features // r]
@@ -261,8 +261,8 @@ class OFTLayer(OFTBlock):
             # self.OFT = nn.Conv2d(self.in_channels, self.out_channels, self.kernel_size, stride=self.stride, 
             #                      padding=self.padding, bias=bias)
 
-            self.register_buffer("OFT_weight", host.weight.detach().clone())
-            self.register_buffer("OFT_bias", host.bias)
+            # self.register_buffer("OFT_weight", host.weight.detach().clone())
+            # self.register_buffer("OFT_bias", host.bias)
 
             self.filt_shape = [self.out_channels, self.in_channels, self.kernel_size, self.kernel_size]
             self.fix_filt_shape = [self.kernel_size * self.kernel_size * self.in_channels, self.out_channels]

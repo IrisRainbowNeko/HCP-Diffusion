@@ -222,13 +222,19 @@ class OFTBlock(PatchPluginBlock):
         return self.dropout(self.layer(x, weight, bias))
 
     def init_weights(self, fixed_w_init=True):
-        # if fixed_w_init:
-        #     host = self.host()
-        #     self.layer.OFT.weight.data = host.weight.data.clone().detach()
-        #     # self.layer.OFT.weight
-        #     self.layer.OFT.bias = host.bias
-        # else:
-        #     self.layer.reset_parameters()
+        if fixed_w_init:
+            host = self.host()
+            # self.layer.OFT.weight.data = host.weight.data.clone().detach()
+            # # self.layer.OFT.weight
+            # self.layer.OFT.bias = host.bias
+            # self.layer.register_buffer("OFT_weight", host.weight.detach().clone())
+            # self.register_buffer("OFT_bias", host.bias)
+            if host.bias is None:
+                self.layer.init_fixed_weight(host.weight.detach().clone(), None)
+            else:
+                self.layer.init_fixed_weight(host.weight.detach().clone(), host.bias.clone())
+        else:
+            self.layer.reset_parameters()
         pass
 
     def reparameterization_to_host(self, alpha=None, base_alpha=1.0):
@@ -265,6 +271,9 @@ class OFTBlock(PatchPluginBlock):
         def get_collapsed_param(self) -> Tuple[torch.Tensor, torch.Tensor]:
             pass
 
+        def init_fixed_weight(self, weight, bias):
+            self.register_buffer("OFT_weight", weight)
+            self.register_buffer("OFT_bias", bias)
 
     class Conv2dLayer(nn.Module):
         def __init__(self, host, r, bias, block):
@@ -282,6 +291,10 @@ class OFTBlock(PatchPluginBlock):
 
         def get_collapsed_param(self) -> Tuple[torch.Tensor, torch.Tensor]:
             pass
+
+        def init_fixed_weight(self, weight, bias):
+            self.register_buffer("OFT_weight", weight)
+            self.register_buffer("OFT_bias", bias)
 
     @classmethod
     def wrap_layer(cls, name: str, host: Union[nn.Linear, nn.Conv2d], r=4, eps=1e-5, dropout=0.1, alpha=1.0, fixed_w_init=True,
