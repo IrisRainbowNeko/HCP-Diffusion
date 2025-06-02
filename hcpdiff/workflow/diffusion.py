@@ -32,8 +32,9 @@ class SeedAction(BasicAction):
         self.seed = seed
         self.bs = bs
 
-    def forward(self, device, seed=None, **states):
-        bs = states['prompt_embeds'].shape[0]//2 if 'prompt_embeds' in states else self.bs
+    def forward(self, device, seed=None, bs=None, **states):
+        if bs is None:
+            bs = states['prompt_embeds'].shape[0]//2 if 'prompt_embeds' in states else self.bs
         seed = seed or self.seed
         if seed is None:
             seeds = [None]*bs
