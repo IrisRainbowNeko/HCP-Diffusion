@@ -34,7 +34,7 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
     def get_sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor(t)
-        return self.sigmas[(t*len(self.sigmas)).long()]
+        return self.sigmas[((t*len(self.sigmas)).round().long()).clip(min=0, max=self.num_timesteps-1)]
 
     def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)):
         if isinstance(min_rate, float):

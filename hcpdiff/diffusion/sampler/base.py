@@ -3,6 +3,12 @@ import torch
 from .sigma_scheduler import SigmaScheduler
 from diffusers import DDPMScheduler
 
+try:
+    from diffusers.utils import randn_tensor
+except:
+    # new version of diffusers
+    from diffusers.utils.torch_utils import randn_tensor
+
 class BaseSampler:
     def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None):
         self.sigma_scheduler = sigma_scheduler
@@ -25,7 +31,8 @@ class BaseSampler:
         return torch.linspace(0, self.num_timesteps, N_steps, device=device)
 
     def make_nosie(self, shape, device='cuda', dtype=torch.float32):
-        return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)
+        #return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)
+        return randn_tensor(shape, generator=self.generator, device=device, dtype=dtype)
 
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
         sigma = self.sigma_scheduler.sigma_max
