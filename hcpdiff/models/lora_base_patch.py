@@ -34,6 +34,32 @@ class LoraPatchContainer(PatchPluginContainer):
 
         return self[name].post_forward(x, self._host.weight, weight_, self._host.bias, bias_)
 
+    @property
+    def weight(self):
+        weight_ = None
+        for name in self.plugin_names:
+            if weight_ is None:
+                weight_ = self[name].get_weight()
+            else:
+                weight_ = weight_+self[name].get_weight()
+        return self._host.weight + weight_
+
+    @property
+    def bias(self):
+        bias_ = None
+        for name in self.plugin_names:
+            if bias_ is None:
+                bias_ = self[name].get_bias()
+            else:
+                bias_ = bias_+self[name].get_bias()
+
+        if self._host.bias is not None:
+            if bias_ is None:
+                bias_ = self._host.bias
+            else:
+                bias_ = self._host.bias + bias_
+        return bias_
+
 class LoraBlock(PatchPluginBlock):
     container_cls = LoraPatchContainer
     wrapable_classes = (nn.Linear, nn.Conv2d)

@@ -31,7 +31,7 @@ import torch
 from torch.nn import MSELoss
 
 from rainbowneko.ckpt_manager import ckpt_saver
-from rainbowneko.train.loggers import CLILogger
+from rainbowneko.loggers import CLILogger
 from rainbowneko.utils import ConstantLR
 from rainbowneko.parser import neko_cfg
 from hcpdiff.loss import DiffusionLossContainer

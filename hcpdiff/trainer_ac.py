@@ -4,7 +4,7 @@ import warnings
 import torch
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.ckpt_manager import NekoSaver
-from rainbowneko.train import Trainer
+from rainbowneko.train.trainer import Trainer
 from rainbowneko.utils import xformers_available, is_dict
 from hcpdiff.ckpt_manager import EmbFormat
 

@@ -38,7 +38,7 @@ class TextHookAction(BasicAction):
         return {'te_hook':te_hook, 'emb_hook':emb_hook, 'token_ex':token_ex}
 
 class TextEncodeAction(BasicAction):
-    def __init__(self, prompt: Union[List, str], negative_prompt: Union[List, str], bs: int = None, key_map_in=None, key_map_out=None):
+    def __init__(self, prompt: List|str|None, negative_prompt: List|str|None, bs: int = None, key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
         if isinstance(prompt, str) and bs is not None:
             prompt = [prompt]*bs

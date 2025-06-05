@@ -24,8 +24,8 @@ def generate_from_dataset(bs=4, seed=42, N_steps=20, width=512, height=512, guid
             ),
             actions=Actions([
                 AttnMultTextEncodeAction(
-                    prompt='',
-                    negative_prompt='',
+                    prompt=None,
+                    negative_prompt=None,
                     bs=bs
                 ),
                 config_diffusion(N_steps=N_steps, width=width, height=height),
