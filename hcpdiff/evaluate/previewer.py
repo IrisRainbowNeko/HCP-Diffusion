@@ -10,12 +10,18 @@ from accelerate.hooks import remove_hook_from_module
 class HCPPreviewer(WorkflowPreviewer):
 
     @torch.no_grad()
-    def evaluate(self, step: int, model: SD15Wrapper, prefix='eval/'):
+    def evaluate(self, step: int, prefix='eval/'):
         if step%self.interval != 0 or not self.trainer.is_local_main_process:
             return
 
         # record training layers
-        training_layers = [layer for layer in model.modules() if layer.training]
+        if self.model_wrapper is not None:
+            training_layers = [layer for layer in self.model_raw.modules() if layer.training]
+            self.model_wrapper.eval()
+            model = self.model_raw
+        else:
+            training_layers = []
+            model = None
 
         model.eval()
         self.trainer.loggers.info(f'Preview')

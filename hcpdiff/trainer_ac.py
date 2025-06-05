@@ -5,7 +5,7 @@ import torch
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.ckpt_manager import NekoSaver
 from rainbowneko.train.trainer import Trainer
-from rainbowneko.utils import xformers_available, is_dict
+from rainbowneko.utils import xformers_available, is_dict, weight_dtype_map
 from hcpdiff.ckpt_manager import EmbFormat
 
 class HCPTrainer(Trainer):
@@ -17,7 +17,7 @@ class HCPTrainer(Trainer):
                 warnings.warn("xformers is not available. Make sure it is installed correctly")
 
         if self.model_wrapper.vae is not None:
-            self.vae_dtype = self.weight_dtype_map.get(self.cfgs.model.get('vae_dtype', None), torch.float32)
+            self.vae_dtype = weight_dtype_map.get(self.cfgs.model.get('vae_dtype', None), torch.float32)
             self.model_wrapper.set_dtype(self.weight_dtype, self.vae_dtype)
 
         if self.cfgs.model.gradient_checkpointing:
