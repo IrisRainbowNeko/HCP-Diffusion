@@ -7,7 +7,7 @@ from diffusers import UNet2DConditionModel, AutoencoderKL, PNDMScheduler
 from hcpdiff.utils import auto_text_encoder, auto_tokenizer, to_validate_file
 from hcpdiff.utils.cfg_net_tools import HCPModelLoader, make_plugin
 from hcpdiff.utils.img_size_tool import types_support
-from hcpdiff.utils.net_utils import get_dtype
+from hcpdiff.utils.net_utils import get_dtype, get_pipe_name
 from .base import BasicAction, from_memory_context, feedback_input
 from PIL import Image
 from omegaconf import OmegaConf
@@ -26,9 +26,18 @@ class LoadModelsAction(BasicAction):
 
     @feedback_input
     def forward(self, memory, **states):
-        memory.unet = self.unet or UNet2DConditionModel.from_pretrained(self.pretrained_model, subfolder="unet", torch_dtype=self.dtype, resume_download=True)
-        memory.text_encoder = self.text_encoder or auto_text_encoder(self.pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
         memory.tokenizer = self.tokenizer or auto_tokenizer(self.pretrained_model, subfolder="tokenizer", use_fast=False)
+
+        pipe_name = get_pipe_name(self.pretrained_model)
+        if 'PixArt' in pipe_name:
+            from diffusers import PixArtTransformer2DModel
+            memory.unet = self.unet or PixArtTransformer2DModel.from_pretrained(self.pretrained_model,
+                                                                subfolder="transformer", torch_dtype=self.dtype, resume_download=True)
+            memory.tokenizer.model_max_length = 300
+        else:
+            memory.unet = self.unet or UNet2DConditionModel.from_pretrained(self.pretrained_model, subfolder="unet", torch_dtype=self.dtype, resume_download=True)
+        memory.text_encoder = self.text_encoder or auto_text_encoder(self.pretrained_model, subfolder="text_encoder", torch_dtype=self.dtype, resume_download=True)
+        
         memory.vae = self.vae or AutoencoderKL.from_pretrained(self.pretrained_model, subfolder="vae", torch_dtype=self.dtype, resume_download=True)
         memory.vae.vae_scale_factor = 2**(len(memory.vae.config.block_out_channels)-1)
         memory.scheduler = self.scheduler or PNDMScheduler.from_pretrained(self.pretrained_model, subfolder="scheduler", torch_dtype=self.dtype)

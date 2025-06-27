@@ -98,7 +98,7 @@ class AttnMultTextEncodeAction(TextEncodeAction):
 
         mult_p, clean_text_p = token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = token_ex.parse_attn_mult(negative_prompt)
-        with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
+        with torch.no_grad(), autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
             if attention_mask is not None:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)

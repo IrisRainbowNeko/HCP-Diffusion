@@ -3,6 +3,7 @@ from typing import Dict, Any, Union, List
 
 import torch
 from torch.cuda.amp import autocast
+from diffusers import PixArtTransformer2DModel
 
 from .base import BasicAction, from_memory_context, feedback_input
 
@@ -182,7 +183,12 @@ class NoisePredAction(BasicAction):
             # FlowViser().show(self.unet, info)
             # 0/0
 
-            if text_embeds is None:
+            if isinstance(self.unet, PixArtTransformer2DModel):
+                added_cond_kwargs = {"resolution": None, "aspect_ratio": None}
+                noise_pred = self.unet(latent_model_input, timestep=t.repeat(latent_model_input.shape[0]), encoder_hidden_states=prompt_embeds,
+                                            encoder_attention_mask=encoder_attention_mask,
+                                            cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
+            elif text_embeds is None:
                 noise_pred = self.unet(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                        cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
@@ -226,6 +232,10 @@ class SampleAction(BasicAction):
         self.scheduler = self.scheduler or memory.scheduler
 
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, self.eta)
+
+        # learned sigma
+        if memory.unet.config.out_channels // 2 == memory.unet.config.in_channels:
+            noise_pred = noise_pred.chunk(2, dim=1)[0]
 
         # compute the previous noisy sample x_t -> x_t-1
         sc_out = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)
