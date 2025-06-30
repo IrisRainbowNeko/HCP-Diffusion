@@ -6,7 +6,7 @@ import torch
 from hcpdiff.diffusion.sampler import BaseSampler, DiffusersSampler
 from hcpdiff.utils import prepare_seed
 from hcpdiff.utils.net_utils import get_dtype, to_cuda
-from rainbowneko.infer import BasicAction
+from rainbowneko.infer import BasicAction, Actions
 from torch.cuda.amp import autocast
 
 try:
@@ -189,6 +189,24 @@ class DiffusionStepAction(BasicAction):
     def forward(self, denoiser, noise_sampler, **states):
         states = self.act_noise_pred(denoiser=denoiser, noise_sampler=noise_sampler, **states)
         states = self.act_sample(**states)
+        return states
+    
+class DiffusionActions(Actions):
+    def __init__(self, actions: List[BasicAction], clean_latent=True, seed_inc=True, key_map_in=None, key_map_out=None):
+        super().__init__(actions, key_map_in=key_map_in, key_map_out=key_map_out)
+        self.clean_latent = clean_latent
+        self.seed_inc = seed_inc
+
+    def forward(self, **states):
+        states = super().forward(**states)
+        if self.seed_inc and 'seed' in states:
+            bs = states['latents'].shape[0]
+            states['seed'] = states['seed'] + bs
+        if self.clean_latent:
+            states.pop('noise_pred', None)
+            states.pop('latents', None)
+            states.pop('prompt', None)
+            states.pop('negative_prompt', None)
         return states
 
 class X0PredAction(BasicAction):

@@ -27,9 +27,9 @@ def load_lora() -> Actions:
     ])
 
 @neko_cfg
-def make_cfg():
+def make_cfg(pretrained_model='Lykon/DreamShaper'):
     return dict(workflow=Actions(actions=[
-        build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
+        build_model(pretrained_model=pretrained_model),
         load_lora(),
         optimize_model(),
         text(prompt=prompt, negative_prompt=negative_prompt),

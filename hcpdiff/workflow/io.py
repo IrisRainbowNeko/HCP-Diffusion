@@ -1,6 +1,7 @@
 import os
 from functools import partial
 from typing import List, Union
+from addict import Addict
 
 import torch
 from hcpdiff.utils import to_validate_file
@@ -9,6 +10,8 @@ from rainbowneko.ckpt_manager import NekoLoader
 from rainbowneko.infer import BasicAction
 from rainbowneko.infer import LoadImageAction as Neko_LoadImageAction
 from rainbowneko.utils.img_size_tool import types_support
+from rainbowneko import _share
+from rainbowneko.utils import is_dict
 
 class BuildModelsAction(BasicAction):
     def __init__(self, model_loader: partial[NekoLoader.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
@@ -22,6 +25,14 @@ class BuildModelsAction(BasicAction):
             model = self.model_loader(dtype=self.dtype, device=self.device, denoiser=model.denoiser, TE=model.TE, vae=model.vae)
         else:
             model = self.model_loader(dtype=self.dtype, device=self.device)
+
+            # Callback for TokenizerHandler
+            if is_dict(model):
+                model_wrapper = Addict(model)
+            else:
+                model_wrapper = model
+            for callback in _share.model_callbacks:
+                callback(model_wrapper)
 
         if isinstance(model, dict):
             return model

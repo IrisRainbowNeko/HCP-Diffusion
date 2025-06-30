@@ -37,9 +37,9 @@ def text(bs=4) -> Actions:
     ])
 
 @neko_cfg
-def make_cfg():
+def make_cfg(pretrained_model='Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors'):
     return dict(workflow=Actions(actions=[
-        build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors'),
+        build_model(pretrained_model=pretrained_model),
         optimize_model(),
         text(),
         config_diffusion(width=1024, height=1024),

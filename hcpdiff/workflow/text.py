@@ -73,6 +73,11 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         prompt = prompt or self.prompt
         negative_prompt = negative_prompt or self.negative_prompt
 
+        if isinstance(negative_prompt, str) and isinstance(prompt, (list, tuple)):
+            negative_prompt = [negative_prompt]*len(prompt)
+        if isinstance(prompt, str) and isinstance(negative_prompt, (list, tuple)):
+            prompt = [prompt]*len(negative_prompt)
+
         if model_offload:
             to_cuda(TE)
 

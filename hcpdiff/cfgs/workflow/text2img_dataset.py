@@ -19,7 +19,7 @@ def generate_from_dataset(bs=4, seed=42, N_steps=20, width=512, height=512, guid
                 source=dict(
                     data_source1=TextSource(label_file='prompts/'),
                 ),
-                handler=DiffusionTextHandler(),
+                handler=DiffusionTextHandler(tokenize=False),
                 bucket=BaseBucket(),
             ),
             actions=Actions([
@@ -37,9 +37,9 @@ def generate_from_dataset(bs=4, seed=42, N_steps=20, width=512, height=512, guid
     ])
 
 @neko_cfg
-def make_cfg():
+def make_cfg(pretrained_model='Lykon/DreamShaper'):
     return dict(workflow=Actions(actions=[
-        build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
+        build_model(pretrained_model=pretrained_model),
         optimize_model(),
         TextHookAction(N_repeats=1, layer_skip=1),
         generate_from_dataset()

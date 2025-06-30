@@ -3,7 +3,7 @@ from .text2img import *
 @neko_cfg
 def make_cfg():
     return dict(
-        pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper',
+        pretrained_model='Lykon/DreamShaper',
         prompt=prompt,
         negative_prompt=negative_prompt,
         seed=None,

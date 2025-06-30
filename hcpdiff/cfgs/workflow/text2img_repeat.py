@@ -19,9 +19,9 @@ def diffusion_Ntimes(bs=2, num=2, seed=42, N_steps=20, width=512, height=512, gu
     ])
 
 @neko_cfg
-def make_cfg():
+def make_cfg(pretrained_model='Lykon/DreamShaper'):
     return dict(workflow=Actions(actions=[
-        build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
+        build_model(pretrained_model=pretrained_model),
         optimize_model(),
         text(),
         diffusion_Ntimes(bs=2, num=2)

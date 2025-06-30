@@ -25,7 +25,13 @@ class HCPLoraLoader(NekoPluginLoader):
         model = model if self.module_to_load == '' else eval(f"model.{self.module_to_load}")
 
         named_modules = {k:v for k, v in model.named_modules()}
-        plugin_state = self.load(self.path, map_location='cpu')['base_ema' if self.load_ema else 'base']
+        state_dict = self.load(self.path, map_location='cpu')
+        if 'base' in state_dict or 'base_ema' in state_dict:
+            plugin_state = state_dict['base_ema' if self.load_ema else 'base']
+        elif 'plugin' in state_dict or 'plugin_ema' in state_dict:
+            plugin_state = state_dict['plugin_ema' if self.load_ema else 'plugin']
+        else:
+            plugin_state = state_dict
 
         # filter layers to load
         if self.layers != 'all':

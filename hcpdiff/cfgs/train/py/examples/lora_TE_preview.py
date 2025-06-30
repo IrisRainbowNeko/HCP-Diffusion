@@ -83,7 +83,7 @@ def make_cfg():
         data_train=cfg_data(),
         evaluator=HCPPreviewer(_partial_=True,
             interval=100,
-            workflow=t2i_lora,
+            workflow=t2i_lora.make_cfg(pretrained_model='${model.wrapper.models.ckpt_path}'),
         ),
     )
 

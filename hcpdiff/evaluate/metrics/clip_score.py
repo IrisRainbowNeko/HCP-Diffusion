@@ -17,7 +17,7 @@ class CLIPScoreMetric(CLIPScore):
                 If the number of images and captions do not match
 
         """
-        images = (images+1)*(255/2)  # [-1,1] -> [0,255]
+        images = (images+1)/2 # [-1,1] -> [0,1]
         score, n_samples = _clip_score_update(images, text, self.model, self.processor)
         self.score += score.sum(0)
         self.n_samples += n_samples

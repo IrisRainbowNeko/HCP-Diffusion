@@ -43,7 +43,7 @@ def build_model(pretrained_model='ckpts/any5') -> Actions:
 @neko_cfg
 def text(bs=4) -> Actions:
     return Actions([
-        TextHookAction(N_repeats=1, layer_skip=1, emb_dir='/mnt/SSD_3TB/dzy/HCP-Diffusion/exps/TI_paimeng/ckpts/'),
+        TextHookAction(N_repeats=1, layer_skip=1, emb_dir='exps/TI_paimeng/ckpts/'),
         AttnMultTextEncodeAction(
             prompt=prompt,
             negative_prompt=negative_prompt,
@@ -52,9 +52,9 @@ def text(bs=4) -> Actions:
     ])
 
 @neko_cfg
-def make_cfg():
+def make_cfg(pretrained_model='Lykon/DreamShaper'):
     dict(workflow=Actions(actions=[
-        build_model(pretrained_model='/mnt/SSD_3TB/dzy/models/DreamShaper'),
+        build_model(pretrained_model=pretrained_model),
         optimize_model(),
         text(),
         config_diffusion(),

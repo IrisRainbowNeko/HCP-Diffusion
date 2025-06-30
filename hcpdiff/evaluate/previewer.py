@@ -6,6 +6,8 @@ from rainbowneko.utils import to_cuda
 
 from hcpdiff.models.wrapper import SD15Wrapper
 from accelerate.hooks import remove_hook_from_module
+from typing import Dict
+from types import ModuleType
 
 class HCPPreviewer(WorkflowPreviewer):
     def __init__(self, parser, cfgs_raw, workflow: str | ModuleType | Dict, ds_name=None, interval=100, trainer=None,
@@ -44,7 +46,7 @@ class HCPPreviewer(WorkflowPreviewer):
         preview_root.mkdir(parents=True, exist_ok=True)
 
         states = self.workflow_runner.run(model=model, in_preview=True, te_hook=model.text_enc_hook,
-                                          device=self.device, dtype=self.dtype, preview_root=preview_root, preview_step=step,
+                                          device=self.device, dtype=self.weight_dtype, preview_root=preview_root, preview_step=step,
                                           world_size=self.world_size, local_rank=self.local_rank,
                                           emb_hook=self.emb_pt.embedding_hook if self.pt_trainable else None)
 
