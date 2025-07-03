@@ -7,6 +7,11 @@ class LossWeight(nn.Module):
         super().__init__()
         self.loss = loss
 
+    def get_c_out(self, pred):
+        t = pred['timesteps']
+        noise_sampler = pred['noise_sampler']
+        return noise_sampler.sigma_scheduler.c_out(t)
+
     def get_weight(self, pred, inputs):
         '''
 
@@ -25,13 +30,19 @@ class LossWeight(nn.Module):
 
 class SNRWeight(LossWeight):
     def get_weight(self, pred, inputs):
-        if self.loss.target_type == 'eps':
-            return 1
-        elif self.loss.target_type == "x0":
-            sigma = pred['sigma']
-            return (1./sigma**2).view(-1, 1, 1, 1)
+        noise_sampler = pred['noise_sampler']
+        c_out = self.get_c_out(pred)
+        target_type = getattr(self.loss, 'target_type', None) or noise_sampler.target_type
+        if target_type == 'eps':
+            w_snr = 1
+        elif target_type == "x0":
+            w_snr = (1./c_out**2).float()
+        elif target_type == "velocity":
+            w_snr = (1./(1-c_out)**2).float()
         else:
-            raise ValueError(f"{self.__class__.__name__} is not support for target_type {self.loss.target_type}")
+            raise ValueError(f"{self.__class__.__name__} is not support for target_type {target_type}")
+
+        return w_snr.view(-1, 1, 1, 1)
 
 class MinSNRWeight(LossWeight):
     def __init__(self, loss: DiffusionLossContainer, gamma: float = 1.):
@@ -39,13 +50,18 @@ class MinSNRWeight(LossWeight):
         self.gamma = gamma
 
     def get_weight(self, pred, inputs):
-        sigma = pred['sigma']
-        if self.loss.target_type == 'eps':
-            w_snr = (self.gamma*sigma**2).clip(max=1).float()
-        elif self.loss.target_type == "x0":
-            w_snr = (1/(sigma**2)).clip(max=self.gamma).float()
+        noise_sampler = pred['noise_sampler']
+        c_out = self.get_c_out(pred)
+        target_type = getattr(self.loss, 'target_type', None) or noise_sampler.target_type
+        if target_type == 'eps':
+            w_snr = (self.gamma*c_out**2).clip(max=1).float()
+        elif target_type == "x0":
+            w_snr = (1./c_out**2).clip(max=self.gamma).float()
+        elif target_type == "velocity":
+            w_v = 1/(1-c_out)**2
+            w_snr = (self.gamma*c_out**2/w_v).clip(max=w_v).float()
         else:
-            raise ValueError(f"{self.__class__.__name__} is not support for target_type {self.loss.target_type}")
+            raise ValueError(f"{self.__class__.__name__} is not support for target_type {target_type}")
 
         return w_snr.view(-1, 1, 1, 1)
 
@@ -55,12 +71,14 @@ class EDMWeight(LossWeight):
         self.gamma = gamma
 
     def get_weight(self, pred, inputs):
-        sigma = pred['sigma']
-        if self.loss.target_type == 'eps':
-            w_snr = ((sigma**2+self.gamma**2)/(self.gamma**2)).float()
-        elif self.loss.target_type == "x0":
-            w_snr = ((sigma**2+self.gamma**2)/((sigma*self.gamma)**2)).float()
+        c_out = self.get_c_out(pred)
+        noise_sampler = pred['noise_sampler']
+        target_type = getattr(self.loss, 'target_type', None) or noise_sampler.target_type
+        if target_type == 'edm':
+            w_snr = 1
+        elif target_type == "x0":
+            w_snr = (1./c_out**2).float()
         else:
-            raise ValueError(f"{self.__class__.__name__} is not support for target_type {self.loss.target_type}")
+            raise ValueError(f"{self.__class__.__name__} is not support for target_type {target_type}")
 
         return w_snr.view(-1, 1, 1, 1)

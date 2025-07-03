@@ -18,20 +18,13 @@ class DiffusersSampler(BaseSampler):
         self.scheduler = scheduler
         self.eta = eta
 
-    def c_in(self, sigma):
-        one = torch.ones_like(sigma)
+        self.sigma_scheduler.c_in = self.c_in
+
+    def c_in(self, t):
+        one = torch.ones_like(t)
         if hasattr(self.scheduler, '_step_index'):
             self.scheduler._step_index = None
-        return self.scheduler.scale_model_input(one, sigma)
-
-    def c_out(self, sigma):
-        return -sigma
-
-    def c_skip(self, sigma):
-        if self.c_in(sigma) == 1.:  # DDPM model
-            return (sigma**2+1).sqrt()  # 1/sqrt(alpha_)
-        else:  # EDM model
-            return 1.
+        return self.scheduler.scale_model_input(one, t)
 
     def get_timesteps(self, N_steps, device='cuda'):
         self.scheduler.set_timesteps(N_steps, device=device)
@@ -40,9 +33,9 @@ class DiffusersSampler(BaseSampler):
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
         return randn_tensor(shape, generator=self.generator, device=device, dtype=dtype)*self.scheduler.init_noise_sigma
 
-    def add_noise(self, x, sigma):
+    def add_noise(self, x, t):
         noise = randn_tensor(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
-        return self.scheduler.add_noise(x, noise, sigma), noise
+        return self.scheduler.add_noise(x, noise, t), noise
 
     def prepare_extra_step_kwargs(self, scheduler, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature

@@ -156,7 +156,7 @@ class DenoiseAction(BasicAction):
 
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
-            latent_model_input = noise_sampler.c_in(t)*latent_model_input
+            latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
 
             if text_embeds is None:
                 noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
@@ -211,7 +211,7 @@ class DiffusionActions(Actions):
 
 class X0PredAction(BasicAction):
     def forward(self, latents, noise_sampler: BaseSampler, t, noise_pred, **states):
-        latents_x0 = noise_sampler.eps_to_x0(noise_pred, latents, t)
+        latents_x0 = noise_sampler.pred_for_target(noise_pred, latents, t, target_type='x0')
         return {'latents_x0':latents_x0}
 
 def time_iter(timesteps, **states):

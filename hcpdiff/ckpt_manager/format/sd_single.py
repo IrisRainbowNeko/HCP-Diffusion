@@ -2,7 +2,7 @@ import torch
 from diffusers import AutoencoderKL, StableDiffusionPipeline, StableDiffusionXLPipeline
 from rainbowneko.ckpt_manager.format import CkptFormat
 
-from hcpdiff.diffusion.sampler import DDPMSampler, DDPMDiscreteSigmaScheduler
+from hcpdiff.diffusion.sampler import VPSampler, DDPMDiscreteSigmaScheduler
 from hcpdiff.models.compose import SDXLTextEncoder, SDXLTokenizer
 
 class OfficialSD15Format(CkptFormat):
@@ -14,7 +14,7 @@ class OfficialSD15Format(CkptFormat):
         pipe = StableDiffusionPipeline.from_single_file(
             pretrained_model, revision=revision, torch_dtype=dtype, **pipe_args
         )
-        noise_sampler = noise_sampler or DDPMSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
         return dict(denoiser=pipe.unet, TE=pipe.text_encoder, vae=pipe.vae, noise_sampler=noise_sampler, tokenizer=pipe.tokenizer)
 
 class OfficialSDXLFormat(CkptFormat):
@@ -34,7 +34,7 @@ class OfficialSDXLFormat(CkptFormat):
             pretrained_model, revision=revision, torch_dtype=dtype, **pipe_args
         )
 
-        noise_sampler = noise_sampler or DDPMSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
         TE = SDXLTextEncoder([('clip_L', pipe.text_encoder), ('clip_bigG', pipe.text_encoder_2)])
         tokenizer = SDXLTokenizer([('clip_L', pipe.tokenizer), ('clip_bigG', pipe.tokenizer_2)])
 

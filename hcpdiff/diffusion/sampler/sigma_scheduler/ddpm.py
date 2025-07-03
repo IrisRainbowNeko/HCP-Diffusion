@@ -1,17 +1,22 @@
-import torch
 import math
-from typing import Union, Tuple
-from hcpdiff.utils import linear_interp
+from typing import Union, Tuple, Callable
+
+import torch
+
+from hcpdiff.utils import invert_func
 from .base import SigmaScheduler
 
 class DDPMDiscreteSigmaScheduler(SigmaScheduler):
-    def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120, num_timesteps=1000):
+    def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120, num_timesteps=1000, pred_type='eps'):
         super().__init__()
         self.num_timesteps = num_timesteps
         self.betas = self.make_betas(beta_schedule, linear_start, linear_end, num_timesteps)
         alphas = 1.0-self.betas
         self.alphas_cumprod = torch.cumprod(alphas, dim=0)
-        self.sigmas = ((1-self.alphas_cumprod)/self.alphas_cumprod).sqrt()
+
+        self.alphas = self.alphas_cumprod.sqrt()
+        self.sigmas = (1-self.alphas_cumprod).sqrt()
+        self.pred_type = pred_type
 
         # for VLB calculation
         self.alphas_cumprod_prev = torch.cat([alphas.new_tensor([1.0]), self.alphas_cumprod[:-1]])
@@ -22,37 +27,68 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
         # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
         self.posterior_log_variance_clipped = torch.log(torch.cat([self.posterior_variance[1:2], self.posterior_variance[1:]]))
 
+    # def scale_t(self, t):
+    #     return t*(self.num_timesteps-1)
 
     @property
-    def sigma_min(self):
+    def sigma_start(self):
         return self.sigmas[0]
 
     @property
-    def sigma_max(self):
+    def sigma_end(self):
         return self.sigmas[-1]
 
-    def get_sigma(self, t: Union[float, torch.Tensor]):
+    @property
+    def alpha_start(self):
+        return self.alphas[0]
+
+    @property
+    def alpha_end(self):
+        return self.alphas[-1]
+
+    def sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor(t)
-        return self.sigmas[((t*len(self.sigmas)).round().long()).clip(min=0, max=self.num_timesteps-1)]
+        return self.sigmas[((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)]
 
-    def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)):
-        if isinstance(min_rate, float):
-            min_rate = torch.full(shape, min_rate)
-        if isinstance(max_rate, float):
-            max_rate = torch.full(shape, max_rate)
+    def alpha(self, t: Union[float, torch.Tensor]):
+        if isinstance(t, float):
+            t = torch.tensor(t)
+        return self.alphas[((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)]
 
-        t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
-        t_scale = (t*(self.num_timesteps-1e-5)).long()  # [0, num_timesteps-1)
-        return self.sigmas[t_scale], t
+    def velocity(self, t: Union[float, torch.Tensor], dt=1e-8, normlize=True) -> Tuple[torch.Tensor, torch.Tensor]:
+        '''
+        v(t) = dx(t)/dt = d\alpha(t)/dt * x(0) + d\sigma(t)/dt *eps
+        :param t: 0-1, rate of time step
+        :return: d\alpha(t)/dt, d\sigma(t)/dt
+        '''
+        d_alpha = -self.sigma(t)
+        d_sigma = self.alpha(t)
+        if normlize:
+            norm = torch.sqrt(d_alpha**2+d_sigma**2)
+            return d_alpha/norm, d_sigma/norm
+        else:
+            return d_alpha, d_sigma
 
     def sigma_to_t(self, sigma: Union[float, torch.Tensor]):
-        t = (self.sigmas-sigma).abs().argmin()
-        return t/self.num_timesteps
+        ref_t = np.linspace(0, 1, len(self.sigmas))
+        t = torch.tensor(np.interp(sigma.cpu().clip(min=1e-8).log().numpy(), self.sigmas, ref_t))
+        return t
+
+    def alpha_to_t(self, alpha: Union[float, torch.Tensor]):
+        ref_t = np.linspace(0, 1, len(self.alphas))
+        t = torch.tensor(np.interp(alpha.cpu().clip(min=1e-8).log().numpy(), self.alphas, ref_t))
+        return t
+
+    def alpha_to_sigma(self, alpha):
+        return torch.sqrt(1 - alpha**2)
+
+    def sigma_to_alpha(self, sigma):
+        return torch.sqrt(1 - sigma**2)
 
     def get_post_mean(self, t, x_0, x_t):
         t = (t*len(self.sigmas)).long()
-        return self.posterior_mean_coef1[t].view(-1, 1, 1, 1).to(t.device)*x_0 + self.posterior_mean_coef2[t].view(-1, 1, 1, 1).to(t.device)*x_t
+        return self.posterior_mean_coef1[t].view(-1, 1, 1, 1).to(t.device)*x_0+self.posterior_mean_coef2[t].view(-1, 1, 1, 1).to(t.device)*x_t
 
     def get_post_log_var(self, t, x_t_var=None):
         t = (t*len(self.sigmas)).long()
@@ -65,7 +101,6 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
             frac = (x_t_var+1)/2
             model_log_variance = frac*max_log+(1-frac)*min_log
             return model_log_variance
-
 
     @staticmethod
     def betas_for_alpha_bar(
@@ -130,50 +165,147 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
         else:
             raise NotImplementedError(f"{beta_schedule} does is not implemented.")
 
-class DDPMContinuousSigmaScheduler(DDPMDiscreteSigmaScheduler):
+class DDPMContinuousSigmaScheduler(SigmaScheduler):
+    def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120):
+        self.alpha_bar_fn = self.make_alpha_bar_fn(beta_schedule, linear_start, linear_end)
 
-    def get_sigma(self, t: Union[float, torch.Tensor]):
+    def continuous_product(self, alpha_fn: Callable[[torch.Tensor], torch.Tensor], t: torch.Tensor, num_bins=1000):
+        '''
+
+        :param alpha_fn: alpha function
+        :param t: timesteps with shape [B]
+        :return: [B]
+        '''
+        bins = torch.linspace(0, 1, num_bins, dtype=torch.float32).unsqueeze(0)
+        t_grid = bins*t.float().unsqueeze(1)  # [B, num_bins]
+        alpha_vals = alpha_fn(t_grid)
+
+        if torch.any(alpha_vals<=0):
+            raise ValueError("alpha(t) must > 0 to avoid log(≤0).")
+
+        log_term = torch.log(alpha_vals)  # [B, num_bins]
+        dt = t_grid[:, 1]-t_grid[:, 0]  # [B]
+        integral = torch.cumsum((log_term[:, -1]+log_term[:, 1:])/2*dt.unsqueeze(1), dim=1)  # [B]
+        x_vals = torch.exp(integral)
+        return x_vals
+
+    @staticmethod
+    def alpha_bar_linear(beta_s, beta_e, t, N=1000):
+        A = beta_e-beta_s
+        B = 1-beta_s
+        B_At = B-A*t
+
+        # 避免数值不稳定
+        eps = 1e-12
+        B = torch.clamp(B, min=eps)
+        B_At = torch.clamp(B_At, min=eps)
+
+        term = (B*torch.log(B)-B_At*torch.log(B_At)-A*t)
+        return torch.exp(N*term/A)
+
+    @staticmethod
+    def alpha_bar_scaled_linear(beta_s, beta_e, t, N=1000):
+        sqrt_bs = torch.sqrt(beta_s)
+        sqrt_be = torch.sqrt(beta_e)
+        a = sqrt_be-sqrt_bs
+        b = sqrt_bs
+        u0 = b
+        u1 = a*t+b
+
+        eps = 1e-12
+
+        def safe_log1m(u2):
+            return torch.log(torch.clamp(1-u2, min=eps))
+
+        def safe_log_frac(u):
+            return torch.log(torch.clamp(1+u, min=eps))-torch.log(torch.clamp(1-u, min=eps))
+
+        term1 = u1*safe_log1m(u1**2)
+        term2 = 0.5*safe_log_frac(u1)
+        term3 = u0*safe_log1m(u0**2)
+        term4 = 0.5*safe_log_frac(u0)
+
+        return torch.exp(N*(term1+term2-term3-term4)/a)
+
+    def make_alpha_bar_fn(self, beta_schedule, beta_start, beta_end, alpha_fn=None):
+        if alpha_fn is not None:
+            return lambda t, alpha_fn_=alpha_fn:self.continuous_product(alpha_fn_(t), t)
+        elif beta_schedule == "linear":
+            return lambda t:self.alpha_bar_linear(beta_start, beta_end, t)
+        elif beta_schedule == "scaled_linear":
+            # this schedule is very specific to the latent diffusion model.
+            return lambda t:self.alpha_bar_scaled_linear(beta_start, beta_end, t)
+        elif beta_schedule == "squaredcos_cap_v2":
+            return lambda t:torch.cos((t+0.008)/1.008*math.pi/2)**2
+        elif beta_schedule == "sigmoid":
+            # GeoDiff sigmoid schedule
+            alpha_fn = lambda t:1-torch.sigmoid(torch.lerp(torch.full_like(t, -6), torch.full_like(t, 6), t))*(beta_end-beta_start)+beta_start
+            return lambda t, alpha_fn_=alpha_fn:self.continuous_product(alpha_fn_(t), t)
+        else:
+            raise NotImplementedError(f"{beta_schedule} does is not implemented.")
+
+    def sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
-            t = torch.tensor(t)
-        return linear_interp(self.sigmas, t)
+            t = torch.tensor([t])
+        alpha_cumprod = self.alpha_bar_fn(t)
+        return torch.sqrt(1-alpha_cumprod)
 
-    def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)):
-        if isinstance(min_rate, float):
-            min_rate = torch.full(shape, min_rate)
-        if isinstance(max_rate, float):
-            max_rate = torch.full(shape, max_rate)
+    def alpha(self, t: Union[float, torch.Tensor]):
+        if isinstance(t, float):
+            t = torch.tensor([t])
+        alpha_cumprod = self.alpha_bar_fn(t)
+        return torch.sqrt(alpha_cumprod)
 
-        t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
-        t_scale = (t*(self.num_timesteps-1-1e-5))  # [0, num_timesteps-1)
+    @property
+    def sigma_start(self):
+        return self.sigma(0)
 
-        return linear_interp(self.sigmas, t_scale), t
+    @property
+    def sigma_end(self):
+        return self.sigma(1)
 
-    def sigma_to_t(self, sigma: Union[float, torch.Tensor]):
-        diff = self.sigmas-sigma
-        diff[diff<0] = float('inf')
-        t0 = diff.argmin().clamp(0, self.num_timesteps-2)
-        return t0 + diff.min()/(self.sigmas[t0+1]-self.sigmas[t0])
+    @property
+    def alpha_start(self):
+        return self.alpha(0)
+
+    @property
+    def alpha_end(self):
+        return self.alpha(1)
+
+    def alpha_to_t(self, alpha, t_min=0.0, t_max=1.0, tol=1e-5, max_iter=100):
+        """
+        alpha: [B]
+        :return: t [B]
+        """
+        return invert_func(self.alpha, alpha, t_min, t_max, tol, max_iter)
+
+    def sigma_to_t(self, sigma, t_min=0.0, t_max=1.0, tol=1e-5, max_iter=100):
+        """
+        sigma: [B]
+        :return: t [B]
+        """
+        return invert_func(self.sigma, sigma, t_min, t_max, tol, max_iter)
 
 class TimeSigmaScheduler(SigmaScheduler):
     def __init__(self, num_timesteps=1000):
         super().__init__()
         self.num_timesteps = num_timesteps
 
-    def get_sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
+    def sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
         '''
         :param t: 0-1, rate of time step
         '''
-        return t
+        if isinstance(t, float):
+            t = torch.tensor(t)
+        return ((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)
 
-    def sample_sigma(self, min_rate=0.0, max_rate=1.0, shape=(1,)) -> Tuple[torch.Tensor, torch.Tensor]:
-        if isinstance(min_rate, float):
-            min_rate = torch.full(shape, min_rate)
-        if isinstance(max_rate, float):
-            max_rate = torch.full(shape, max_rate)
-
-        t = torch.lerp(min_rate, max_rate, torch.rand_like(min_rate))
-        t_scale = (t*(self.num_timesteps-1e-5)).long()  # [0, num_timesteps-1)
-        return t_scale, t
+    def alpha(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
+        '''
+        :param t: 0-1, rate of time step
+        '''
+        if isinstance(t, float):
+            t = torch.tensor(t)
+        return ((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)
 
 if __name__ == '__main__':
     from matplotlib import pyplot as plt

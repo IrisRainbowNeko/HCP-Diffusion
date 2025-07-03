@@ -3,7 +3,7 @@ from diffusers import ModelMixin, AutoencoderKL, UNet2DConditionModel, PixArtTra
 from rainbowneko.ckpt_manager.format import CkptFormat
 from transformers import CLIPTextModel, AutoTokenizer, T5EncoderModel
 
-from hcpdiff.diffusion.sampler import DDPMSampler, DDPMDiscreteSigmaScheduler
+from hcpdiff.diffusion.sampler import VPSampler, DDPMDiscreteSigmaScheduler
 from hcpdiff.models.compose import SDXLTokenizer, SDXLTextEncoder
 
 class DiffusersModelFormat(CkptFormat):
@@ -23,7 +23,7 @@ class DiffusersSD15Format(CkptFormat):
             pretrained_model, subfolder="unet", revision=revision, torch_dtype=dtype
         )
         vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision, torch_dtype=dtype)
-        noise_sampler = noise_sampler or DDPMSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
 
         TE = TE or CLIPTextModel.from_pretrained(pretrained_model, subfolder="text_encoder", revision=revision, torch_dtype=dtype)
         tokenizer = tokenizer or AutoTokenizer.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)
@@ -37,7 +37,7 @@ class DiffusersSDXLFormat(CkptFormat):
             pretrained_model, subfolder="unet", revision=revision, torch_dtype=dtype
         )
         vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision, torch_dtype=dtype)
-        noise_sampler = noise_sampler or DDPMSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
 
         TE = TE or SDXLTextEncoder.from_pretrained(pretrained_model, subfolder="text_encoder", revision=revision, torch_dtype=dtype)
         tokenizer = tokenizer or SDXLTokenizer.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)
@@ -51,7 +51,7 @@ class DiffusersPixArtFormat(CkptFormat):
             pretrained_model, subfolder="transformer", revision=revision, torch_dtype=dtype
         )
         vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision, torch_dtype=dtype)
-        noise_sampler = noise_sampler or DDPMSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
 
         TE = TE or T5EncoderModel.from_pretrained(pretrained_model, subfolder="text_encoder", revision=revision, torch_dtype=dtype)
         tokenizer = tokenizer or AutoTokenizer.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)

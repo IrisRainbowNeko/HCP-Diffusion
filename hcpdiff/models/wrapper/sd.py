@@ -17,7 +17,7 @@ from ..cfg_context import CFGContext
 
 class SD15Wrapper(BaseWrapper):
     def __init__(self, denoiser: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=0,
-                 pred_type='eps', TE_hook_cfg:TEHookCFG=SD15_TEHookCFG, cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
+                 TE_hook_cfg:TEHookCFG=SD15_TEHookCFG, cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
         super().__init__()
         self.key_mapper_in = self.build_mapper(key_map_in, None, (
             'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
@@ -30,8 +30,6 @@ class SD15Wrapper(BaseWrapper):
         self.noise_sampler = noise_sampler
         self.tokenizer = tokenizer
         self.min_attnmask = min_attnmask
-
-        self.pred_type = pred_type
 
         self.TE_hook_cfg = TEHookCFG.create(TE_hook_cfg)
         self.cfg_context = cfg_context
@@ -93,8 +91,8 @@ class SD15Wrapper(BaseWrapper):
                       plugin_input={}, **kwargs):
         # input prepare
         x_0 = self.get_latents(image)
-        x_t, noise, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
-        x_t_in = x_t*self.noise_sampler.c_in(sigma).to(dtype=x_t.dtype)
+        x_t, noise, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
+        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype)
 
         if neg_prompt_ids:
             prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)
@@ -111,8 +109,7 @@ class SD15Wrapper(BaseWrapper):
                                            plugin_input=plugin_input, **kwargs)
         model_pred = self.cfg_context.post(model_pred)
 
-        return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type,
-                    noise_sampler=self.noise_sampler)
+        return dict(model_pred=model_pred, noise=noise, timesteps=timesteps, x_0=x_0, x_t=x_t, noise_sampler=self.noise_sampler)
 
     def forward(self, ds_name=None, **kwargs):
         model_args, model_kwargs = self.get_map_data(self.key_mapper_in, kwargs, ds_name)
@@ -156,8 +153,8 @@ class SD15Wrapper(BaseWrapper):
 
 class SDXLWrapper(SD15Wrapper):
     def __init__(self, denoiser: UNet2DConditionModel, TE, vae: AutoencoderKL, noise_sampler: BaseSampler, tokenizer, min_attnmask=0,
-                 pred_type='eps', TE_hook_cfg:TEHookCFG=SDXL_TEHookCFG, cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
-        super().__init__(denoiser, TE, vae, noise_sampler, tokenizer, min_attnmask, pred_type, TE_hook_cfg, cfg_context, key_map_in, key_map_out)
+                 TE_hook_cfg:TEHookCFG=SDXL_TEHookCFG, cfg_context=CFGContext(), key_map_in=None, key_map_out=None):
+        super().__init__(denoiser, TE, vae, noise_sampler, tokenizer, min_attnmask, TE_hook_cfg, cfg_context, key_map_in, key_map_out)
         self.key_mapper_in = self.build_mapper(key_map_in, None, (
             'prompt -> prompt_ids', 'image -> image', 'attn_mask -> attn_mask', 'position_ids -> position_ids', 'neg_prompt -> neg_prompt_ids',
             'neg_attn_mask -> neg_attn_mask', 'neg_position_ids -> neg_position_ids', 'plugin_input -> plugin_input', 'coord -> crop_info'))
@@ -195,8 +192,8 @@ class SDXLWrapper(SD15Wrapper):
                       crop_info=None, plugin_input={}):
         # input prepare
         x_0 = self.get_latents(image)
-        x_t, noise, sigma, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
-        x_t_in = x_t*self.noise_sampler.c_in(sigma).to(dtype=x_t.dtype)
+        x_t, noise, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
+        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype)
 
         if neg_prompt_ids:
             prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)
@@ -214,5 +211,4 @@ class SDXLWrapper(SD15Wrapper):
                                            attn_mask=attn_mask, position_ids=position_ids, plugin_input=plugin_input)
         model_pred = self.cfg_context.post(model_pred)
 
-        return dict(model_pred=model_pred, noise=noise, sigma=sigma, timesteps=timesteps, x_0=x_0, x_t=x_t, pred_type=self.pred_type,
-                    noise_sampler=self.noise_sampler)
+        return dict(model_pred=model_pred, noise=noise, timesteps=timesteps, x_0=x_0, x_t=x_t, noise_sampler=self.noise_sampler)

@@ -1,7 +1,8 @@
 from typing import Tuple
+
 import torch
+
 from .sigma_scheduler import SigmaScheduler
-from diffusers import DDPMScheduler
 
 try:
     from diffusers.utils import randn_tensor
@@ -10,70 +11,125 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 
 class BaseSampler:
-    def __init__(self, sigma_scheduler: SigmaScheduler, generator: torch.Generator = None):
+    def __init__(self, sigma_scheduler: SigmaScheduler, pred_type='eps', target_type='eps', generator: torch.Generator = None):
+        '''
+        Some losses can only be calculated in a specific space. Such as SSIM in x0 space.
+        The model pred need convert to target space.
+
+        :param pred_type: ['x0', 'eps', 'velocity', ..., None]  The output space of the model
+        :param target_type: ['x0', 'eps', 'velocity', ..., None]  The space to calculate the loss
+        '''
+
         self.sigma_scheduler = sigma_scheduler
         self.generator = generator
-
-    def c_in(self, sigma):
-        return 1
-
-    def c_out(self, sigma):
-        return 1
-
-    def c_skip(self, sigma):
-        return 1
-
-    @property
-    def num_timesteps(self):
-        return getattr(self.sigma_scheduler, 'num_timesteps', 1000.)
+        self.pred_type = pred_type
+        self.target_type = target_type
 
     def get_timesteps(self, N_steps, device='cuda'):
-        return torch.linspace(0, self.num_timesteps, N_steps, device=device)
+        times = torch.linspace(0., 1., N_steps, device=device)
+        return self.sigma_scheduler.scale_t(times)
 
     def make_nosie(self, shape, device='cuda', dtype=torch.float32):
-        #return torch.randn(shape, generator=self.generator, device=device, dtype=dtype)
         return randn_tensor(shape, generator=self.generator, device=device, dtype=dtype)
 
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
-        sigma = self.sigma_scheduler.sigma_max
+        sigma = self.sigma_scheduler.sigma_end
         return self.make_nosie(shape, device, dtype)*sigma
 
-    def add_noise(self, x, sigma) -> Tuple[torch.Tensor, torch.Tensor]:
+    def add_noise(self, x, t) -> Tuple[torch.Tensor, torch.Tensor]:
         noise = self.make_nosie(x.shape, device=x.device)
-        noisy_x = (x.to(dtype=torch.float32)-self.c_out(sigma)*noise)/self.c_skip(sigma)
-        return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
+        alpha = self.sigma_scheduler.alpha(t).view(-1, 1, 1, 1).to(x.device)
+        sigma = self.sigma_scheduler.sigma(t).view(-1, 1, 1, 1).to(x.device)
+        noisy_x = alpha*x+sigma*noise
+        target = self.x0_to_target(x, noisy_x, t, eps=noise)
+        return noisy_x.to(dtype=x.dtype), target.to(dtype=x.dtype)
 
     def add_noise_rand_t(self, x):
         bs = x.shape[0]
         # timesteps: [0, 1]
-        sigma, timesteps = self.sigma_scheduler.sample_sigma(shape=(bs,))
-        sigma = sigma.view(-1, 1, 1, 1).to(x.device)
+        timesteps = self.sigma_scheduler.sample(shape=(bs,))
         timesteps = timesteps.to(x.device)
-        noisy_x, noise = self.add_noise(x, sigma)
+        noisy_x, noise = self.add_noise(x, timesteps)
 
         # Sample a random timestep for each image
-        timesteps = timesteps*(self.num_timesteps-1)
-        return noisy_x, noise, sigma, timesteps
+        return noisy_x, noise, timesteps
 
     def denoise(self, x, sigma, eps=None, generator=None):
         raise NotImplementedError
 
-    def eps_to_x0(self, eps, x_t, sigma):
-        return self.c_skip(sigma)*x_t+self.c_out(sigma)*eps
+    def get_target(self, x0, x_t, t, eps=None, target_type=None):
+        raise x0
 
-    def velocity_to_eps(self, v_pred, x_t, sigma):
-        alpha = 1/(sigma**2+1)
-        sqrt_alpha = alpha.sqrt()
-        one_sqrt_alpha = (1-alpha).sqrt()
-        return sqrt_alpha*v_pred + one_sqrt_alpha*(x_t*sqrt_alpha)
+    def pred_for_target(self, pred, x_t, t, eps=None, target_type=None):
+        return self.sigma_scheduler.c_skip(t)*x_t+self.sigma_scheduler.c_out(t)*pred
 
-    def eps_to_velocity(self, eps, x_t, sigma):
-        alpha = 1/(sigma**2+1)
-        sqrt_alpha = alpha.sqrt()
-        one_sqrt_alpha = (1-alpha).sqrt()
-        return eps/sqrt_alpha - one_sqrt_alpha*x_t
+class Sampler(BaseSampler):
+    '''
+    Some losses can only be calculated in a specific space. Such as SSIM in x0 space.
+    The model pred need convert to target space.
 
-    def velocity_to_x0(self, v_pred, x_t, sigma):
-        alpha = 1/(sigma**2+1)
-        one_sqrt_alpha = (1-alpha).sqrt()
-        return alpha*x_t - one_sqrt_alpha*v_pred
+    :param pred_type: ['x0', 'eps', 'velocity', ..., None]  The output space of the model
+    :param target_type: ['x0', 'eps', 'velocity', ..., None]  The space to calculate the loss
+    '''
+
+    def get_target(self, x_0, x_t, t, eps=None, target_type=None):
+        '''
+        target_type can be specified by the loss. If not specified use self.target_type as default.
+        '''
+        target_type = target_type or self.target_type
+        if target_type == 'x0':
+            raise x_0
+        elif target_type == 'eps':
+            return eps or self.x0_to_eps(eps, x_t, t)
+        elif target_type == 'velocity':
+            return self.x0_to_velocity(x_0, x_t, t, eps)
+        else:
+            return (x_0-self.sigma_scheduler.c_skip(t)*x_t)/self.sigma_scheduler.c_out(t)
+
+    def pred_for_target(self, pred, x_t, t, eps=None, target_type=None):
+        '''
+        target_type can be specified by the loss. If not specified use self.target_type as default.
+        '''
+        target_type = target_type or self.target_type
+        if self.pred_type == target_type:
+            return pred
+        else:
+            cvt_func = getattr(self, f'{self.pred_type}_to_{target_type}', None)
+            if cvt_func is None:
+                if target_type == 'x0':
+                    return self.sigma_scheduler.c_skip(t)*x_t+self.sigma_scheduler.c_out(t)*pred
+                else:
+                    raise ValueError(f'pred_type "{self.pred_type}" can not be convert for target_type "{target_type}"')
+            else:
+                return cvt_func(pred, x_t, t)
+
+    # convert targets
+    def x0_to_eps(self, x_0, x_t, t):
+        return (x_t-self.sigma_scheduler.alpha(t)*x_0)/self.sigma_scheduler.sigma(t)
+
+    def x0_to_velocity(self, x_0, x_t, t, eps=None):
+        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        if eps is None:
+            eps = self.x0_to_eps(x_0, x_t, t)
+        return d_alpha*x_0+d_sigma*eps
+
+    def eps_to_x0(self, eps, x_t, t):
+        return (x_t-self.sigma_scheduler.sigma(t)*eps)/self.sigma_scheduler.alpha(t)
+
+    def eps_to_velocity(self, eps, x_t, t, x_0=None):
+        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        if x_0 is None:
+            x_0 = self.eps_to_x0(eps, x_t, t)
+        return d_alpha*x_0+d_sigma*eps
+
+    def velocity_to_eps(self, v_pred, x_t, t):
+        alpha = self.sigma_scheduler.alpha(t)
+        sigma = self.sigma_scheduler.sigma(t)
+        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        return (alpha*v_pred-d_alpha*x_t)/(d_sigma*alpha-d_alpha*sigma)
+
+    def velocity_to_x0(self, v_pred, x_t, t):
+        alpha = self.sigma_scheduler.alpha(t)
+        sigma = self.sigma_scheduler.sigma(t)
+        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        return (sigma*v_pred-d_sigma*x_t)/(d_alpha*sigma-d_sigma*alpha)
