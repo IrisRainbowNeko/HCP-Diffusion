@@ -92,7 +92,7 @@ class SD15Wrapper(BaseWrapper):
         # input prepare
         x_0 = self.get_latents(image)
         x_t, noise, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
-        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype)
+        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype).view(-1,1,1,1)
 
         if neg_prompt_ids:
             prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)
@@ -193,7 +193,7 @@ class SDXLWrapper(SD15Wrapper):
         # input prepare
         x_0 = self.get_latents(image)
         x_t, noise, timesteps = self.noise_sampler.add_noise_rand_t(x_0)
-        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype)
+        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype).view(-1,1,1,1)
 
         if neg_prompt_ids:
             prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)

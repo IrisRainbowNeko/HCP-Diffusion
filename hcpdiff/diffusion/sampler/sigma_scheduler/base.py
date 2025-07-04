@@ -57,7 +57,10 @@ class SigmaScheduler:
         raise NotImplementedError
 
     def c_in(self, t: Union[float, torch.Tensor]):
-        return 1.
+        if isinstance(t, float):
+            return 1.
+        else:
+            return torch.ones_like(t, dtype=torch.float32)
 
     def c_skip(self, t: Union[float, torch.Tensor]):
         '''

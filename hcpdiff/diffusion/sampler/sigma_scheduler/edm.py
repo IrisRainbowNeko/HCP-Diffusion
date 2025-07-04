@@ -7,9 +7,9 @@ from .base import SigmaScheduler
 
 class EDMSigmaScheduler(SigmaScheduler):
     def __init__(self, sigma_min=0.002, sigma_max=80.0, sigma_data=0.5, rho=7.0):
-        self.sigma_min = torch.tensor(sigma_min)
-        self.sigma_max = torch.tensor(sigma_max)
-        self.sigma_data = torch.tensor(sigma_data)
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.sigma_data = sigma_data
         self.rho = rho
 
     def sigma_edm(self, t: Union[float, torch.Tensor]) -> torch.Tensor:

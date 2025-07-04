@@ -41,8 +41,7 @@ class BaseSampler:
         alpha = self.sigma_scheduler.alpha(t).view(-1, 1, 1, 1).to(x.device)
         sigma = self.sigma_scheduler.sigma(t).view(-1, 1, 1, 1).to(x.device)
         noisy_x = alpha*x+sigma*noise
-        target = self.x0_to_target(x, noisy_x, t, eps=noise)
-        return noisy_x.to(dtype=x.dtype), target.to(dtype=x.dtype)
+        return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
 
     def add_noise_rand_t(self, x):
         bs = x.shape[0]
@@ -80,7 +79,7 @@ class Sampler(BaseSampler):
         if target_type == 'x0':
             raise x_0
         elif target_type == 'eps':
-            return eps or self.x0_to_eps(eps, x_t, t)
+            return eps if eps is not None else self.x0_to_eps(eps, x_t, t)
         elif target_type == 'velocity':
             return self.x0_to_velocity(x_0, x_t, t, eps)
         else:
