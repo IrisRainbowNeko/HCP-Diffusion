@@ -49,12 +49,17 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
     def sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor(t)
+        self.sigmas = self.sigmas.to(t.device)
         return self.sigmas[((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)]
 
     def alpha(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor(t)
+        self.alphas = self.alphas.to(t.device)
         return self.alphas[((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)]
+    
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        return (t*self.num_timesteps).round()
 
     def velocity(self, t: Union[float, torch.Tensor], dt=1e-8, normlize=True) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
@@ -166,17 +171,18 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
             raise NotImplementedError(f"{beta_schedule} does is not implemented.")
 
 class DDPMContinuousSigmaScheduler(SigmaScheduler):
-    def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120):
+    def __init__(self, beta_schedule: str = "scaled_linear", linear_start=0.00085, linear_end=0.0120, t_base=1000):
         self.alpha_bar_fn = self.make_alpha_bar_fn(beta_schedule, linear_start, linear_end)
+        self.t_base = t_base  # base time step for continuous product
 
-    def continuous_product(self, alpha_fn: Callable[[torch.Tensor], torch.Tensor], t: torch.Tensor, num_bins=1000):
+    def continuous_product(self, alpha_fn: Callable[[torch.Tensor], torch.Tensor], t: torch.Tensor):
         '''
 
         :param alpha_fn: alpha function
         :param t: timesteps with shape [B]
         :return: [B]
         '''
-        bins = torch.linspace(0, 1, num_bins, dtype=torch.float32).unsqueeze(0)
+        bins = torch.linspace(0, 1, self.t_base, dtype=torch.float32).unsqueeze(0)
         t_grid = bins*t.float().unsqueeze(1)  # [B, num_bins]
         alpha_vals = alpha_fn(t_grid)
 
@@ -256,6 +262,9 @@ class DDPMContinuousSigmaScheduler(SigmaScheduler):
         alpha_cumprod = self.alpha_bar_fn(t)
         return torch.sqrt(alpha_cumprod)
 
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        return t*self.t_base
+
     @property
     def sigma_start(self):
         return self.sigma(0)
@@ -306,6 +315,9 @@ class TimeSigmaScheduler(SigmaScheduler):
         if isinstance(t, float):
             t = torch.tensor(t)
         return ((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)
+    
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        return (t*self.num_timesteps).round()
 
 if __name__ == '__main__':
     from matplotlib import pyplot as plt

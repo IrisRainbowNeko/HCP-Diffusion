@@ -17,8 +17,8 @@ class DiffusionLossContainer(LossContainer):
         return pred, target
     
     def forward(self, pred:Dict[str,Any], inputs:Dict[str,Any]) -> Tensor:
-        pred, target = self.get_target(**pred)
-        pred['model_pred'] = pred
+        pred_cvt, target = self.get_target(**pred)
+        pred['model_pred'] = pred_cvt
         pred['target'] = target
-        loss = super().forward(pred, inputs) * self.weight # [B,*,*,*]
+        loss = super().forward(pred, inputs) # [B,*,*,*]
         return loss.mean()

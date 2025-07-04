@@ -56,6 +56,10 @@ class EDMSigmaScheduler(SigmaScheduler):
         sigma_edm = self.sigma_edm(t)
         return (self.sigma_data*sigma_edm)/torch.sqrt(sigma_edm**2+self.sigma_data**2)
 
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        sigma_edm = self.sigma_edm(t)
+        return sigma_edm.log()/4
+
     @property
     def sigma_start(self):
         return self.sigma(0)
@@ -106,6 +110,9 @@ class EDMTimeRescaleScheduler(EDMSigmaScheduler):
 
     def c_out(self, t: Union[float, torch.Tensor]):
         return self.ref_scheduler.c_out(t)
+    
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        return self.ref_scheduler.c_noise(t)
 
     def sample(self, min_t=0.0, max_t=1.0, shape=(1,)):
         if isinstance(min_t, float):

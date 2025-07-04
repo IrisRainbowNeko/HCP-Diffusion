@@ -157,14 +157,15 @@ class DenoiseAction(BasicAction):
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
             latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
             latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
+            t_in = noise_sampler.sigma_scheduler.c_noise(t)
 
             if text_embeds is None:
-                noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                noise_pred = denoiser(latent_model_input, t_in, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                   cross_attention_kwargs=cross_attention_kwargs, ).sample
             else:
                 added_cond_kwargs = {"text_embeds":text_embeds, "time_ids":crop_info}
                 # predict the noise residual
-                noise_pred = denoiser(latent_model_input, t, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+                noise_pred = denoiser(latent_model_input, t_in, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                   cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
             # perform guidance

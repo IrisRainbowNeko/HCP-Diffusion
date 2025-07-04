@@ -75,6 +75,9 @@ class SigmaScheduler:
         :param t: 0-1, rate of time step
         '''
         return -self.sigma(t)/self.alpha(t)
+    
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        return t
 
     def sample(self, min_t=0.0, max_t=1.0, shape=(1,)) -> torch.Tensor:
         if isinstance(min_t, float):

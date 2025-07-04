@@ -28,7 +28,7 @@ class DiffusersSampler(BaseSampler):
 
     def get_timesteps(self, N_steps, device='cuda'):
         self.scheduler.set_timesteps(N_steps, device=device)
-        return self.scheduler.timesteps
+        return self.scheduler.timesteps / self.sigma_scheduler.num_timesteps # Normalize timesteps to [0, 1]
 
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
         return randn_tensor(shape, generator=self.generator, device=device, dtype=dtype)*self.scheduler.init_noise_sigma
@@ -54,6 +54,7 @@ class DiffusersSampler(BaseSampler):
             extra_step_kwargs["generator"] = generator
         return extra_step_kwargs
 
-    def denoise(self, x_t, sigma, eps=None, generator=None):
+    def denoise(self, x_t, t, eps=None, generator=None):
+        t_in = self.sigma_scheduler.c_noise(t)
         extra_step_kwargs = self.prepare_extra_step_kwargs(self.scheduler, generator, self.eta)
-        return self.scheduler.step(eps, sigma, x_t, **extra_step_kwargs).prev_sample
+        return self.scheduler.step(eps, t_in, x_t, **extra_step_kwargs).prev_sample
