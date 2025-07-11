@@ -3,6 +3,7 @@ from typing import Tuple
 import torch
 
 from .sigma_scheduler import SigmaScheduler
+from .timer import TimeSampler
 
 try:
     from diffusers.utils import randn_tensor
@@ -11,7 +12,8 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 
 class BaseSampler:
-    def __init__(self, sigma_scheduler: SigmaScheduler, pred_type='eps', target_type='eps', generator: torch.Generator = None):
+    def __init__(self, sigma_scheduler: SigmaScheduler, t_sampler:TimeSampler = None, pred_type='eps', target_type='eps',
+                 generator: torch.Generator = None):
         '''
         Some losses can only be calculated in a specific space. Such as SSIM in x0 space.
         The model pred need convert to target space.
@@ -19,6 +21,9 @@ class BaseSampler:
         :param pred_type: ['x0', 'eps', 'velocity', ..., None]  The output space of the model
         :param target_type: ['x0', 'eps', 'velocity', ..., None]  The space to calculate the loss
         '''
+        if t_sampler is None:
+            t_sampler = TimeSampler()
+        self.t_sampler = t_sampler
 
         self.sigma_scheduler = sigma_scheduler
         self.generator = generator
@@ -44,9 +49,9 @@ class BaseSampler:
         return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
 
     def add_noise_rand_t(self, x):
-        bs = x.shape[0]
+        B,C,H,W = x.shape
         # timesteps: [0, 1]
-        timesteps = self.sigma_scheduler.sample(shape=(bs,))
+        timesteps = self.t_sampler.sample(shape=(B,), H=H, W=W)
         timesteps = timesteps.to(x.device)
         noisy_x, noise = self.add_noise(x, timesteps)
 

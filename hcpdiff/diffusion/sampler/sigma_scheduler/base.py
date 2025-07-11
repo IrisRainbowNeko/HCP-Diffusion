@@ -78,12 +78,3 @@ class SigmaScheduler:
     
     def c_noise(self, t: Union[float, torch.Tensor]):
         return t
-
-    def sample(self, min_t=0.0, max_t=1.0, shape=(1,)) -> torch.Tensor:
-        if isinstance(min_t, float):
-            min_t = torch.full(shape, min_t)
-        if isinstance(max_t, float):
-            max_t = torch.full(shape, max_t)
-
-        t = torch.lerp(min_t, max_t, torch.rand_like(min_t))
-        return t
