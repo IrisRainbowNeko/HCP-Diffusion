@@ -2,7 +2,7 @@ from typing import List, Union
 
 import torch
 from hcpdiff.models import TokenizerHook
-from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook
+from hcpdiff.models.compose import ComposeTEEXHook, ComposeEmbPTHook, ComposeTokenizer
 from hcpdiff.utils import pad_attn_bias
 from hcpdiff.utils.net_utils import get_dtype, to_cpu, to_cuda
 from rainbowneko.infer import BasicAction
@@ -48,7 +48,21 @@ class TextEncodeAction(BasicAction):
         self.negative_prompt = negative_prompt
         self.bs = bs
 
-    def forward(self, te_hook, TE, dtype: str, device, amp=None, prompt=None, negative_prompt=None, model_offload=False, **states):
+    def encode_prompt_to_emb(self, tokenizer, TE, te_hook, prompt, device):
+        token_info = ComposeTokenizer.tokenize_ex(tokenizer, prompt, truncation=True, padding="max_length",
+                                                  return_tensors="pt", device=device)
+        if te_hook.use_attention_mask:
+            attention_mask = token_info.get('attention_mask', None)
+        else:
+            attention_mask = None
+        token_info['attention_mask'] = attention_mask
+        prompt_embeds, pooled_output = TE(
+            **token_info,
+            output_hidden_states=True,
+        )
+        return prompt_embeds, pooled_output, attention_mask
+
+    def forward(self, te_hook, tokenizer, TE, dtype: str, device, amp=None, prompt=None, negative_prompt=None, model_offload=False, **states):
         prompt = prompt or self.prompt
         negative_prompt = negative_prompt or self.negative_prompt
 
@@ -56,7 +70,7 @@ class TextEncodeAction(BasicAction):
             to_cuda(TE)
 
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
-            emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(negative_prompt+prompt)
+            emb, pooled_output, attention_mask = self.encode_prompt_to_emb(tokenizer, TE, te_hook, negative_prompt+prompt, device)
             if attention_mask is not None:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)
 
@@ -69,7 +83,7 @@ class TextEncodeAction(BasicAction):
             'pooled_output':pooled_output}
 
 class AttnMultTextEncodeAction(TextEncodeAction):
-    def forward(self, te_hook, token_ex, TE, dtype: str, device, amp=None, prompt=None, negative_prompt=None, model_offload=False, **states):
+    def forward(self, te_hook, tokenizer, token_ex, TE, dtype: str, device, amp=None, prompt=None, negative_prompt=None, model_offload=False, **states):
         prompt = prompt or self.prompt
         negative_prompt = negative_prompt or self.negative_prompt
 
@@ -84,7 +98,7 @@ class AttnMultTextEncodeAction(TextEncodeAction):
         mult_p, clean_text_p = token_ex.parse_attn_mult(prompt)
         mult_n, clean_text_n = token_ex.parse_attn_mult(negative_prompt)
         with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
-            emb, pooled_output, attention_mask = te_hook.encode_prompt_to_emb(clean_text_n+clean_text_p)
+            emb, pooled_output, attention_mask =  self.encode_prompt_to_emb(tokenizer, TE, te_hook, clean_text_n+clean_text_p, device)
             if attention_mask is not None:
                 emb, attention_mask = pad_attn_bias(emb, attention_mask)
             emb_n, emb_p = emb.chunk(2)

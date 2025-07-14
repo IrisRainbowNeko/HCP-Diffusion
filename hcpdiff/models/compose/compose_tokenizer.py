@@ -16,17 +16,17 @@ from transformers import AutoTokenizer, CLIPTokenizer, PreTrainedTokenizer, Pret
 from transformers.tokenization_utils_base import BatchEncoding
 
 class ComposeTokenizer(PreTrainedTokenizer):
-    def __init__(self, tokenizer_list: List[Tuple[str, CLIPTokenizer]], cat_dim=-1):
-        self.cat_dim = cat_dim
+    def __init__(self, tokenizers: Dict[str, CLIPTokenizer]):
 
         self.tokenizer_names = []
-        for name, tokenizer in tokenizer_list:
+        for name, tokenizer in tokenizers.items():
             setattr(self, name, tokenizer)
             self.tokenizer_names.append(name)
 
         super().__init__()
 
-        self.model_max_length = torch.tensor([tokenizer.model_max_length for name, tokenizer in tokenizer_list])
+        # self.model_max_length = torch.tensor([tokenizer.model_max_length for name, tokenizer in tokenizer_list])
+        self.model_max_length = {name: tokenizer.model_max_length for name, tokenizer in tokenizers.items()}
 
     @property
     def first_tokenizer(self):
@@ -57,15 +57,17 @@ class ComposeTokenizer(PreTrainedTokenizer):
         return self.first_tokenizer.save_vocabulary(save_directory, filename_prefix)
 
     def __call__(self, text, *args, max_length=None, **kwargs):
-        if isinstance(max_length, torch.Tensor):
-            token_list: List[BatchEncoding] = [getattr(self, name)(text, *args, max_length=max_length_i, **kwargs)
-                for name, max_length_i in zip(self.tokenizer_names, max_length)]
+        if isinstance(max_length, dict):
+            token_infos: Dict[str, BatchEncoding] = {name: getattr(self, name)(text, *args, max_length=max_length[name], **kwargs)
+                for name in self.tokenizer_names}
         else:
-            token_list: List[BatchEncoding] = [getattr(self, name)(text, *args, max_length=max_length, **kwargs) for name in self.tokenizer_names]
+            token_infos: Dict[str, BatchEncoding] = {name: getattr(self, name)(text, *args, max_length=max_length, **kwargs)
+                for name in self.tokenizer_names}
 
-        input_ids = torch.cat([token.input_ids for token in token_list], dim=-1)  # [N_tokenizer, N_token]
-        attention_mask = torch.cat([token.attention_mask for token in token_list], dim=-1)
-        return BatchEncoding({'input_ids':input_ids, 'attention_mask':attention_mask})
+        input_ids = {name: token.input_ids for name, token in token_infos.items()}  # [N_tokenizer, N_token]
+        attention_mask = {name: token.get('attention_mask', None) for name, token in token_infos.items()}
+        position_ids = {name: token.get('position_ids', None) for name, token in token_infos.items()}
+        return BatchEncoding({'input_ids':input_ids, 'attention_mask':attention_mask, 'position_ids':position_ids})
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: List[Tuple[str, str]], *args,
@@ -73,3 +75,32 @@ class ComposeTokenizer(PreTrainedTokenizer):
         tokenizer_list = [(name, AutoTokenizer.from_pretrained(path, subfolder=subfolder[name], **kwargs)) for name, path in pretrained_model_name_or_path]
         compose_tokenizer = cls(tokenizer_list)
         return compose_tokenizer
+
+    def __repr__(self):
+        return f'ComposeTokenizer(\n' + '\n'.join([f'  {name}: {repr(getattr(self, name))}' for name in self.tokenizer_names]) + ')'
+
+    @staticmethod
+    def tokenize_ex(tokenizer, *args, device='cpu', squeeze=False, **kwargs):
+        text_inputs = tokenizer(
+            *args,
+            max_length=tokenizer.model_max_length*getattr(tokenizer, 'N_repeats', 1),
+            **kwargs
+        )
+
+        def proc_tensor(v):
+            if v is None:
+                return None
+            elif squeeze:
+                return v.squeeze().to(device)
+            else:
+                return v.to(device)
+
+        for k, v in text_inputs.items():
+            if isinstance(v, torch.Tensor):
+                text_inputs[k] = proc_tensor(v)
+            elif isinstance(v, dict):
+                for name, vi in v.items():
+                    if isinstance(vi, torch.Tensor):
+                        v[name] = proc_tensor(vi)
+
+        return text_inputs

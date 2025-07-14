@@ -7,17 +7,18 @@ text_emb_ex.py
     :Created:     10/03/2023
     :Licence:     Apache-2.0
 """
+import os
+from pathlib import Path
 from typing import Tuple, Dict, Any
 
 import torch
-from torch import nn
-import os
-from rainbowneko import _share
-from einops import rearrange, repeat
 import torch.nn.functional as F
+from einops import rearrange, repeat
+from rainbowneko import _share
+from rainbowneko.models.plugin import SinglePluginBlock
+from torch import nn
 
 from ..utils.net_utils import load_emb
-from rainbowneko.models.plugin import SinglePluginBlock
 
 class EmbeddingPTHook(SinglePluginBlock):
     def __init__(self, token_embedding:nn.Embedding, N_word=75, N_repeats=3):
@@ -74,7 +75,7 @@ class EmbeddingPTHook(SinglePluginBlock):
         self.handle_pre.remove()
 
     @classmethod
-    def hook(cls, ex_words_emb, tokenizer, text_encoder, **kwargs):
+    def hook(cls, ex_words_emb:Dict[str, nn.Parameter], tokenizer, text_encoder, **kwargs):
         word_list = list(ex_words_emb.keys())
         tokenizer.add_tokens(word_list)
         token_ids = tokenizer(' '.join(word_list)).input_ids[1:-1]
@@ -87,9 +88,12 @@ class EmbeddingPTHook(SinglePluginBlock):
         return embedding_hook
 
     @classmethod
-    def hook_from_dir(cls, emb_dir, tokenizer, text_encoder, device='cuda:0', **kwargs):
-        ex_words_emb = {file[:-3]: nn.Parameter(load_emb(os.path.join(emb_dir, file)).to(device), requires_grad=False)
-                        for file in os.listdir(emb_dir) if file.endswith('.pt')}
+    def hook_from_dir(cls, emb_dir:str|Path, tokenizer, text_encoder, device='cuda', **kwargs):
+        if emb_dir is None:
+            ex_words_emb = {}
+        else:
+            emb_dir = Path(emb_dir)
+            ex_words_emb = {file.stem: nn.Parameter(load_emb(file).to(device), requires_grad=False) for file in emb_dir.glob('*.pt')}
         return cls.hook(ex_words_emb, tokenizer, text_encoder, **kwargs), ex_words_emb
 
 class EmbeddingPTInterpHook(SinglePluginBlock):

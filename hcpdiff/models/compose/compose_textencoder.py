@@ -13,24 +13,23 @@ from typing import Dict, Optional, Union, Tuple, List
 
 import torch
 from torch import nn
-from transformers import CLIPTextModel, PreTrainedModel, PretrainedConfig
+from transformers import CLIPTextModel, PreTrainedModel, PretrainedConfig, AutoModel
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 
 class ComposeTextEncoder(PreTrainedModel):
-    def __init__(self, model_list: List[Tuple[str, CLIPTextModel]], cat_dim=-1, with_hook=True):
-        super().__init__(PretrainedConfig(**{name:model.config for name, model in model_list}))
-        self.cat_dim = cat_dim
+    def __init__(self, models: Dict[str, PreTrainedModel], with_hook=True):
+        super().__init__(PretrainedConfig(**{name:model.config for name, model in models.items()}))
         self.with_hook = with_hook
 
         self.model_names = []
-        for name, model in model_list:
+        for name, model in models.items():
             setattr(self, name, model)
             self.model_names.append(name)
 
-    def get_input_embeddings(self) -> List[nn.Module]:
-        return [getattr(self, name).get_input_embeddings() for name in self.model_names]
+    def get_input_embeddings(self) -> Dict[str, nn.Module]:
+        return {name: getattr(self, name).get_input_embeddings() for name in self.model_names}
 
-    def set_input_embeddings(self, value_dict: Dict[str, int]):
+    def set_input_embeddings(self, value_dict: Dict[str, torch.Tensor]):
         for name, value in value_dict.items():
             getattr(self, name).set_input_embeddings(value)
 
@@ -60,7 +59,7 @@ class ComposeTextEncoder(PreTrainedModel):
         >>> tokenizer_B = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
         >>> tokenizer_bigG = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k")
 
-        >>> clip_model = MultiTextEncoder([('clip_B', clip_B), ('clip_bigG', clip_bigG)])
+        >>> clip_model = ComposeTextEncoder({'clip_B': clip_B, 'clip_bigG': clip_bigG})
 
         >>> inputs = {
         >>>     'clip_B':tokenizer_B(["a photo of a cat", "a photo of a dog"], padding=True, return_tensors="pt").input_ids
@@ -72,28 +71,42 @@ class ComposeTextEncoder(PreTrainedModel):
         >>> pooled_output = outputs.pooler_output  # pooled (EOS token) states
         ```"""
 
-        input_ids_list = input_ids.chunk(len(self.model_names),dim=-1)
+        def get_data(name, data):
+            if data is None:
+                return None
+            elif isinstance(data, dict):
+                return data[name]
+            else:
+                return data
 
         if self.with_hook:
-            encoder_hidden_states_list, pooled_output_list = [], []
-            for name, input_ids in zip(self.model_names, input_ids_list):
-                encoder_hidden_states, pooled_output = getattr(self, name)(
-                    input_ids,  # get token for model self.{name}
-                    attention_mask=attention_mask,
-                    position_ids=position_ids,
-                    output_attentions=output_attentions,
-                    output_hidden_states=output_hidden_states,
-                    return_dict=True,
-                )
-                encoder_hidden_states_list.append(encoder_hidden_states)
-                pooled_output_list.append(pooled_output)
-            encoder_hidden_states = torch.cat(encoder_hidden_states_list, dim=self.cat_dim)
-            return encoder_hidden_states, pooled_output_list
+            encoder_hidden_states_dict, pooled_output_dict = {}, {}
+            for name in self.model_names:
+                if position_ids_i := get_data(name, position_ids) is None:
+                    encoder_hidden_states, pooled_output = getattr(self, name)(
+                        get_data(name, input_ids),  # get token for model self.{name}
+                        attention_mask=get_data(name, attention_mask),
+                        output_attentions=get_data(name, output_attentions),
+                        output_hidden_states=get_data(name, output_hidden_states),
+                        return_dict=True,
+                    )
+                else:
+                    encoder_hidden_states, pooled_output = getattr(self, name)(
+                        get_data(name, input_ids),  # get token for model self.{name}
+                        attention_mask=get_data(name, attention_mask),
+                        position_ids=position_ids_i,
+                        output_attentions=get_data(name, output_attentions),
+                        output_hidden_states=get_data(name, output_hidden_states),
+                        return_dict=True,
+                    )
+                encoder_hidden_states_dict[name] = encoder_hidden_states
+                pooled_output_dict[name] = pooled_output
+            return encoder_hidden_states_dict, pooled_output_dict
         else:
             return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-            text_feat_list = {'last_hidden_state':[], 'pooler_output':[], 'hidden_states':[], 'attentions':[]}
-            for name, input_ids in zip(self.model_names, input_ids_list):
+            text_feat_list = {'last_hidden_state':{}, 'pooler_output':{}, 'hidden_states':{}, 'attentions':{}}
+            for name in self.model_names:
                 text_feat: BaseModelOutputWithPooling = getattr(self, name)(
                     input_ids,  # get token for model self.{name}
                     attention_mask=attention_mask,
@@ -102,31 +115,31 @@ class ComposeTextEncoder(PreTrainedModel):
                     output_hidden_states=output_hidden_states,
                     return_dict=True,
                 )
-                text_feat_list['last_hidden_state'].append(text_feat.last_hidden_state)
-                text_feat_list['pooler_output'].append(text_feat.pooler_output)
-                text_feat_list['hidden_states'].append(text_feat.hidden_states)
-                text_feat_list['attentions'].append(text_feat.attentions)
+                text_feat_list['last_hidden_state'][name] = text_feat.last_hidden_state
+                text_feat_list['pooler_output'][name] = text_feat.pooler_output
+                text_feat_list['hidden_states'][name] = text_feat.hidden_states
+                text_feat_list['attentions'][name] = text_feat.attentions
 
-            last_hidden_state = torch.cat(text_feat_list['last_hidden_state'], dim=self.cat_dim)
-            # pooler_output = torch.cat(text_feat_list['pooler_output'], dim=self.cat_dim)
-            pooler_output = text_feat_list['pooler_output']
-            if text_feat_list['hidden_states'][0] is None:
-                hidden_states = None
-            else:
-                hidden_states = [torch.cat(states, dim=self.cat_dim) for states in zip(*text_feat_list['hidden_states'])]
+            # last_hidden_state = torch.cat(text_feat_list['last_hidden_state'], dim=self.cat_dim)
+            # # pooler_output = torch.cat(text_feat_list['pooler_output'], dim=self.cat_dim)
+            # pooler_output = text_feat_list['pooler_output']
+            # if text_feat_list['hidden_states'][0] is None:
+            #     hidden_states = None
+            # else:
+            #     hidden_states = [torch.cat(states, dim=self.cat_dim) for states in zip(*text_feat_list['hidden_states'])]
 
             if return_dict:
                 return BaseModelOutputWithPooling(
-                    last_hidden_state=last_hidden_state,
-                    pooler_output=pooler_output,
-                    hidden_states=hidden_states,
+                    last_hidden_state=text_feat_list['last_hidden_state'],
+                    pooler_output=text_feat_list['pooler_output'],
+                    hidden_states=text_feat_list['hidden_states'],
                     attentions=text_feat_list['attentions'],
                 )
             else:
-                return (last_hidden_state, pooler_output)+hidden_states
+                return text_feat_list['last_hidden_state'], text_feat_list['pooler_output'], text_feat_list['hidden_states']
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: List[Tuple[str, str]], *args,
+    def from_pretrained(cls, pretrained_model_name_or_path: Dict[str, str], *args,
                         subfolder: Dict[str, str] = None, revision: str = None, **kwargs):
         r"""
             Examples: sdxl text encoder
@@ -138,6 +151,6 @@ class ComposeTextEncoder(PreTrainedModel):
             >>>     ], subfolder={'clip_B':'text_encoder', 'clip_bigG':'text_encoder_2'})
             ```
         """
-        clip_list = [(name, CLIPTextModel.from_pretrained(path, subfolder=subfolder[name], **kwargs)) for name, path in pretrained_model_name_or_path]
-        compose_model = cls(clip_list)
+        models = {name: AutoModel.from_pretrained(path, subfolder=subfolder[name], **kwargs) for name, path in pretrained_model_name_or_path.items()}
+        compose_model = cls(models)
         return compose_model

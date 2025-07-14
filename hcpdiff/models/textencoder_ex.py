@@ -52,46 +52,16 @@ class TEEXHook:
             self.final_layer_norm = None
 
     @property
+    def N_repeats(self):
+        return self.tokenizer.N_repeats
+
+    @N_repeats.setter
+    def N_repeats(self, value: int):
+        self.tokenizer.N_repeats = value
+
+    @property
     def device(self):
         return self.text_enc.device
-
-    def encode_prompt_to_emb(self, prompt):
-        text_inputs = self.tokenizer(
-            prompt,
-            padding="max_length",
-            max_length=self.tokenizer.model_max_length*self.N_repeats,
-            truncation=True,
-            return_tensors="pt",
-        )
-        text_input_ids = text_inputs.input_ids
-        if self.use_attention_mask:
-            attention_mask = text_inputs.get('attention_mask', None)
-        else:
-            attention_mask = None
-        if attention_mask is not None:
-            attention_mask = attention_mask.to(self.device)
-        position_ids = text_inputs.get('position_ids', None)
-        if position_ids is not None:
-            position_ids = position_ids.to(self.device)
-
-        # align with sd-webui
-        if isinstance(self.text_enc, CLIPTextModelWithProjection):
-            self.text_enc.text_projection.weight.data = self.text_enc.text_projection.weight.data.t()
-
-        if isinstance(self.text_enc, T5EncoderModel):
-            prompt_embeds, pooled_output = self.text_enc(
-                text_input_ids.to(self.device),
-                attention_mask=attention_mask,
-                output_hidden_states=True,
-            )
-        else:
-            prompt_embeds, pooled_output = self.text_enc(
-                text_input_ids.to(self.device),
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                output_hidden_states=True,
-            )
-        return prompt_embeds, pooled_output, attention_mask
 
     def forward_hook_input(self, host, feat_in):
         feat_re = rearrange(feat_in[0], 'b (r w) -> (b r) w', r=self.N_repeats)  # 使Attention mask的尺寸为N_word+2

@@ -87,6 +87,12 @@ class SD15Wrapper(BaseWrapper):
         model_pred = self.denoiser(x_t, timesteps, encoder_hidden_states, encoder_attention_mask=attn_mask).sample  # Predict the noise residual
         return model_pred
 
+    def pn_cat(self, neg, pos, dim=0):
+        if isinstance(pos, dict): # ComposeTextEncoder
+            return {name:torch.cat([neg[name], pos_i], dim=dim) for name, pos_i in pos.items()}
+        else:
+            return torch.cat([neg, pos], dim=dim)
+
     def model_forward(self, prompt_ids, image, attn_mask=None, position_ids=None, neg_prompt_ids=None, neg_attn_mask=None, neg_position_ids=None,
                       plugin_input={}, **kwargs):
         # input prepare
@@ -96,11 +102,11 @@ class SD15Wrapper(BaseWrapper):
         t_in = self.noise_sampler.sigma_scheduler.c_noise(timesteps)
 
         if neg_prompt_ids:
-            prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)
+            prompt_ids = self.pn_cat(neg_prompt_ids, prompt_ids)
             if neg_attn_mask:
-                attn_mask = torch.cat([neg_attn_mask, attn_mask], dim=0)
+                attn_mask = self.pn_cat(neg_attn_mask, attn_mask)
             if neg_position_ids:
-                position_ids = torch.cat([neg_position_ids, position_ids], dim=0)
+                position_ids = self.pn_cat(neg_position_ids, position_ids)
 
         # model forward
         x_t_in, t_in = self.cfg_context.pre(x_t_in, t_in)
@@ -198,17 +204,17 @@ class SDXLWrapper(SD15Wrapper):
         t_in = self.noise_sampler.sigma_scheduler.c_noise(timesteps)
 
         if neg_prompt_ids:
-            prompt_ids = torch.cat([neg_prompt_ids, prompt_ids], dim=0)
+            prompt_ids = self.pn_cat(neg_prompt_ids, prompt_ids)
             if neg_attn_mask:
-                attn_mask = torch.cat([neg_attn_mask, attn_mask], dim=0)
+                attn_mask = self.pn_cat(neg_attn_mask, attn_mask)
             if neg_position_ids:
-                position_ids = torch.cat([neg_position_ids, position_ids], dim=0)
+                position_ids = self.pn_cat(neg_position_ids, position_ids)
 
         # model forward
         x_t_in, t_in = self.cfg_context.pre(x_t_in, t_in)
         encoder_hidden_states, pooled_output = self.forward_TE(prompt_ids, t_in, attn_mask=attn_mask, position_ids=position_ids,
                                                                plugin_input=plugin_input)
-        added_cond_kwargs = {"text_embeds":pooled_output[-1], "time_ids":crop_info}
+        added_cond_kwargs = {"text_embeds":pooled_output, "time_ids":crop_info}
         model_pred = self.forward_denoiser(x_t_in, prompt_ids, encoder_hidden_states, t_in, added_cond_kwargs=added_cond_kwargs,
                                            attn_mask=attn_mask, position_ids=position_ids, plugin_input=plugin_input)
         model_pred = self.cfg_context.post(model_pred)

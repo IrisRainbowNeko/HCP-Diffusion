@@ -1,10 +1,12 @@
 import random
-from typing import Dict, Union, List
+from string import Formatter
+from typing import Dict, Union
 
 import numpy as np
-from string import Formatter
-from rainbowneko.data import DataHandler
 from rainbowneko._share import register_model_callback
+from rainbowneko.data import DataHandler
+
+from hcpdiff.models.compose import ComposeTokenizer
 
 class TagShuffleHandler(DataHandler):
     def __init__(self, key_map_in=('prompt -> prompt',), key_map_out=('prompt -> prompt',)):
@@ -58,7 +60,6 @@ class TagEraseHandler(DataHandler):
     def __repr__(self):
         return f'TagEraseHandler(p={self.p})'
 
-
 class TemplateFillHandler(DataHandler):
     def __init__(self, word_names: Dict[str, str], key_map_in=('prompt -> prompt',), key_map_out=('prompt -> prompt',)):
         super().__init__(key_map_in, key_map_out)
@@ -68,7 +69,7 @@ class TemplateFillHandler(DataHandler):
         template, caption = prompt['template'], prompt['caption']
 
         keys_need = {i[1] for i in Formatter().parse(template) if i[1] is not None}
-        fill_dict = {k: v for k, v in self.word_names.items() if k in keys_need}
+        fill_dict = {k:v for k, v in self.word_names.items() if k in keys_need}
 
         if (caption is not None) and ('caption' in keys_need):
             fill_dict.update(caption=fill_dict.get('caption', None) or caption)
@@ -96,15 +97,15 @@ class TokenizeHandler(DataHandler):
         self.tokenizer = model_wrapper.tokenizer
 
     def handle(self, prompt):
-        token_info = self.tokenizer(prompt, truncation=True, padding="max_length", return_tensors="pt",
-                                max_length=self.tokenizer.model_max_length*self.tokenizer.N_repeats)
-        tokens = token_info.input_ids.squeeze()
-        data = {'prompt':tokens}
-        if self.encoder_attention_mask and 'attention_mask' in token_info:
-            data['attn_mask'] = token_info.attention_mask.squeeze()
+        # Tokenizer: {'input_ids':Tensor, 'attention_mask':Tensor, 'position_ids':Tensor, ...}
+        # ComposeTokenizer: {'input_ids':{'model1':Tensor, 'model2':Tensor}, ...}
+        token_info = ComposeTokenizer.tokenize_ex(self.tokenizer, prompt, truncation=True, padding="max_length",
+                                                  return_tensors="pt", squeeze=True)
+        data = {'prompt':token_info.input_ids}
+        if 'attention_mask' in data:
+            data['attn_mask'] = data['attention_mask']
         if 'position_ids' in token_info:
-            data['position_ids'] = token_info.position_ids.squeeze()
-
+            data['position_ids'] = token_info['position_ids']
         return data
 
     def __repr__(self):

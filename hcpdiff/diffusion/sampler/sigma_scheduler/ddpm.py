@@ -201,7 +201,7 @@ class DDPMContinuousSigmaScheduler(SigmaScheduler):
         B = 1-beta_s
         B_At = B-A*t
 
-        # 避免数值不稳定
+        # eps for stable
         eps = 1e-12
         B = torch.clamp(B, min=eps)
         B_At = torch.clamp(B_At, min=eps)
