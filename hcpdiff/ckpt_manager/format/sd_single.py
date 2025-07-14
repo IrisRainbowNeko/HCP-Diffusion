@@ -35,7 +35,7 @@ class OfficialSDXLFormat(CkptFormat):
         )
 
         noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
-        TE = SDXLTextEncoder([('clip_L', pipe.text_encoder), ('clip_bigG', pipe.text_encoder_2)])
-        tokenizer = SDXLTokenizer([('clip_L', pipe.tokenizer), ('clip_bigG', pipe.tokenizer_2)])
+        TE = SDXLTextEncoder({'clip_L': pipe.text_encoder, 'clip_bigG': pipe.text_encoder_2})
+        tokenizer = SDXLTokenizer({'clip_L': pipe.tokenizer, 'clip_bigG': pipe.tokenizer_2})
 
         return dict(denoiser=pipe.unet, TE=TE, vae=pipe.vae, noise_sampler=noise_sampler, tokenizer=tokenizer)

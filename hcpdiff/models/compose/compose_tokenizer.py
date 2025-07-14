@@ -14,6 +14,7 @@ from typing import Dict, Tuple, List
 import torch
 from transformers import AutoTokenizer, CLIPTokenizer, PreTrainedTokenizer, PretrainedConfig
 from transformers.tokenization_utils_base import BatchEncoding
+from rainbowneko.utils import BatchableDict
 
 class ComposeTokenizer(PreTrainedTokenizer):
     def __init__(self, tokenizers: Dict[str, CLIPTokenizer]):
@@ -64,9 +65,9 @@ class ComposeTokenizer(PreTrainedTokenizer):
             token_infos: Dict[str, BatchEncoding] = {name: getattr(self, name)(text, *args, max_length=max_length, **kwargs)
                 for name in self.tokenizer_names}
 
-        input_ids = {name: token.input_ids for name, token in token_infos.items()}  # [N_tokenizer, N_token]
-        attention_mask = {name: token.get('attention_mask', None) for name, token in token_infos.items()}
-        position_ids = {name: token.get('position_ids', None) for name, token in token_infos.items()}
+        input_ids = BatchableDict({name: token.input_ids for name, token in token_infos.items()})  # [N_tokenizer, N_token]
+        attention_mask = BatchableDict({name: token.get('attention_mask', None) for name, token in token_infos.items()})
+        position_ids = BatchableDict({name: token.get('position_ids', None) for name, token in token_infos.items()})
         return BatchEncoding({'input_ids':input_ids, 'attention_mask':attention_mask, 'position_ids':position_ids})
 
     @classmethod
@@ -81,9 +82,14 @@ class ComposeTokenizer(PreTrainedTokenizer):
 
     @staticmethod
     def tokenize_ex(tokenizer, *args, device='cpu', squeeze=False, **kwargs):
+        if isinstance(tokenizer, ComposeTokenizer):
+            max_length = {name: (tok := getattr(tokenizer, name)).model_max_length * getattr(tok, 'N_repeats', 1) for name in tokenizer.tokenizer_names}
+        else:
+            max_length = tokenizer.model_max_length * getattr(tokenizer, 'N_repeats', 1)
+
         text_inputs = tokenizer(
             *args,
-            max_length=tokenizer.model_max_length*getattr(tokenizer, 'N_repeats', 1),
+            max_length=max_length,
             **kwargs
         )
 
@@ -96,11 +102,11 @@ class ComposeTokenizer(PreTrainedTokenizer):
                 return v.to(device)
 
         for k, v in text_inputs.items():
-            if isinstance(v, torch.Tensor):
+            if torch.is_tensor(v):
                 text_inputs[k] = proc_tensor(v)
-            elif isinstance(v, dict):
+            elif isinstance(v, (dict, BatchableDict)):
                 for name, vi in v.items():
-                    if isinstance(vi, torch.Tensor):
+                    if torch.is_tensor(vi):
                         v[name] = proc_tensor(vi)
 
         return text_inputs
