@@ -15,6 +15,7 @@ import torch
 from torch import nn
 from transformers import CLIPTextModel, PreTrainedModel, PretrainedConfig, AutoModel
 from transformers.modeling_outputs import BaseModelOutputWithPooling
+from rainbowneko.utils import BatchableDict
 
 class ComposeTextEncoder(PreTrainedModel):
     def __init__(self, models: Dict[str, PreTrainedModel], with_hook=True):
@@ -74,7 +75,7 @@ class ComposeTextEncoder(PreTrainedModel):
         def get_data(name, data):
             if data is None:
                 return None
-            elif isinstance(data, dict):
+            elif isinstance(data, (dict, BatchableDict)):
                 return data[name]
             else:
                 return data

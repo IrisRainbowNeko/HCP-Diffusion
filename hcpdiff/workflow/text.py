@@ -56,7 +56,9 @@ class TextEncodeAction(BasicAction):
         else:
             attention_mask = None
         token_info['attention_mask'] = attention_mask
+        input_ids = token_info.pop('input_ids') # for TEEXHook
         prompt_embeds, pooled_output = TE(
+            input_ids,
             **token_info,
             output_hidden_states=True,
         )

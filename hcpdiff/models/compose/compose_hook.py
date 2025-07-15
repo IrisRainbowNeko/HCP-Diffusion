@@ -39,7 +39,7 @@ class ComposeEmbPTHook(nn.Module):
     @classmethod
     def hook(cls, ex_words_emb: Dict[str, nn.ParameterDict], tokenizer, text_encoder, **kwargs):
         if isinstance(text_encoder, ComposeTextEncoder):
-            hook_list = []
+            hooks = {}
 
             emb_len = 0
             for name in tokenizer.tokenizer_names:
@@ -48,9 +48,9 @@ class ComposeEmbPTHook(nn.Module):
                 embedding_dim = text_encoder_i.get_input_embeddings().embedding_dim
                 ex_words_emb_i = {k:v[name] for k, v in ex_words_emb.items()}  # {word_name:Parameter, ...}
                 emb_len += embedding_dim
-                hook_list.append((name, EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, **kwargs)))
+                hooks[name] = EmbeddingPTHook.hook(ex_words_emb_i, tokenizer_i, text_encoder_i, **kwargs)
 
-            return cls(hook_list)
+            return cls(hooks)
         else:
             return EmbeddingPTHook.hook(ex_words_emb, tokenizer, text_encoder, **kwargs)
 

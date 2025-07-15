@@ -136,7 +136,7 @@ class MakeLatentAction(BasicAction):
             else:
                 crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
             crop_info = crop_info.to(device).repeat(bs, 1)
-            output['text_embeds'] = pooled_output[-1].to(device)
+            output['text_embeds'] = pooled_output.to(device)
 
             if 'negative_prompt' in states:
                 output['crop_info'] = torch.cat([crop_info, crop_info], dim=0)
