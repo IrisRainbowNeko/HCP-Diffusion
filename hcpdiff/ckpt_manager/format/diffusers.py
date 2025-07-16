@@ -1,10 +1,10 @@
 import torch
-from diffusers import ModelMixin, AutoencoderKL, UNet2DConditionModel, PixArtTransformer2DModel
+from diffusers import ModelMixin, AutoencoderKL, UNet2DConditionModel, PixArtTransformer2DModel, FluxTransformer2DModel
 from rainbowneko.ckpt_manager.format import CkptFormat
 from transformers import CLIPTextModel, AutoTokenizer, T5EncoderModel
 
-from hcpdiff.diffusion.sampler import VPSampler, DDPMDiscreteSigmaScheduler
-from hcpdiff.models.compose import SDXLTokenizer, SDXLTextEncoder
+from hcpdiff.diffusion.sampler import VPSampler, DDPMDiscreteSigmaScheduler, FlowSigmaScheduler, Sampler, FluxShiftTimeSampler
+from hcpdiff.models.compose import SDXLTokenizer, SDXLTextEncoder, FluxTokenizer, FluxTextEncoder
 
 class DiffusersModelFormat(CkptFormat):
     def __init__(self, builder: ModelMixin):
@@ -55,5 +55,19 @@ class DiffusersPixArtFormat(CkptFormat):
 
         TE = TE or T5EncoderModel.from_pretrained(pretrained_model, subfolder="text_encoder", revision=revision, torch_dtype=dtype)
         tokenizer = tokenizer or AutoTokenizer.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)
+
+        return dict(denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer)
+
+class DiffusersFluxFormat(CkptFormat):
+    def load_ckpt(self, pretrained_model: str, map_location="cpu", denoiser=None, TE=None, vae: AutoencoderKL = None, noise_sampler=None,
+                  tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
+        denoiser = denoiser or FluxTransformer2DModel.from_pretrained(
+            pretrained_model, subfolder="transformer", revision=revision, torch_dtype=dtype
+        )
+        vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision, torch_dtype=dtype)
+        noise_sampler = noise_sampler or Sampler(FlowSigmaScheduler(), t_sampler=FluxShiftTimeSampler())
+
+        TE = TE or FluxTextEncoder.from_pretrained(pretrained_model, subfolder="text_encoder", revision=revision, torch_dtype=dtype)
+        tokenizer = tokenizer or FluxTokenizer.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)
 
         return dict(denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer)

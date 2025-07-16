@@ -73,7 +73,11 @@ class VaeCache(DataCache):
                     for data in tqdm(loader):
                         image = data['image'].to(device=_share.device, dtype=vae.dtype)
                         latents = model.vae.encode(image).latent_dist.sample()
-                        latents = (latents*vae.config.scaling_factor).cpu()
+                        if hasattr(vae.config, 'shift_factor'):
+                            latents = (latents-vae.config.shift_factor)*vae.config.scaling_factor
+                        else:
+                            latents = latents*vae.config.scaling_factor
+                        latents = latents.cpu()
 
                         for img_id, latent, coord in zip(data['id'], latents, data['coord']):
                             data_cache = {'latent': latent, 'coord': coord}
@@ -89,7 +93,11 @@ class VaeCache(DataCache):
                     img_id = data['id']
                     image = data['image'].to(device=_share.device, dtype=vae.dtype)
                     latents = model.vae.encode(image).latent_dist.sample()
-                    latents = (latents*vae.config.scaling_factor).cpu()
+                    if hasattr(vae.config, 'shift_factor'):
+                        latents = (latents-vae.config.shift_factor)*vae.config.scaling_factor
+                    else:
+                        latents = latents*vae.config.scaling_factor
+                    latents = latents.cpu()
                     for img_id, latent, coord in zip(data['id'], latents, data['coord']):
                         self.cache[img_id] = {'latent': latent, 'coord': coord}
 

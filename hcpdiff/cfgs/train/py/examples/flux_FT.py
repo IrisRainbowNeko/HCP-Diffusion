@@ -1,0 +1,67 @@
+from bitsandbytes.optim import AdamW8bit
+from rainbowneko.data import RatioBucket
+from rainbowneko.parser import CfgWDModelParser, neko_cfg
+from rainbowneko.utils import ConstantLR
+
+from cfgs.train.py.examples import SD_FT
+from hcpdiff.data import TextImagePairDataset, Text2ImageSource, StableDiffusionHandler
+from hcpdiff.data import VaeCache
+from hcpdiff.easy import Flux_auto_loader
+from hcpdiff.models import FluxWrapper
+
+@neko_cfg
+def make_cfg():
+    return dict(
+        _base_=[SD_FT],
+        mixed_precision='fp16',
+
+        model_part=CfgWDModelParser([
+            dict(
+                lr=1e-5,
+                layers=['denoiser'],  # train UNet
+            )
+        ], weight_decay=1e-2),
+
+        train=dict(
+            train_steps=1000,
+            save_step=200,
+
+            optimizer=AdamW8bit(_partial_=True),
+
+            lr_scheduler=ConstantLR(
+                _partial_=True,
+                warmup_steps=100,
+            ),
+        ),
+
+        model=dict(
+            name='model',
+
+            wrapper=FluxWrapper.from_pretrained(
+                models=Flux_auto_loader(ckpt_path='black-forest-labs/FLUX.1-dev', _partial_=True),
+                _partial_=True,
+            ),
+        ),
+
+        data_train=cfg_data(),
+    )
+
+@neko_cfg
+def cfg_data():
+    return dict(
+        dataset1=TextImagePairDataset(_partial_=True, batch_size=4, loss_weight=1.0,
+            source=dict(
+                data_source1=Text2ImageSource(
+                    img_root= 'imgs/',
+                    label_file= '${.img_root}',  # path to image captions (file_words)
+                    prompt_template='prompt_template/caption.txt',
+                ),
+            ),
+            handler=StableDiffusionHandler(bucket=RatioBucket),
+            bucket=RatioBucket.from_files(
+                target_area=1024*1024,
+                num_bucket=6,
+            ),
+            cache=VaeCache(bs=1)
+        )
+    )

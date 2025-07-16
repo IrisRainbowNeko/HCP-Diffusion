@@ -1,10 +1,12 @@
 import torch
-from hcpdiff.ckpt_manager import DiffusersSD15Format, DiffusersSDXLFormat, DiffusersPixArtFormat, OfficialSD15Format, OfficialSDXLFormat
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, FluxPipeline
 from rainbowneko.ckpt_manager import NekoLoader, LocalCkptSource
-from hcpdiff.utils import auto_tokenizer_cls, auto_text_encoder_cls, get_pipe_name
-from hcpdiff.models.wrapper import SDXLWrapper, SD15Wrapper, PixArtWrapper
-from hcpdiff.models.compose import SDXLTextEncoder
-from diffusers import  StableDiffusionPipeline, StableDiffusionXLPipeline
+
+from hcpdiff.ckpt_manager import DiffusersSD15Format, DiffusersSDXLFormat, DiffusersPixArtFormat, OfficialSD15Format, OfficialSDXLFormat, \
+    DiffusersFluxFormat, OneFileFluxFormat
+from hcpdiff.models.compose import SDXLTextEncoder, FluxTextEncoder
+from hcpdiff.models.wrapper import SDXLWrapper, SD15Wrapper, PixArtWrapper, FluxWrapper
+from hcpdiff.utils import auto_text_encoder_cls, get_pipe_name
 
 def SD15_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=None,
                      tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
@@ -20,7 +22,7 @@ def SD15_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=
             source=LocalCkptSource(),
         )
     models = loader.load(ckpt_path, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
-                          dtype=dtype, **kwargs)
+                         dtype=dtype, **kwargs)
     return models
 
 def SDXL_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=None,
@@ -37,17 +39,34 @@ def SDXL_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=
             source=LocalCkptSource(),
         )
     models = loader.load(ckpt_path, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
-                          dtype=dtype, **kwargs)
+                         dtype=dtype, **kwargs)
     return models
 
 def PixArt_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=None,
-                     tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
+                       tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
     loader = NekoLoader(
         format=DiffusersPixArtFormat(),
         source=LocalCkptSource(),
     )
     models = loader.load(ckpt_path, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
-                          dtype=dtype, **kwargs)
+                         dtype=dtype, **kwargs)
+    return models
+
+def Flux_auto_loader(ckpt_path, denoiser=None, TE=None, vae=None, noise_sampler=None,
+                     tokenizer=None, revision=None, dtype=torch.float32, **kwargs):
+    try:
+        try_diffusers = FluxPipeline.load_config(ckpt_path)
+        loader = NekoLoader(
+            format=DiffusersFluxFormat(),
+            source=LocalCkptSource(),
+        )
+    except EnvironmentError:
+        loader = NekoLoader(
+            format=OneFileFluxFormat(),
+            source=LocalCkptSource(),
+        )
+    models = loader.load(ckpt_path, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
+                         dtype=dtype, **kwargs)
     return models
 
 def auto_load_wrapper(pretrained_model, denoiser=None, TE=None, vae=None, noise_sampler=None, tokenizer=None, revision=None,
@@ -62,6 +81,9 @@ def auto_load_wrapper(pretrained_model, denoiser=None, TE=None, vae=None, noise_
     if text_encoder_cls == SDXLTextEncoder:
         wrapper_cls = SDXLWrapper
         format = DiffusersSDXLFormat()
+    elif text_encoder_cls == FluxTextEncoder:
+        wrapper_cls = FluxWrapper
+        format = DiffusersFluxFormat()
     elif 'PixArt' in pipe_name:
         wrapper_cls = PixArtWrapper
         format = DiffusersPixArtFormat()
@@ -74,6 +96,6 @@ def auto_load_wrapper(pretrained_model, denoiser=None, TE=None, vae=None, noise_
         source=LocalCkptSource(),
     )
     models = loader.load(pretrained_model, denoiser=denoiser, TE=TE, vae=vae, noise_sampler=noise_sampler, tokenizer=tokenizer, revision=revision,
-                          dtype=dtype)
+                         dtype=dtype)
 
     return wrapper_cls.build_from_pretrained(models, **kwargs)

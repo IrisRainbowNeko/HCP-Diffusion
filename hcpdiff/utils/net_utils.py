@@ -1,15 +1,16 @@
+import json
 import os
 from copy import deepcopy
+from functools import partial
 from typing import Optional, Union
 
 import torch
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
+from huggingface_hub import hf_hub_download
 from torch import nn
 from torch.optim import lr_scheduler
 from transformers import PretrainedConfig, AutoTokenizer, T5EncoderModel, CLIPTextModel
-from functools import partial
-from huggingface_hub import hf_hub_download
-import json
+from transformers.models.auto.tokenization_auto import get_tokenizer_config
 
 dtype_dict = {'fp32':torch.float32, 'amp':torch.float32, 'fp16':torch.float16, 'bf16':torch.bfloat16}
 
@@ -91,19 +92,24 @@ def get_scheduler_with_name(
     return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
 
 def auto_tokenizer_cls(pretrained_model_name_or_path: str, revision: str = None):
-    from hcpdiff.models.compose import SDXLTokenizer
+    from hcpdiff.models.compose import SDXLTokenizer, FluxTokenizer
     try:
-        tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name_or_path, subfolder="tokenizer_2",
-            revision=revision, use_fast=False,
+        tokenizer_config = get_tokenizer_config(
+            pretrained_model_name_or_path,
+            subfolder="tokenizer_2",
+            revision=revision
         )
-        return SDXLTokenizer
+        class_name = tokenizer_config.get("tokenizer_class")
+        if class_name == 'T5Tokenizer' or class_name == 'T5TokenizerFast':
+            return FluxTokenizer
+        else:
+            return SDXLTokenizer
     except:
-        # not sdxl, only one tokenizer
+        # not composed, only one tokenizer
         return AutoTokenizer
 
 def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = None):
-    from hcpdiff.models.compose import SDXLTextEncoder
+    from hcpdiff.models.compose import SDXLTextEncoder, FluxTextEncoder
     try:
         text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
@@ -112,7 +118,11 @@ def auto_text_encoder_cls(pretrained_model_name_or_path: str, revision: str = No
         )
         if text_encoder_config.architectures is None:
             raise ValueError()
-        return SDXLTextEncoder
+        model_class = text_encoder_config.architectures[0]
+        if model_class == "T5EncoderModel":
+            return FluxTextEncoder
+        else:
+            return SDXLTextEncoder
     except:
         text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
