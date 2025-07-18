@@ -2,8 +2,9 @@ import math
 from typing import Union, Tuple, Callable
 
 import torch
-
 from hcpdiff.utils import invert_func
+from rainbowneko.utils import add_dims
+
 from .base import SigmaScheduler
 
 class DDPMDiscreteSigmaScheduler(SigmaScheduler):
@@ -93,15 +94,15 @@ class DDPMDiscreteSigmaScheduler(SigmaScheduler):
 
     def get_post_mean(self, t, x_0, x_t):
         t = (t*len(self.sigmas)).long()
-        return self.posterior_mean_coef1[t].view(-1, 1, 1, 1).to(t.device)*x_0+self.posterior_mean_coef2[t].view(-1, 1, 1, 1).to(t.device)*x_t
+        return add_dims(self.posterior_mean_coef1[t].to(t.device), x_0.ndim-1)*x_0+add_dims(self.posterior_mean_coef2[t].to(t.device), x_t.ndim-1)*x_t
 
-    def get_post_log_var(self, t, x_t_var=None):
+    def get_post_log_var(self, t, ndim, x_t_var=None):
         t = (t*len(self.sigmas)).long()
-        min_log = self.posterior_log_variance_clipped[t].view(-1, 1, 1, 1).to(t.device)
+        min_log = add_dims(self.posterior_log_variance_clipped[t].to(t.device), ndim-1)
         if x_t_var is None:
             return min_log
         else:
-            max_log = self.betas.log()[t].view(-1, 1, 1, 1).to(t.device)
+            max_log = add_dims(self.betas.log()[t].to(t.device), ndim-1)
             # The model_var_values is [-1, 1] for [min_var, max_var].
             frac = (x_t_var+1)/2
             model_log_variance = frac*max_log+(1-frac)*min_log

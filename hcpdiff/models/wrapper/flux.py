@@ -1,9 +1,10 @@
 import torch
 from diffusers import FluxTransformer2DModel, AutoencoderKL
 from einops import repeat, rearrange
-
 from hcpdiff.diffusion.sampler import BaseSampler
 from hcpdiff.utils import pad_attn_bias
+from rainbowneko.utils import add_dims
+
 from .sd import SD15Wrapper
 from .utils import TEHookCFG, SDXL_TEHookCFG
 from ..cfg_context import CFGContext
@@ -54,7 +55,7 @@ class FluxWrapper(SD15Wrapper):
         B, C, H, W = x_0.shape
         x_0_patch = rearrange(x_0, "b c (h ph) (w pw) -> b (c ph pw) h w", ph=self.patch_size, pw=self.patch_size)
         x_t, noise, timesteps = self.noise_sampler.add_noise_rand_t(x_0_patch)
-        x_t_in = x_t*self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype).view(-1, 1, 1, 1)
+        x_t_in = x_t*add_dims(self.noise_sampler.sigma_scheduler.c_in(timesteps).to(dtype=x_t.dtype), x_t.ndim-1)
         t_in = self.noise_sampler.sigma_scheduler.c_noise(timesteps)
         x_t_in = rearrange(x_t_in, "b c h w -> b (h w) c")
 

@@ -25,10 +25,10 @@ class VLBLoss(nn.Module):
         x0_pred = sampler.eps_to_x0(eps_pred, x_t, sigma)
 
         true_mean = sampler.sigma_scheduler.get_post_mean(timesteps, target, x_t)
-        true_logvar = sampler.sigma_scheduler.get_post_log_var(timesteps)
+        true_logvar = sampler.sigma_scheduler.get_post_log_var(timesteps, ndim=input.ndim)
 
         pred_mean = sampler.sigma_scheduler.get_post_mean(timesteps, x0_pred, x_t)
-        pred_logvar = sampler.sigma_scheduler.get_post_log_var(timesteps, x_t_var=var_pred)
+        pred_logvar = sampler.sigma_scheduler.get_post_log_var(timesteps, ndim=input.ndim, x_t_var=var_pred)
 
         kl = self.normal_kl(true_mean, true_logvar, pred_mean, pred_logvar)
         kl = kl.mean(dim=(1,2,3))/np.log(2.0)

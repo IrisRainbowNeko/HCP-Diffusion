@@ -1,3 +1,4 @@
+from rainbowneko.utils import add_dims
 from torch import nn
 
 from .base import DiffusionLossContainer
@@ -42,7 +43,7 @@ class SNRWeight(LossWeight):
         else:
             raise ValueError(f"{self.__class__.__name__} is not support for target_type {target_type}")
 
-        return w_snr.view(-1, 1, 1, 1)
+        return add_dims(w_snr, pred['model_pred'].ndim-1)
 
 class MinSNRWeight(LossWeight):
     def __init__(self, loss: DiffusionLossContainer, gamma: float = 1.):
@@ -63,7 +64,7 @@ class MinSNRWeight(LossWeight):
         else:
             raise ValueError(f"{self.__class__.__name__} is not support for target_type {target_type}")
 
-        return w_snr.view(-1, 1, 1, 1)
+        return add_dims(w_snr, pred['model_pred'].ndim-1)
 
 class EDMWeight(LossWeight):
     def __init__(self, loss: DiffusionLossContainer, gamma: float = 1.):
@@ -81,4 +82,4 @@ class EDMWeight(LossWeight):
         else:
             raise ValueError(f"{self.__class__.__name__} is not support for target_type {target_type}")
 
-        return w_snr.view(-1, 1, 1, 1)
+        return add_dims(w_snr, pred['model_pred'].ndim-1)

@@ -1,7 +1,9 @@
-import torch
-from einops import repeat
 import math
 from typing import Union, Callable
+
+import torch
+from einops import repeat
+from rainbowneko.utils import add_dims
 
 class CFGContext:
     def pre(self, noisy_latents, timesteps):
@@ -35,7 +37,7 @@ class DreamArtistPTContext(CFGContext):
                 pass
             else:
                 rate = self.cfg_func(rate)
-            rate = rate.view(-1, 1, 1, 1)
+            rate = add_dims(rate, model_pred.ndim-1)
         else:
             rate = 1
         model_pred = e_t_uncond+((self.cfg_high-self.cfg_low)*rate+self.cfg_low)*(e_t-e_t_uncond)

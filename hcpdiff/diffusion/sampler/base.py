@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import torch
+from rainbowneko.utils import add_dims
 
 from .sigma_scheduler import SigmaScheduler
 from .timer import TimeSampler
@@ -43,8 +44,8 @@ class BaseSampler:
 
     def add_noise(self, x, t) -> Tuple[torch.Tensor, torch.Tensor]:
         noise = self.make_nosie(x.shape, device=x.device)
-        alpha = self.sigma_scheduler.alpha(t).view(-1, 1, 1, 1).to(x.device)
-        sigma = self.sigma_scheduler.sigma(t).view(-1, 1, 1, 1).to(x.device)
+        alpha = add_dims(self.sigma_scheduler.alpha(t), x.ndim-1).to(x.device)
+        sigma = add_dims(self.sigma_scheduler.sigma(t), x.ndim-1).to(x.device)
         noisy_x = alpha*x+sigma*noise
         return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
 
