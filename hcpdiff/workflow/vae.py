@@ -42,7 +42,7 @@ class EncodeAction(BasicAction):
                 init_latents = vae.encode(image).latent_dist.sample(generator)
 
             init_latents = init_latents.to(dtype=get_dtype(dtype))
-            if shift_factor := getattr(self.vae.config, 'shift_factor', None) is not None:
+            if shift_factor := getattr(vae.config, 'shift_factor', None) is not None:
                 init_latents = (init_latents-shift_factor)*vae.config.scaling_factor
             else:
                 init_latents = init_latents*vae.config.scaling_factor
@@ -67,7 +67,7 @@ class DecodeAction(BasicAction):
             torch.cuda.synchronize()
             to_cuda(vae)
         latents = latents.to(dtype=vae.dtype)
-        if shift_factor := getattr(self.vae.config, 'shift_factor', None) is not None:
+        if shift_factor := getattr(vae.config, 'shift_factor', None) is not None:
             latents = latents/vae.config.scaling_factor + shift_factor
         else:
             latents = latents/vae.config.scaling_factor
