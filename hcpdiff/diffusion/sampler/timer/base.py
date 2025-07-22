@@ -1,7 +1,7 @@
 import torch
 
 class TimeSampler:
-    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), H=0, W=0) -> torch.Tensor:
+    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), reso=0) -> torch.Tensor:
         if isinstance(min_t, float):
             min_t = torch.full(shape, min_t)
         if isinstance(max_t, float):
@@ -15,7 +15,7 @@ class LogitNormalSampler(TimeSampler):
         self.mean = mean
         self.std = std
 
-    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), H=0, W=0) -> torch.Tensor:
+    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), reso=0) -> torch.Tensor:
         if isinstance(min_t, float):
             min_t = torch.full(shape, min_t)
         if isinstance(max_t, float):

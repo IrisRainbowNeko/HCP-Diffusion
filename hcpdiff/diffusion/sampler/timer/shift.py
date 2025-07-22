@@ -9,9 +9,9 @@ class ShiftTimeSampler(TimeSampler):
         self.t_sampler = t_sampler
         self.base_reso = base_reso
 
-    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), H=0, W=0) -> torch.Tensor:
+    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), reso=0) -> torch.Tensor:
         t = self.t_sampler.sample(min_t, max_t, shape)
-        shift = math.sqrt(self.base_reso/(H*W))
+        shift = math.sqrt(self.base_reso/(reso))
         t = (t*shift)/(1+(shift-1)*t)
         return t
 
@@ -38,8 +38,8 @@ class FluxShiftTimeSampler(TimeSampler):
         b = y1-m*x1
         return m*xi+b
 
-    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), H=0, W=0) -> torch.Tensor:
-        mu = self.get_lin_function(H*W, x1=self.base_reso, y1=self.base_shift, x2=self.max_reso, y2=self.max_shift)
+    def sample(self, min_t=0.0, max_t=1.0, shape=(1,), reso=0) -> torch.Tensor:
+        mu = self.get_lin_function(reso, x1=self.base_reso, y1=self.base_shift, x2=self.max_reso, y2=self.max_shift)
         t = self.t_sampler.sample(min_t, max_t, shape)
         t = self.time_shift(mu, 1.0, t)
         return t
