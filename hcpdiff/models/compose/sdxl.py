@@ -16,7 +16,11 @@ class CLIPTextModelWithProjection_Align(CLIPTextModelWithProjection):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
-        text_outputs = super().forward(input_ids, attention_mask, position_ids, output_attentions, output_hidden_states, return_dict)
+        try: # old version of transformers
+            text_outputs = super().forward(input_ids, attention_mask, position_ids, output_attentions, output_hidden_states, return_dict)
+        except TypeError: # new version(like 4.53.1) of transformers removed 'return_dict'
+            text_outputs = super().forward(input_ids, attention_mask, position_ids, output_attentions, output_hidden_states)
+            
         return BaseModelOutputWithPooling(
             last_hidden_state=text_outputs.last_hidden_state,
             pooler_output=text_outputs.text_embeds,
