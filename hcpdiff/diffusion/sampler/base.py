@@ -49,15 +49,15 @@ class BaseSampler:
         noisy_x = alpha*x+sigma*noise
         return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
 
-    def add_noise_rand_t(self, x):
+    def add_noise_rand_t(self, x, reso=None):
         if x.ndim == 3:
             B,L,C = x.shape
-            size = L
+            reso = reso or L
         else:
             B,C,H,W = x.shape
-            size = H*W
+            reso = reso or H*W
         # timesteps: [0, 1]
-        timesteps = self.t_sampler.sample(shape=(B,), reso=size)
+        timesteps = self.t_sampler.sample(shape=(B,), reso=reso)
         timesteps = timesteps.to(x.device)
         noisy_x, noise = self.add_noise(x, timesteps)
 
