@@ -21,10 +21,4 @@ class DiffusionLossContainer(LossContainer):
         pred['model_pred'] = pred_cvt
         pred['target'] = target
         loss = super().forward(pred, inputs) # [B,*,*,*]
-
-        if 'loss_map' in inputs:
-            if loss.ndim == 4:
-                loss = loss * inputs['loss_map'].unsqueeze(1)
-            elif loss.ndim == 3:
-                loss = loss*inputs['loss_map'].unsqueeze(-1)
         return loss.mean()
