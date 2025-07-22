@@ -52,10 +52,10 @@ class BaseSampler:
     def add_noise_rand_t(self, x, reso=None):
         if x.ndim == 3:
             B,L,C = x.shape
-            reso = reso or L
+            reso = L if reso is None else reso
         else:
             B,C,H,W = x.shape
-            reso = reso or H*W
+            reso = H*W if reso is None else reso
         # timesteps: [0, 1]
         timesteps = self.t_sampler.sample(shape=(B,), reso=reso)
         timesteps = timesteps.to(x.device)
