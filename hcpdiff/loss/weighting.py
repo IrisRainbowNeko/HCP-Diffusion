@@ -1,8 +1,9 @@
 from rainbowneko.utils import add_dims
+from rainbowneko.train.loss import FullInputLoss
 from torch import nn
 from typing import Callable
 
-class LossWeight(nn.Module):
+class LossWeight(nn.Module, FullInputLoss):
     def __init__(self, loss: Callable):
         super().__init__()
         self.loss = loss
@@ -21,12 +22,12 @@ class LossWeight(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, pred, inputs):
+    def forward(self, pred, inputs, _full_pred, _full_inputs):
         '''
         weight: [B,1,1,1] or [B,C,H,W]
         loss: [B,*,*,*]
         '''
-        return self.get_weight(pred, inputs)*self.loss(pred, inputs)
+        return self.get_weight(_full_pred, _full_inputs)*self.loss(pred, inputs)
 
 class LossMapWeight(LossWeight):
     def __init__(self, loss: Callable, normalize: bool = False):
@@ -35,7 +36,7 @@ class LossMapWeight(LossWeight):
 
     def get_weight(self, pred, inputs):
         ndim = pred['model_pred'].ndim
-        loss_map = inputs['loss_map']
+        loss_map = inputs['loss_map'].float()
         if ndim == 4:
             if self.normalize:
                 loss_map /= loss_map.mean(dim=(1,2), keepdim=True)

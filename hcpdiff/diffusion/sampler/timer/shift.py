@@ -23,8 +23,12 @@ class FluxShiftTimeSampler(TimeSampler):
         self.base_reso = base_reso
         self.max_reso = max_reso
 
-    def time_shift(self, mu: float, sigma: float, t: Tensor):
-        return math.exp(mu)/(math.exp(mu)+(1/t-1)**sigma)
+    def time_shift(self, mu: float|Tensor, sigma: float, t: Tensor):
+        if torch.is_tensor(mu):
+            mu = mu.to(t.device)
+            return torch.exp(mu)/(torch.exp(mu)+(1/t-1)**sigma)
+        else:
+            return math.exp(mu)/(math.exp(mu)+(1/t-1)**sigma)
 
     def get_lin_function(self, xi, x1: float = 256, y1: float = 0.5, x2: float = 4096, y2: float = 1.15):
         '''
