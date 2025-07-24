@@ -2,6 +2,16 @@ from .sd import SD15Wrapper
 from hcpdiff.utils import pad_attn_bias
 
 class PixArtWrapper(SD15Wrapper):
+    def forward_TE(self, prompt_ids, timesteps, attn_mask=None, plugin_input={}, **kwargs):
+        # T5Encoder do not need position_ids (It use relative position embedding for key and query)
+        input_all = dict(prompt_ids=prompt_ids, timesteps=timesteps, attn_mask=attn_mask, **plugin_input)
+        if hasattr(self.TE, 'input_feeder'):
+            for feeder in self.TE.input_feeder:
+                feeder(input_all)
+        # Get the text embedding for conditioning
+        encoder_hidden_states = self.TE(prompt_ids, attention_mask=attn_mask, output_hidden_states=True)[0]
+        return encoder_hidden_states
+        
     def forward_denoiser(self, x_t, prompt_ids, encoder_hidden_states, timesteps, attn_mask=None, position_ids=None, resolution=None, aspect_ratio=None,
                      plugin_input={}, **kwargs):
         if attn_mask is not None:
