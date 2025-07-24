@@ -1,10 +1,10 @@
 from rainbowneko.utils import add_dims
+from rainbowneko.train.loss import FullInputLoss
 from torch import nn
+from typing import Callable
 
-from .base import DiffusionLossContainer
-
-class LossWeight(nn.Module):
-    def __init__(self, loss: DiffusionLossContainer):
+class LossWeight(nn.Module, FullInputLoss):
+    def __init__(self, loss: Callable):
         super().__init__()
         self.loss = loss
 
@@ -22,12 +22,29 @@ class LossWeight(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, pred, inputs):
+    def forward(self, pred, inputs, _full_pred, _full_inputs):
         '''
         weight: [B,1,1,1] or [B,C,H,W]
         loss: [B,*,*,*]
         '''
-        return self.get_weight(pred, inputs)*self.loss(pred, inputs)
+        return self.get_weight(_full_pred, _full_inputs)*self.loss(pred, inputs)
+
+class LossMapWeight(LossWeight):
+    def __init__(self, loss: Callable, normalize: bool = False):
+        super().__init__(loss)
+        self.normalize = normalize
+
+    def get_weight(self, pred, inputs):
+        ndim = pred['model_pred'].ndim
+        loss_map = inputs['loss_map'].float()
+        if ndim == 4:
+            if self.normalize:
+                loss_map /= loss_map.mean(dim=(1,2), keepdim=True)
+            return loss_map.unsqueeze(1)
+        elif ndim == 3:
+            if self.normalize:
+                loss_map /= loss_map.mean(dim=1, keepdim=True)
+            return loss_map.unsqueeze(-1)
 
 class SNRWeight(LossWeight):
     def get_weight(self, pred, inputs):
@@ -46,7 +63,7 @@ class SNRWeight(LossWeight):
         return add_dims(w_snr, pred['model_pred'].ndim-1)
 
 class MinSNRWeight(LossWeight):
-    def __init__(self, loss: DiffusionLossContainer, gamma: float = 1.):
+    def __init__(self, loss: Callable, gamma: float = 1.):
         super().__init__(loss)
         self.gamma = gamma
 
@@ -67,7 +84,7 @@ class MinSNRWeight(LossWeight):
         return add_dims(w_snr, pred['model_pred'].ndim-1)
 
 class EDMWeight(LossWeight):
-    def __init__(self, loss: DiffusionLossContainer, gamma: float = 1.):
+    def __init__(self, loss: Callable, gamma: float = 1.):
         super().__init__(loss)
         self.gamma = gamma
 
