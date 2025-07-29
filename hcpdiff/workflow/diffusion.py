@@ -220,12 +220,18 @@ class PixartDenoiseAction(BasicAction):
             latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
             t_in = noise_sampler.sigma_scheduler.c_noise(t)
 
+            if t_in.dim() == 0:
+                t_in = t_in.unsqueeze(0).expand(latent_model_input.shape[0])
+            
             noise_pred = denoiser(latent_model_input, prompt_embeds, t_in, encoder_attention_mask=encoder_attention_mask,
                                 cross_attention_kwargs=cross_attention_kwargs, ).sample
             # perform guidance
             if self.guidance_scale>1:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+        
+        # remove vars from DiT
+        noise_pred, _ = noise_pred.chunk(2, dim=1)
 
         return {'noise_pred':noise_pred}
 
