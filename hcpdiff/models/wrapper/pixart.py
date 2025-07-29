@@ -26,4 +26,6 @@ class PixArtWrapper(SD15Wrapper):
         added_cond_kwargs = {"resolution":resolution, "aspect_ratio":aspect_ratio}
         model_pred = self.denoiser(x_t, encoder_hidden_states, timesteps, encoder_attention_mask=attn_mask,
                                added_cond_kwargs=added_cond_kwargs).sample  # Predict the noise residual
-        return model_pred
+
+        # remove pred vars for pixart output (see DiT for more)
+        return model_pred.chunk(2, dim=1)[0]
