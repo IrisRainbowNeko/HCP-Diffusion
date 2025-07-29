@@ -10,7 +10,7 @@ from rainbowneko.infer import BasicAction, Actions
 from torch.cuda.amp import autocast
 from einops import rearrange, repeat
 from hcpdiff.models.compose import SDXLTextEncoder
-from diffusers import FluxTransformer2DModel
+from diffusers import FluxTransformer2DModel, PixArtTransformer2DModel
 
 try:
     from diffusers.utils import randn_tensor
@@ -304,6 +304,8 @@ class DiffusionStepAction(BasicAction):
                 self.act_noise_pred = FluxDenoiseAction(guidance_scale=self.guidance_scale, true_cfg=self.true_cfg)
             elif isinstance(TE, SDXLTextEncoder):
                 self.act_noise_pred = SDXLDenoiseAction(guidance_scale=self.guidance_scale)
+            elif isinstance(denoiser, PixArtTransformer2DModel):
+                self.act_noise_pred = PixartDenoiseAction(guidance_scale=self.guidance_scale)
             else:
                 self.act_noise_pred = SD15DenoiseAction(guidance_scale=self.guidance_scale)
 
