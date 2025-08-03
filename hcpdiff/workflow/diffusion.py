@@ -10,7 +10,7 @@ from rainbowneko.infer import BasicAction, Actions
 from torch.cuda.amp import autocast
 from einops import rearrange, repeat
 from hcpdiff.models.compose import SDXLTextEncoder
-from diffusers import FluxTransformer2DModel
+from diffusers import FluxTransformer2DModel, PixArtTransformer2DModel
 
 try:
     from diffusers.utils import randn_tensor
@@ -204,6 +204,37 @@ class SDXLDenoiseAction(BasicAction):
 
         return {'noise_pred':noise_pred}
 
+class PixartDenoiseAction(BasicAction):
+    def __init__(self, guidance_scale: float = 7.0, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in, key_map_out)
+        self.guidance_scale = guidance_scale
+
+    def forward(self, denoiser, noise_sampler: BaseSampler, t, latents, prompt_embeds, encoder_attention_mask=None,
+                cross_attention_kwargs=None, dtype='fp32', amp=None, model_offload=False, **states):
+
+        if model_offload:
+            to_cuda(denoiser)  # to_cpu in VAE
+
+        with autocast(enabled=amp is not None, dtype=get_dtype(amp)):
+            latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
+            latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
+            t_in = noise_sampler.sigma_scheduler.c_noise(t)
+
+            if t_in.dim() == 0:
+                t_in = t_in.unsqueeze(0).expand(latent_model_input.shape[0])
+            
+            noise_pred = denoiser(latent_model_input, prompt_embeds, t_in, encoder_attention_mask=encoder_attention_mask,
+                                cross_attention_kwargs=cross_attention_kwargs, ).sample
+            # perform guidance
+            if self.guidance_scale>1:
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+        
+        # remove vars from DiT
+        noise_pred, _ = noise_pred.chunk(2, dim=1)
+
+        return {'noise_pred':noise_pred}
+
 class FluxDenoiseAction(BasicAction):
     def __init__(self, guidance_scale: float = 7.0, true_cfg=False, key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
@@ -279,6 +310,8 @@ class DiffusionStepAction(BasicAction):
                 self.act_noise_pred = FluxDenoiseAction(guidance_scale=self.guidance_scale, true_cfg=self.true_cfg)
             elif isinstance(TE, SDXLTextEncoder):
                 self.act_noise_pred = SDXLDenoiseAction(guidance_scale=self.guidance_scale)
+            elif isinstance(denoiser, PixArtTransformer2DModel):
+                self.act_noise_pred = PixartDenoiseAction(guidance_scale=self.guidance_scale)
             else:
                 self.act_noise_pred = SD15DenoiseAction(guidance_scale=self.guidance_scale)
 
