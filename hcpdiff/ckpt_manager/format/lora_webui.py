@@ -3,7 +3,7 @@ import re
 from typing import List, Dict, Any
 
 from rainbowneko.ckpt_manager.format import CkptFormat, SafeTensorFormat
-from torch.serialization import FILE_LIKE
+from rainbowneko.utils import FILE_LIKE
 
 class LoraConverter:
     com_name_unet = ['down_blocks', 'up_blocks', 'mid_block', 'transformer_blocks', 'to_q', 'to_k', 'to_v', 'to_out', 'proj_in', 'proj_out',

@@ -3,7 +3,7 @@ from typing import Tuple
 import torch
 from rainbowneko.ckpt_manager.format import CkptFormat
 from torch import nn, Tensor
-from torch.serialization import FILE_LIKE
+from rainbowneko.utils import FILE_LIKE
 
 class EmbFormat(CkptFormat):
     EXT = 'pt'
