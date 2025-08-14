@@ -1,4 +1,4 @@
-from .diffusion import InputFeederAction, MakeLatentAction, DenoiseAction, SampleAction, DiffusionStepAction, \
+from .diffusion import InputFeederAction, MakeLatentAction, SD15DenoiseAction, SDXLDenoiseAction, PixartDenoiseAction, FluxDenoiseAction, SampleAction, DiffusionStepAction, \
     X0PredAction, SeedAction, MakeTimestepsAction, PrepareDiffusionAction, time_iter, DiffusionActions
 from .text import TextEncodeAction, TextHookAction, AttnMultTextEncodeAction
 from .vae import EncodeAction, DecodeAction

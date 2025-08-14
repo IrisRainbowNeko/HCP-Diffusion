@@ -55,9 +55,9 @@ def optimize_model() -> Actions:
     ])
 
 @neko_cfg
-def text(prompt=prompt, negative_prompt=negative_prompt, bs=4, N_repeats=1, layer_skip=1) -> Actions:
+def text(prompt=prompt, negative_prompt=negative_prompt, bs=4, N_repeats=1, layer_skip=1, TE_final_norm=True) -> Actions:
     return Actions([
-        TextHookAction(N_repeats=N_repeats, layer_skip=layer_skip),
+        TextHookAction(N_repeats=N_repeats, layer_skip=layer_skip, TE_final_norm=TE_final_norm),
         AttnMultTextEncodeAction(
             prompt=prompt,
             negative_prompt=negative_prompt,

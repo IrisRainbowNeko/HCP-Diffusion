@@ -51,7 +51,7 @@ class DiffusersPixArtFormat(CkptFormat):
             pretrained_model, subfolder="transformer", revision=revision, torch_dtype=dtype
         )
         vae = vae or AutoencoderKL.from_pretrained(pretrained_model, subfolder="vae", revision=revision, torch_dtype=dtype)
-        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler())
+        noise_sampler = noise_sampler or VPSampler(DDPMDiscreteSigmaScheduler(linear_start=0.0001, linear_end=0.02, beta_schedule='linear'))
 
         TE = TE or T5EncoderModel.from_pretrained(pretrained_model, subfolder="text_encoder", revision=revision, torch_dtype=dtype)
         tokenizer = tokenizer or AutoTokenizer.from_pretrained(pretrained_model, subfolder="tokenizer", revision=revision, use_fast=False)
