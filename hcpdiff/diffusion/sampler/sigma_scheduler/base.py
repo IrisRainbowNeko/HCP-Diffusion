@@ -7,21 +7,21 @@ class SigmaScheduler:
         return t
 
     def sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
-        '''
+        r'''
         x(t) = \alpha(t)*x(0) + \sigma(t)*eps
         :param t: 0-1, rate of time step
         '''
         raise NotImplementedError
 
     def alpha(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
-        '''
+        r'''
         x(t) = \alpha(t)*x(0) + \sigma(t)*eps
         :param t: 0-1, rate of time step
         '''
         raise NotImplementedError
 
     def velocity(self, t: Union[float, torch.Tensor], dt=1e-8, normlize=True) -> Tuple[torch.Tensor, torch.Tensor]:
-        '''
+        r'''
         v(t) = dx(t)/dt = d\alpha(t)/dt * x(0) + d\sigma(t)/dt *eps
         :param t: 0-1, rate of time step
         :return: d\alpha(t)/dt, d\sigma(t)/dt
@@ -63,14 +63,14 @@ class SigmaScheduler:
             return torch.ones_like(t, dtype=torch.float32)
 
     def c_skip(self, t: Union[float, torch.Tensor]):
-        '''
+        r'''
         \hat{x}(0) = c_skip*x(t) + c_out*f(x(t))
         :param t: 0-1, rate of time step
         '''
         return 1./self.alpha(t)
 
     def c_out(self, t: Union[float, torch.Tensor]):
-        '''
+        r'''
         \hat{x}(0) = c_skip*x(t) + c_out*f(x(t))
         :param t: 0-1, rate of time step
         '''

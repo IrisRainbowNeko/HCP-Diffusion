@@ -23,7 +23,7 @@ class FlowSigmaScheduler(SigmaScheduler):
         return 1-t
 
     def velocity(self, t: Union[float, torch.Tensor], dt=1e-8, normlize=False) -> Tuple[torch.Tensor, torch.Tensor]:
-        '''
+        r'''
         v(t) = dx(t)/dt = d\alpha(t)/dt * x(0) + d\sigma(t)/dt *eps
         :param t: 0-1, rate of time step
         :return: d\alpha(t)/dt, d\sigma(t)/dt
@@ -59,14 +59,14 @@ class FlowSigmaScheduler(SigmaScheduler):
         return 1-sigma
 
     def c_skip(self, t: Union[float, torch.Tensor]):
-        '''
+        r'''
         \hat{x}(0) = c_skip*x(t) + c_out*f(x(t))
         :param t: 0-1, rate of time step
         '''
         return 1.
 
     def c_out(self, t: Union[float, torch.Tensor]):
-        '''
+        r'''
         \hat{x}(0) = c_skip*x(t) + c_out*f(x(t))
         :param t: 0-1, rate of time step
         '''

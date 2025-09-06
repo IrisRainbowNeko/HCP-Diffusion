@@ -22,8 +22,8 @@ class DiffusersSampler(BaseSampler):
 
     def c_in(self, t):
         one = torch.ones_like(t)
-        if hasattr(self.scheduler, '_step_index'):
-            self.scheduler._step_index = None
+        # if hasattr(self.scheduler, '_step_index'):
+        #     self.scheduler._step_index = None
         return self.scheduler.scale_model_input(one, t)
 
     def get_timesteps(self, N_steps, device='cuda'):
@@ -35,7 +35,8 @@ class DiffusersSampler(BaseSampler):
 
     def add_noise(self, x, t):
         noise = randn_tensor(x.shape, generator=self.generator, device=x.device, dtype=x.dtype)
-        return self.scheduler.add_noise(x, noise, t), noise
+        t_in = self.sigma_scheduler.c_noise(t)
+        return self.scheduler.add_noise(x, noise, t_in), noise
 
     def prepare_extra_step_kwargs(self, scheduler, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature

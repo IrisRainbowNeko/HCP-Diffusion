@@ -21,7 +21,7 @@ class EDMSigmaScheduler(SigmaScheduler):
         return torch.lerp(min_inv_rho, max_inv_rho, t)**self.rho
 
     def sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
-        '''
+        r'''
         x_t = c_in(t) * (x(0) + \sigma(t)*eps), eps~N(0,I)
         '''
         if isinstance(t, float):
@@ -31,7 +31,7 @@ class EDMSigmaScheduler(SigmaScheduler):
         return sigma_edm/torch.sqrt(sigma_edm**2+self.sigma_data**2)
 
     def alpha(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
-        '''
+        r'''
         x_t = c_in(t) * (x(0) + \sigma(t)*eps), eps~N(0,I)
         '''
         if isinstance(t, float):
@@ -41,7 +41,7 @@ class EDMSigmaScheduler(SigmaScheduler):
         return 1./torch.sqrt(sigma_edm**2+self.sigma_data**2)
 
     def c_skip(self, t: Union[float, torch.Tensor]):
-        '''
+        r'''
         \hat{x}(0) = c_skip(t)*(x(t)/c_in(t)) + c_out(t)*f(x(t))
         :param t: 0-1, rate of time step
         '''
@@ -49,7 +49,7 @@ class EDMSigmaScheduler(SigmaScheduler):
         return self.sigma_data**2/torch.sqrt(sigma_edm**2+self.sigma_data**2)
 
     def c_out(self, t: Union[float, torch.Tensor]):
-        '''
+        r'''
         \hat{x}(0) = c_skip(t)*(x(t)/c_in(t)) + c_out(t)*f(x(t))
         :param t: 0-1, rate of time step
         '''
