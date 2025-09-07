@@ -43,9 +43,7 @@ def SD15_finetuning(base_model: str, train_steps: int, dataset, save_step: int =
             )
         ], weight_decay=1e-2),
 
-        ckpt_saver=dict(
-            SD15=ckpt_saver_dict
-        ),
+        ckpt_saver=ckpt_saver_dict,
 
         train=dict(
             train_steps=train_steps,
