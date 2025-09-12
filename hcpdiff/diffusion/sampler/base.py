@@ -121,6 +121,10 @@ class Sampler(BaseSampler):
         d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
         if eps is None:
             eps = self.x0_to_eps(x_0, x_t, t)
+            
+        num_dim_to_expand = len(x_0.shape) - 1
+        d_alpha = d_alpha.view(-1, *[1]*num_dim_to_expand)
+        d_sigma = d_sigma.view(-1, *[1]*num_dim_to_expand)
         return d_alpha*x_0+d_sigma*eps
 
     def eps_to_x0(self, eps, x_t, t):
