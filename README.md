@@ -86,7 +86,7 @@ After parsing, the framework will instantiate the components accordingly. This m
 | Stable Diffusion 1.5     | ✅ Supported |
 | Stable Diffusion XL (SDXL)| ✅ Supported |
 | PixArt                   | ✅ Supported |
-| FLUX                     | 🚧 In Development |
+| FLUX                     | ✅ Supported |
 | Stable Diffusion 3 (SD3) | 🚧 In Development |
 
 ---
@@ -134,7 +134,7 @@ After parsing, the framework will instantiate the components accordingly. This m
 | Aspect Ratio Bucket (ARB)       | ✅ Auto-clustering supported |
 | Multi-source / Multi-dataset    | ✅ Supported |
 | LMDB                            | ✅ Supported |
-| webdataset                      | 🚧 In Development |
+| webdataset                      | ✅ Supported |
 | Local Attention Enhancement     | ✅ Supported |
 | Tag Shuffling & Dropout         | ✅ Multiple tag editing strategies |
 

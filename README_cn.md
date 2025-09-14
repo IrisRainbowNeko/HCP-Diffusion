@@ -70,7 +70,7 @@ dict(
 | Stable Diffusion 1.5 | ✅ 支持 |
 | Stable Diffusion XL (SDXL) | ✅ 支持 |
 | PixArt         | ✅ 支持 |
-| FLUX           | 🚧 开发中 |
+| FLUX           | ✅ 支持 |
 | Stable Diffusion 3 (SD3) | 🚧 开发中 |
 
 ---
@@ -118,7 +118,7 @@ dict(
 | Aspect Ratio Bucket (ARB) | ✅ 自动聚类支持 |
 | 多数据源/数据集支持                | ✅ 支持 |
 | LMDB支持                    | ✅ 支持 |
-| webdataset支持              | 🚧 开发中 |
+| webdataset支持              | ✅ 支持 |
 | 图像局部注意力增强                 | ✅ 支持 |
 | 标签打乱 & Dropout            | ✅ 多种标签编辑策略 |
 
