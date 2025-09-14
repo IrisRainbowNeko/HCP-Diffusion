@@ -47,9 +47,9 @@ def build_model(pretrained_model='ckpts/any5', noise_sampler=Diffusers_SD.dpmpp_
     ])
 
 @neko_cfg
-def optimize_model() -> Actions:
+def optimize_model(amp=torch.float16) -> Actions:
     return Actions([
-        PrepareDiffusionAction(),
+        PrepareDiffusionAction(amp=amp, model_offload=True),
         XformersEnableAction(),
         VaeOptimizeAction(slicing=True),
     ])
@@ -92,11 +92,11 @@ def decode(save_root='output_pipe/') -> Actions:
     ])
 
 @neko_cfg
-def make_cfg(pretrained_model='Lykon/DreamShaper'):
+def make_cfg(pretrained_model='Lykon/DreamShaper', prompt=prompt, negative_prompt=negative_prompt):
     return dict(workflow=Actions(actions=[
         build_model(pretrained_model=pretrained_model),
         optimize_model(),
-        text(),
+        text(prompt=prompt, negative_prompt=negative_prompt),
         config_diffusion(),
         diffusion(),
         decode()
