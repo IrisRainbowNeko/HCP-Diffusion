@@ -1,4 +1,3 @@
-import os
 import random
 from pathlib import Path
 from typing import Any
@@ -25,7 +24,7 @@ class Text2ImageSource(ImageLabelSource):
 
     def __getitem__(self, index) -> Dict[str, Any]:
         img_name = self.img_ids[index]
-        path = self.img_root / img_name
+        path = self.img_root/img_name
 
         return {
             'id':img_name,
@@ -35,6 +34,34 @@ class Text2ImageSource(ImageLabelSource):
                 'caption':self.label_dict.get(img_name, None),
             }
         }
+
+try:
+    from webdataset import DataPipeline
+    from rainbowneko.data import WebDSImageLabelSource
+
+    class WebDSText2ImageSource(WebDSImageLabelSource):
+        def __init__(self, pipeline: DataPipeline, prompt_template, label_file=None, repeat=1, **kwargs):
+            super().__init__(pipeline, label_file, repeat=repeat)
+
+            self.prompt_template = self.load_template(prompt_template)
+
+        def load_template(self, template_file):
+            with open(template_file, 'r', encoding='utf-8') as f:
+                return f.read().strip().split('\n')
+
+        def __next__(self) -> Dict[str, Any]:
+            data = super().__next__()
+
+            return {
+                'id':data['id'],
+                'image':data['image'],
+                'prompt':{
+                    'template':random.choice(self.prompt_template),
+                    'caption':data['label'],
+                }
+            }
+except ImportError:
+    pass
 
 class Text2ImageLossMapSource(Text2ImageSource):
     def __init__(self, img_root, caption_file, prompt_template, loss_map=None, repeat=1, **kwargs):
