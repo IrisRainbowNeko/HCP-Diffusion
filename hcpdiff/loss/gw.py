@@ -8,10 +8,10 @@ class GWLoss(nn.Module):
 
         sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
         sobel_y = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
-        self.sobel_x = torch.FloatTensor(sobel_x)
-        self.sobel_y = torch.FloatTensor(sobel_y)
-        self.register_buffer('sobel_x', self.sobel_x)
-        self.register_buffer('sobel_y', self.sobel_y)
+        sobel_x = torch.FloatTensor(sobel_x)
+        sobel_y = torch.FloatTensor(sobel_y)
+        self.register_buffer('sobel_x', sobel_x)
+        self.register_buffer('sobel_y', sobel_y)
         self.eps = eps
         self.size_average = size_average
 

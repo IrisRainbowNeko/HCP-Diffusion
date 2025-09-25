@@ -38,7 +38,7 @@ class TagDropoutHandler(DataHandler):
                 tags = np.array(prompt.split(','))
                 prompt = ','.join(tags[np.random.random(len(tags))>self.p])
             else:
-                tags = prompt['caption'].split(',')
+                tags = np.array(prompt['caption'].split(','))
                 prompt['caption'] = ','.join(tags[np.random.random(len(tags))>self.p])
         return {'prompt':prompt}
 
