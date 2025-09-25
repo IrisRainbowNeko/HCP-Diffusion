@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 class GWLoss(nn.Module):
-    def __init__(self, eps=1e-3):
+    def __init__(self, eps=1e-3, size_average=True):
         super().__init__()
 
         sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
@@ -13,6 +13,7 @@ class GWLoss(nn.Module):
         self.register_buffer('sobel_x', self.sobel_x)
         self.register_buffer('sobel_y', self.sobel_y)
         self.eps = eps
+        self.size_average = size_average
 
     def forward(self, pred, target):
         '''
@@ -35,4 +36,6 @@ class GWLoss(nn.Module):
         diff = pred - target
         loss = torch.sqrt((diff*diff)+(self.eps*self.eps))
         loss = (1 + 4 * dx) * (1 + 4 * dy) * loss
+        if self.size_average:
+            loss = loss.mean()
         return loss
