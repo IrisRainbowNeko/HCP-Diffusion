@@ -58,7 +58,7 @@ class SD15Wrapper(BaseWrapper):
 
     def get_latents(self, image: Tensor):
         if image.shape[1] == 3:
-            with torch.no_grad() if self.vae_trainable else nullcontext():
+            with nullcontext() if self.vae_trainable else torch.no_grad():
                 latents = self.vae.encode(image.to(dtype=self.vae.dtype)).latent_dist.sample()
                 if shift_factor := getattr(self.vae.config, 'shift_factor', None) is not None:
                     latents = (latents-shift_factor)*self.vae.config.scaling_factor

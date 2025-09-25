@@ -27,21 +27,23 @@ class TagShuffleHandler(DataHandler):
         return 'TagShuffleHandler()'
 
 class TagDropoutHandler(DataHandler):
-    def __init__(self, p=0.1, key_map_in=('prompt -> prompt',), key_map_out=('prompt -> prompt',)):
+    def __init__(self, p=0.1, p_enable=1.0, key_map_in=('prompt -> prompt',), key_map_out=('prompt -> prompt',)):
         super().__init__(key_map_in, key_map_out)
         self.p = p
+        self.p_enable = p_enable
 
     def handle(self, prompt: Union[Dict[str, str], str]):
-        if isinstance(prompt, str):
-            tags = np.array(prompt.split(','))
-            prompt = ','.join(tags[np.random.random(len(tags))>self.p])
-        else:
-            tags = prompt['caption'].split(',')
-            prompt['caption'] = ','.join(tags[np.random.random(len(tags))>self.p])
+        if random.random()<self.p_enable:
+            if isinstance(prompt, str):
+                tags = np.array(prompt.split(','))
+                prompt = ','.join(tags[np.random.random(len(tags))>self.p])
+            else:
+                tags = prompt['caption'].split(',')
+                prompt['caption'] = ','.join(tags[np.random.random(len(tags))>self.p])
         return {'prompt':prompt}
 
     def __repr__(self):
-        return f'TagDropoutHandler(p={self.p})'
+        return f'TagDropoutHandler(p={self.p}, p_enable={self.p_enable})'
 
 class TagEraseHandler(DataHandler):
     def __init__(self, p=0.1, key_map_in=('prompt -> prompt',), key_map_out=('prompt -> prompt',)):
@@ -102,7 +104,7 @@ class TokenizeHandler(DataHandler):
         token_info = ComposeTokenizer.tokenize_ex(self.tokenizer, prompt, truncation=True, padding="max_length",
                                                   return_tensors="pt", squeeze=True)
         data = {'prompt':token_info.input_ids}
-        if 'attention_mask' in data:
+        if 'attention_mask' in token_info:
             data['attn_mask'] = data['attention_mask']
         if 'position_ids' in token_info:
             data['position_ids'] = token_info['position_ids']
