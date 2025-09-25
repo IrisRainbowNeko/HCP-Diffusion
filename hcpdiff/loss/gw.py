@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 class GWLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, eps=1e-3):
         super().__init__()
 
         sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
@@ -12,6 +12,7 @@ class GWLoss(nn.Module):
         self.sobel_y = torch.FloatTensor(sobel_y)
         self.register_buffer('sobel_x', self.sobel_x)
         self.register_buffer('sobel_y', self.sobel_y)
+        self.eps = eps
 
     def forward(self, pred, target):
         '''
@@ -31,5 +32,7 @@ class GWLoss(nn.Module):
 
         dx = torch.abs(Ix1 - Ix2)
         dy = torch.abs(Iy1 - Iy2)
-        loss = (1 + 4 * dx) * (1 + 4 * dy) * torch.abs(pred - target)
+        diff = pred - target
+        loss = torch.sqrt((diff*diff)+(self.eps*self.eps))
+        loss = (1 + 4 * dx) * (1 + 4 * dy) * loss
         return loss
