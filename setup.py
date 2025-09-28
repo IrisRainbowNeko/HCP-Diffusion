@@ -12,7 +12,7 @@ with open('requirements.txt', encoding='utf8') as f:
 setuptools.setup(
     name="hcpdiff",
     py_modules=["hcpdiff"],
-    version="2.4",
+    version="2.5",
     author="Ziyi Dong",
     author_email="rainbow-neko@outlook.com",
     description="A universal Diffusion toolbox",
