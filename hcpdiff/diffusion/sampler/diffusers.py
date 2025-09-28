@@ -14,7 +14,7 @@ from .sigma_scheduler import TimeSigmaScheduler
 class DiffusersSampler(BaseSampler):
     def __init__(self, scheduler: SchedulerMixin, eta=0.0, generator: torch.Generator=None):
         sigma_scheduler = TimeSigmaScheduler()
-        super().__init__(sigma_scheduler, generator)
+        super().__init__(sigma_scheduler, generator=generator)
         self.scheduler = scheduler
         self.eta = eta
 
@@ -26,8 +26,8 @@ class DiffusersSampler(BaseSampler):
         #     self.scheduler._step_index = None
         return self.scheduler.scale_model_input(one, t)
 
-    def get_timesteps(self, N_steps, device='cuda'):
-        self.scheduler.set_timesteps(N_steps, device=device)
+    def set_solve_timesteps(self, N_steps, device='cuda', **kwargs):
+        self.scheduler.set_timesteps(N_steps, device=device, **kwargs)
         return self.scheduler.timesteps / self.sigma_scheduler.num_timesteps # Normalize timesteps to [0, 1]
 
     def init_noise(self, shape, device='cuda', dtype=torch.float32):
@@ -55,7 +55,7 @@ class DiffusersSampler(BaseSampler):
             extra_step_kwargs["generator"] = generator
         return extra_step_kwargs
 
-    def denoise(self, x_t, t, eps=None, generator=None):
+    def denoise(self, pred, x_t, t, eps=None, generator=None, **kwargs):
         t_in = self.sigma_scheduler.c_noise(t)
         extra_step_kwargs = self.prepare_extra_step_kwargs(self.scheduler, generator, self.eta)
-        return self.scheduler.step(eps, t_in, x_t, **extra_step_kwargs).prev_sample
+        return self.scheduler.step(pred, t_in, x_t, **extra_step_kwargs).prev_sample

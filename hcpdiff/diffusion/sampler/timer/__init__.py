@@ -1,2 +1,1 @@
-from .base import TimeSampler, LogitNormalSampler
-from .shift import ShiftTimeSampler, FluxShiftTimeSampler
+from .base import Timer, LogitNormalTimer

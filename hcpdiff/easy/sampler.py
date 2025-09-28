@@ -1,4 +1,4 @@
-from hcpdiff.diffusion.sampler import DiffusersSampler
+from hcpdiff.diffusion.sampler import DiffusersSampler, Sampler, Timer, FluxShifter, FlowSigmaScheduler, EulerSolver
 from diffusers import DPMSolverMultistepScheduler, DDIMScheduler, EulerDiscreteScheduler, EulerAncestralDiscreteScheduler, FlowMatchEulerDiscreteScheduler
 
 class Diffusers_SD:
@@ -50,4 +50,11 @@ class Diffusers_SD:
             shift=3.0,
             use_dynamic_shifting=True,
         )
+    )
+
+    euler_flux = Sampler(
+        FlowSigmaScheduler(Timer(shifter=FluxShifter())),
+        solver=EulerSolver(),
+        pred_type='velocity',
+        target_type='velocity'
     )

@@ -86,7 +86,7 @@ class MakeTimestepsAction(BasicAction):
         return timesteps
 
     def forward(self, noise_sampler:BaseSampler, device, **states):
-        timesteps = noise_sampler.get_timesteps(self.N_steps, device=device)
+        timesteps = noise_sampler.set_solve_timesteps(self.N_steps, device)
         if self.strength:
             timesteps = self.get_timesteps(noise_sampler, timesteps, self.strength)
             return {'timesteps':timesteps, 'start_timestep':timesteps[:1]}
@@ -167,14 +167,14 @@ class SD15DenoiseAction(BasicAction):
             latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
             t_in = noise_sampler.sigma_scheduler.c_noise(t)
 
-            noise_pred = denoiser(latent_model_input, t_in, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+            model_pred = denoiser(latent_model_input, t_in, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                 cross_attention_kwargs=cross_attention_kwargs, ).sample
             # perform guidance
             if self.guidance_scale>1:
-                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+                model_pred_uncond, model_pred_text = model_pred.chunk(2)
+                model_pred = model_pred_uncond+self.guidance_scale*(model_pred_text-model_pred_uncond)
 
-        return {'noise_pred':noise_pred}
+        return {'model_pred':model_pred}
 
 class SDXLDenoiseAction(BasicAction):
     def __init__(self, guidance_scale: float = 7.0, key_map_in=None, key_map_out=None):
@@ -194,15 +194,15 @@ class SDXLDenoiseAction(BasicAction):
 
             added_cond_kwargs = {"text_embeds":pooler_output, "time_ids":crop_info}
             # predict the noise residual
-            noise_pred = denoiser(latent_model_input, t_in, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
+            model_pred = denoiser(latent_model_input, t_in, prompt_embeds, encoder_attention_mask=encoder_attention_mask,
                                 cross_attention_kwargs=cross_attention_kwargs, added_cond_kwargs=added_cond_kwargs).sample
 
             # perform guidance
             if self.guidance_scale>1:
-                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+                model_pred_uncond, model_pred_text = model_pred.chunk(2)
+                model_pred = model_pred_uncond+self.guidance_scale*(model_pred_text-model_pred_uncond)
 
-        return {'noise_pred':noise_pred}
+        return {'model_pred':model_pred}
 
 class PixartDenoiseAction(BasicAction):
     def __init__(self, guidance_scale: float = 7.0, key_map_in=None, key_map_out=None):
@@ -223,17 +223,17 @@ class PixartDenoiseAction(BasicAction):
             if t_in.dim() == 0:
                 t_in = t_in.unsqueeze(0).expand(latent_model_input.shape[0])
             
-            noise_pred = denoiser(latent_model_input, prompt_embeds, t_in, encoder_attention_mask=encoder_attention_mask,
+            model_pred = denoiser(latent_model_input, prompt_embeds, t_in, encoder_attention_mask=encoder_attention_mask,
                                 cross_attention_kwargs=cross_attention_kwargs, ).sample
             # perform guidance
             if self.guidance_scale>1:
-                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+                model_pred_uncond, model_pred_text = model_pred.chunk(2)
+                model_pred = model_pred_uncond+self.guidance_scale*(model_pred_text-model_pred_uncond)
         
         # remove vars from DiT
-        noise_pred, _ = noise_pred.chunk(2, dim=1)
+        model_pred, _ = model_pred.chunk(2, dim=1)
 
-        return {'noise_pred':noise_pred}
+        return {'model_pred':model_pred}
 
 class FluxDenoiseAction(BasicAction):
     def __init__(self, guidance_scale: float = 7.0, true_cfg=False, key_map_in=None, key_map_out=None):
@@ -251,7 +251,7 @@ class FluxDenoiseAction(BasicAction):
             if self.true_cfg:
                 latent_model_input = torch.cat([latents]*2) if self.guidance_scale>1 else latents
                 latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
-                t_in = noise_sampler.sigma_scheduler.c_noise(t)
+                t_in = noise_sampler.sigma_scheduler.c_noise(t)/1000.
                 latent_model_input = rearrange(latent_model_input, "b c h w -> b (h w) c")
 
                 img_ids = torch.zeros(latent_h, latent_w, 3)
@@ -262,12 +262,12 @@ class FluxDenoiseAction(BasicAction):
                 txt_ids = torch.zeros(prompt_embeds.shape[0], prompt_embeds.shape[1], 3)
 
                 # predict the noise residual
-                noise_pred = denoiser(latent_model_input, t_in, 1.0, pooler_output, prompt_embeds, txt_ids, img_ids).sample
+                model_pred = denoiser(latent_model_input, t_in, 1.0, pooler_output, prompt_embeds, txt_ids, img_ids).sample
 
                 # perform guidance
                 if self.guidance_scale>1:
-                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    noise_pred = noise_pred_uncond+self.guidance_scale*(noise_pred_text-noise_pred_uncond)
+                    model_pred_uncond, model_pred_text = model_pred.chunk(2)
+                    model_pred = model_pred_uncond+self.guidance_scale*(model_pred_text-model_pred_uncond)
             else:
                 latent_model_input = latents
                 latent_model_input = noise_sampler.sigma_scheduler.c_in(t)*latent_model_input
@@ -282,40 +282,40 @@ class FluxDenoiseAction(BasicAction):
                 txt_ids = torch.zeros(latent_model_input.shape[0], prompt_embeds.shape[1], 3)
 
                 # predict the noise residual
-                noise_pred = denoiser(latent_model_input, t_in, self.guidance_scale, pooler_output, prompt_embeds, txt_ids, img_ids).sample
-            noise_pred = rearrange(noise_pred, "b (h w) c -> b c h w", h=latent_h, w=latent_w)
+                model_pred = denoiser(latent_model_input, t_in, self.guidance_scale, pooler_output, prompt_embeds, txt_ids, img_ids).sample
+            model_pred = rearrange(model_pred, "b (h w) c -> b c h w", h=latent_h, w=latent_w)
 
-        return {'noise_pred':noise_pred}
+        return {'model_pred':model_pred}
 
 class SampleAction(BasicAction):
-    def forward(self, noise_sampler: BaseSampler, noise_pred, t, latents, generator, **states):
+    def forward(self, noise_sampler: BaseSampler, model_pred, t, latents, generator, **states):
         # compute the previous noisy sample x_t -> x_t-1
-        latents = noise_sampler.denoise(latents, t, noise_pred, generator=generator)
+        latents = noise_sampler.denoise(model_pred, latents, t, generator=generator)
         return {'latents':latents}
 
 class DiffusionStepAction(BasicAction):
     def __init__(self, guidance_scale: float = 7.0, denoise_action:str|BasicAction='auto', true_cfg=False, key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
         if callable(denoise_action):
-            self.act_noise_pred = denoise_action(guidance_scale)
+            self.act_denoise = denoise_action(guidance_scale)
         else:
-            self.act_noise_pred = None
+            self.act_denoise = None
             self.true_cfg = true_cfg
             self.guidance_scale = guidance_scale
         self.act_sample = SampleAction()
 
     def forward(self, denoiser, noise_sampler, TE, **states):
-        if self.act_noise_pred is None:
+        if self.act_denoise is None:
             if isinstance(denoiser, FluxTransformer2DModel):
-                self.act_noise_pred = FluxDenoiseAction(guidance_scale=self.guidance_scale, true_cfg=self.true_cfg)
+                self.act_denoise = FluxDenoiseAction(guidance_scale=self.guidance_scale, true_cfg=self.true_cfg)
             elif isinstance(TE, SDXLTextEncoder):
-                self.act_noise_pred = SDXLDenoiseAction(guidance_scale=self.guidance_scale)
+                self.act_denoise = SDXLDenoiseAction(guidance_scale=self.guidance_scale)
             elif isinstance(denoiser, PixArtTransformer2DModel):
-                self.act_noise_pred = PixartDenoiseAction(guidance_scale=self.guidance_scale)
+                self.act_denoise = PixartDenoiseAction(guidance_scale=self.guidance_scale)
             else:
-                self.act_noise_pred = SD15DenoiseAction(guidance_scale=self.guidance_scale)
+                self.act_denoise = SD15DenoiseAction(guidance_scale=self.guidance_scale)
 
-        states = self.act_noise_pred(denoiser=denoiser, noise_sampler=noise_sampler, **states)
+        states = self.act_denoise(denoiser=denoiser, noise_sampler=noise_sampler, **states)
         states = self.act_sample(**states)
         return states
     
@@ -331,15 +331,16 @@ class DiffusionActions(Actions):
             bs = states['latents'].shape[0]
             states['seed'] = states['seed'] + bs
         if self.clean_latent:
-            states.pop('noise_pred', None)
+            states.pop('model_pred', None)
             states.pop('latents', None)
             states.pop('prompt', None)
             states.pop('negative_prompt', None)
         return states
 
 class X0PredAction(BasicAction):
-    def forward(self, latents, noise_sampler: BaseSampler, t, noise_pred, **states):
-        latents_x0 = noise_sampler.pred_for_target(noise_pred, latents, t, target_type='x0')
+    def forward(self, latents, noise_sampler: BaseSampler, t, model_pred, **states):
+        noise_sampler.update_states(reso=noise_sampler.get_reso(latents)) # for FLUX
+        latents_x0 = noise_sampler.pred_for_target(model_pred, latents, t, target_type='x0')
         return {'latents_x0':latents_x0}
 
 def time_iter(timesteps, **states):

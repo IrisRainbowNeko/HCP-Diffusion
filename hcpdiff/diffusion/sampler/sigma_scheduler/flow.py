@@ -5,20 +5,22 @@ import torch
 from .base import SigmaScheduler
 
 class FlowSigmaScheduler(SigmaScheduler):
-    def __init__(self, t_start=0, t_end=1):
-        super().__init__()
+    def __init__(self, timer=None, t_shifter=tuple(), t_start=0, t_end=1):
+        super().__init__(timer, t_shifter)
         self.t_start = t_start
         self.t_end = t_end
 
     def sigma(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor([t])
+        t = self.shift(t)
         t = (self.t_end-self.t_start)*t+self.t_start
         return t
 
     def alpha(self, t: Union[float, torch.Tensor]):
         if isinstance(t, float):
             t = torch.tensor([t])
+        t = self.shift(t)
         t = (self.t_end-self.t_start)*t+self.t_start
         return 1-t
 

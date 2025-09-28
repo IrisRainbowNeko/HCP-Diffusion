@@ -1,10 +1,43 @@
-from typing import Union, Tuple
+from typing import Union, Tuple, Callable, List
 
 import torch
 
+from ..timer import Timer
+
+shifter_type = Callable[[torch.Tensor, ...], torch.Tensor]
+
 class SigmaScheduler:
-    def scale_t(self, t):
-        return t
+    def __init__(self, timer: Timer = None, t_shifter: List[shifter_type] | shifter_type = tuple()):
+        if not isinstance(t_shifter, (list, tuple)):
+            t_shifter = [t_shifter]
+
+        self.timer = timer or Timer()
+        self.t_shifter = t_shifter
+        self.states = {}
+
+    def set_states(self, **states):
+        self.states = states
+
+    def update_states(self, **states):
+        self.states.update(states)
+
+    def shift(self, t, shape=(1,), **kwargs) -> torch.Tensor:
+        '''
+        :return: t: Real timesteps.
+                 st: Shifted timesteps for diffusion process. e.g. DDPM: x_t = \sqrt(st)*x_0 + \sqrt(1-st)*eps
+        '''
+        if isinstance(t, float):
+            t = torch.full(shape, t)
+
+        st = t
+        for shifter in self.t_shifter:
+            st = shifter(st, **self.states, **kwargs)
+        return st
+
+    @property
+    def min_dt(self):
+        min_dts = [(shifter.min_dt if hasattr(shifter, 'min_dt') else 1e-8) for shifter in self.t_shifter]+[1e-8]
+        return max(min_dts)
 
     def sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
         r'''
@@ -26,8 +59,8 @@ class SigmaScheduler:
         :param t: 0-1, rate of time step
         :return: d\alpha(t)/dt, d\sigma(t)/dt
         '''
-        d_alpha = (self.alpha(t+dt)-self.alpha(t))/dt
-        d_sigma = (self.sigma(t+dt)-self.sigma(t))/dt
+        d_alpha = (self.alpha(t)-self.alpha(t-dt))/dt
+        d_sigma = (self.sigma(t)-self.sigma(t-dt))/dt
         if normlize:
             norm = torch.sqrt(d_alpha**2+d_sigma**2)
             return d_alpha/norm, d_sigma/norm
@@ -36,19 +69,19 @@ class SigmaScheduler:
 
     @property
     def sigma_start(self):
-        return self.sigma(0)
+        return self.sigma(torch.tensor(0.))
 
     @property
     def sigma_end(self):
-        return self.sigma(1)
+        return self.sigma(torch.tensor(1.))
 
     @property
     def alpha_start(self):
-        return self.alpha(0)
+        return self.alpha(torch.tensor(0.))
 
     @property
     def alpha_end(self):
-        return self.alpha(1)
+        return self.alpha(torch.tensor(1.))
 
     def alpha_to_sigma(self, alpha):
         raise NotImplementedError
@@ -75,6 +108,30 @@ class SigmaScheduler:
         :param t: 0-1, rate of time step
         '''
         return -self.sigma(t)/self.alpha(t)
-    
+
     def c_noise(self, t: Union[float, torch.Tensor]):
-        return t
+        return self.shift(t)*1000.
+
+class TimeSigmaScheduler(SigmaScheduler):
+    def __init__(self, timer=None, num_timesteps=1000):
+        super().__init__(timer)
+        self.num_timesteps = num_timesteps
+
+    def sigma(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
+        '''
+        :param t: 0-1, rate of time step
+        '''
+        if isinstance(t, float):
+            t = torch.tensor(t)
+        return ((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)
+
+    def alpha(self, t: Union[float, torch.Tensor]) -> torch.Tensor:
+        '''
+        :param t: 0-1, rate of time step
+        '''
+        if isinstance(t, float):
+            t = torch.tensor(t)
+        return ((t*self.num_timesteps).round().long()).clip(min=0, max=self.num_timesteps-1)
+
+    def c_noise(self, t: Union[float, torch.Tensor]):
+        return (t*self.num_timesteps).round()

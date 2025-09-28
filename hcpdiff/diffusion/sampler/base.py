@@ -4,7 +4,8 @@ import torch
 from rainbowneko.utils import add_dims
 
 from .sigma_scheduler import SigmaScheduler
-from .timer import TimeSampler
+from .timer import Timer
+from .solver import ODESolver
 
 try:
     from diffusers.utils import randn_tensor
@@ -13,7 +14,7 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 
 class BaseSampler:
-    def __init__(self, sigma_scheduler: SigmaScheduler, t_sampler:TimeSampler = None, pred_type='eps', target_type='eps',
+    def __init__(self, sigma_scheduler: SigmaScheduler, solver:ODESolver=None, pred_type='eps', target_type='eps',
                  generator: torch.Generator = None):
         '''
         Some losses can only be calculated in a specific space. Such as SSIM in x0 space.
@@ -22,49 +23,63 @@ class BaseSampler:
         :param pred_type: ['x0', 'eps', 'velocity', ..., None]  The output space of the model
         :param target_type: ['x0', 'eps', 'velocity', ..., None]  The space to calculate the loss
         '''
-        if t_sampler is None:
-            t_sampler = TimeSampler()
-        self.t_sampler = t_sampler
+
+        self.solver = solver
 
         self.sigma_scheduler = sigma_scheduler
         self.generator = generator
         self.pred_type = pred_type
         self.target_type = target_type
 
-    def get_timesteps(self, N_steps, device='cuda'):
-        times = torch.linspace(0., 1., N_steps, device=device)
-        return self.sigma_scheduler.scale_t(times)
+    def set_solve_timesteps(self, N_steps, device='cuda'):
+        if self.solver is not None:
+            self.solver.sample_steps = N_steps
+        return torch.linspace(1., 1./N_steps, N_steps, device=device)
+
+    def set_states(self, **states):
+        self.sigma_scheduler.set_states(**states)
+
+    def update_states(self, **states):
+        self.sigma_scheduler.update_states(**states)
+
+    def get_reso(self, x=None, shape=None):
+        shape = shape or x.shape
+        if len(shape) == 3:
+            B,L,C = shape
+            reso = L
+        else:
+            B,C,H,W = shape
+            reso = H*W
+        return reso
 
     def make_nosie(self, shape, device='cuda', dtype=torch.float32):
         return randn_tensor(shape, generator=self.generator, device=device, dtype=dtype)
 
-    def init_noise(self, shape, device='cuda', dtype=torch.float32):
+    def init_noise(self, shape, device='cuda', dtype=torch.float32, reso=None, **kwargs):
+        reso = reso or self.get_reso(shape=shape)
+        self.set_states(reso=reso, **kwargs)
         sigma = self.sigma_scheduler.sigma_end
         return self.make_nosie(shape, device, dtype)*sigma
 
-    def add_noise(self, x, t) -> Tuple[torch.Tensor, torch.Tensor]:
+    def add_noise(self, x, t, reso=None, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
+        reso = reso or self.get_reso(x)
+        self.set_states(reso=reso, **kwargs)
         noise = self.make_nosie(x.shape, device=x.device)
         alpha = add_dims(self.sigma_scheduler.alpha(t), x.ndim-1).to(x.device)
         sigma = add_dims(self.sigma_scheduler.sigma(t), x.ndim-1).to(x.device)
         noisy_x = alpha*x+sigma*noise
         return noisy_x.to(dtype=x.dtype), noise.to(dtype=x.dtype)
 
-    def add_noise_rand_t(self, x, reso=None):
-        if x.ndim == 3:
-            B,L,C = x.shape
-            reso = L if reso is None else reso
-        else:
-            B,C,H,W = x.shape
-            reso = H*W if reso is None else reso
+    def add_noise_rand_t(self, x, **kwargs):
         # timesteps: [0, 1]
-        timesteps = self.t_sampler.sample(shape=(B,), reso=reso)
-        timesteps = timesteps.to(x.device)
-        noisy_x, noise = self.add_noise(x, timesteps)
+        t = self.sigma_scheduler.timer.sample(shape=(x.shape[0],))
+        t = t.to(x.device)
+        noisy_x, noise = self.add_noise(x, t, **kwargs)
 
         # Sample a random timestep for each image
-        return noisy_x, noise, timesteps
+        return noisy_x, noise, t
 
-    def denoise(self, x, sigma, eps=None, generator=None):
+    def denoise(self, pred, x_t, t, eps=None, generator=None, **kwargs):
         raise NotImplementedError
 
     def get_target(self, x0, x_t, t, eps=None, target_type=None):
@@ -117,8 +132,11 @@ class Sampler(BaseSampler):
     def x0_to_eps(self, x_0, x_t, t):
         return (x_t-self.sigma_scheduler.alpha(t)*x_0)/self.sigma_scheduler.sigma(t)
 
-    def x0_to_velocity(self, x_0, x_t, t, eps=None):
-        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+    def x0_to_velocity(self, x_0, x_t, t, eps=None, dt=None):
+        if dt is None:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        else:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t, dt=dt)
         if eps is None:
             eps = self.x0_to_eps(x_0, x_t, t)
         d_alpha = add_dims(d_alpha, x_0.ndim-1).to(x_0.device)
@@ -128,20 +146,44 @@ class Sampler(BaseSampler):
     def eps_to_x0(self, eps, x_t, t):
         return (x_t-self.sigma_scheduler.sigma(t)*eps)/self.sigma_scheduler.alpha(t)
 
-    def eps_to_velocity(self, eps, x_t, t, x_0=None):
-        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+    def eps_to_velocity(self, eps, x_t, t, x_0=None, dt=None):
+        if dt is None:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        else:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t, dt=dt)
         if x_0 is None:
             x_0 = self.eps_to_x0(eps, x_t, t)
         return d_alpha*x_0+d_sigma*eps
 
-    def velocity_to_eps(self, v_pred, x_t, t):
+    def velocity_to_eps(self, v_pred, x_t, t, dt=None):
         alpha = self.sigma_scheduler.alpha(t)
         sigma = self.sigma_scheduler.sigma(t)
-        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        if dt is None:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        else:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t, dt=dt)
         return (alpha*v_pred-d_alpha*x_t)/(d_sigma*alpha-d_alpha*sigma)
 
-    def velocity_to_x0(self, v_pred, x_t, t):
+    def velocity_to_x0(self, v_pred, x_t, t, dt=None):
         alpha = self.sigma_scheduler.alpha(t)
         sigma = self.sigma_scheduler.sigma(t)
-        d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        if dt is None:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t)
+        else:
+            d_alpha, d_sigma = self.sigma_scheduler.velocity(t, dt=dt)
         return (sigma*v_pred-d_sigma*x_t)/(d_alpha*sigma-d_sigma*alpha)
+
+    def denoise(self, pred, x_t, t, eps=None, generator=None, **kwargs):
+        dt = self.solver.get_dt(self.sigma_scheduler)
+        if self.pred_type == 'eps':
+            v_t = self.eps_to_velocity(pred, x_t, t, dt=dt)
+        elif self.pred_type == 'velocity':
+            v_t = pred
+        elif self.pred_type == 'x0':
+            v_t = self.x0_to_velocity(pred, x_t, t, eps=eps, dt=dt)
+        else:
+            raise NotImplementedError('Unknown pred_type for denoise.')
+
+        dst = self.sigma_scheduler.shift(t) - self.sigma_scheduler.shift(t-dt)
+        x_t_prev = self.solver.step(x_t, v_t, dst, **kwargs)
+        return x_t_prev

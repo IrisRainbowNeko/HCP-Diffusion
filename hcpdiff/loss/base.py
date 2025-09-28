@@ -9,6 +9,7 @@ class DiffusionLossContainer(LossContainer):
         self.target_type = getattr(loss, 'target_type', None)
 
     def get_target(self, model_pred, x_0, noise, x_t, timesteps, noise_sampler, **kwargs):
+        noise_sampler.update_states(reso=noise_sampler.get_reso(x_0))  # for FLUX
         # Get target
         target = noise_sampler.get_target(x_0, x_t, timesteps, eps=noise, target_type=self.target_type)
 
