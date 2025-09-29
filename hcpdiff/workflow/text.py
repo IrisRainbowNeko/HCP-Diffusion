@@ -19,7 +19,9 @@ class TextHookAction(BasicAction):
         self.TE_final_norm = TE_final_norm
         self.use_attention_mask = use_attention_mask
 
-    def forward(self, TE, tokenizer, in_preview=False, te_hook:ComposeTEEXHook=None, emb_hook=None, **states):
+    def forward(self, TE, tokenizer=None, in_preview=False, te_hook:ComposeTEEXHook=None, emb_hook=None, token_processor=None, **states):
+        if token_processor is not None:
+            tokenizer = token_processor.tokenizer
         if in_preview and emb_hook is not None:
             emb_hook.N_repeats = self.N_repeats
         else:

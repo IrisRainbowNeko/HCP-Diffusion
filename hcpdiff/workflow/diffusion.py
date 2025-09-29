@@ -56,7 +56,7 @@ class PrepareDiffusionAction(BasicAction):
         self.model_offload = model_offload
         self.amp = amp
 
-    def forward(self, device, denoiser, TE, vae, **states):
+    def forward(self, device, denoiser, TE, vae, style_encoder=None, **states):
         denoiser.to(device)
         TE.to(device)
         vae.to(device)
@@ -64,6 +64,11 @@ class PrepareDiffusionAction(BasicAction):
         TE.eval()
         denoiser.eval()
         vae.eval()
+
+        if style_encoder is not None:
+            style_encoder.to(device)
+            style_encoder.eval()
+
         return {'amp':self.amp, 'model_offload':self.model_offload}
 
 class MakeTimestepsAction(BasicAction):
@@ -106,7 +111,11 @@ class MakeLatentAction(BasicAction):
         if bs is None:
             if 'prompt' in states:
                 bs = len(states['prompt'])
-        vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        if hasattr(vae.config, 'block_out_channels'):
+            vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        else:
+            vae_scale_factor = 2 ** len(vae.temperal_downsample)
+
         device = torch.device(device)
 
         if latents is None:
@@ -138,15 +147,15 @@ class MakeLatentAction(BasicAction):
 
         # SDXL inputs
         if pooler_output is not None:
-            width, height = shape[3]*vae_scale_factor, shape[2]*vae_scale_factor
-            if crop_coord is None:
-                crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
-            else:
-                crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
-            crop_info = crop_info.to(device).repeat(bs, 1)
             output['pooler_output'] = pooler_output.to(device)
 
-            if 'negative_prompt' in states:
+        width, height = shape[3]*vae_scale_factor, shape[2]*vae_scale_factor
+        if crop_coord is None:
+            crop_info = torch.tensor([height, width, 0, 0, height, width], dtype=torch.float)
+        else:
+            crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
+        crop_info = crop_info.to(device).repeat(bs, 1)
+        if 'negative_prompt' in states:
                 output['crop_info'] = torch.cat([crop_info, crop_info], dim=0)
 
         return output

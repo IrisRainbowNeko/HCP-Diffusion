@@ -1,5 +1,6 @@
 import torch
 from diffusers.image_processor import VaeImageProcessor
+from diffusers import AutoencoderKLQwenImage
 from hcpdiff.utils import to_cuda, to_cpu
 from hcpdiff.utils.net_utils import get_dtype
 from rainbowneko.infer import BasicAction
@@ -13,7 +14,10 @@ class EncodeAction(BasicAction):
         if bs is None:
             if 'prompt' in states:
                 bs = len(states['prompt'])
-        vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        if hasattr(vae.config, 'block_out_channels'):
+            vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        else:
+            vae_scale_factor = 2 ** len(vae.temperal_downsample)
         if self.image_processor is None:
             self.image_processor = VaeImageProcessor(vae_scale_factor=vae_scale_factor)
 
@@ -42,10 +46,15 @@ class EncodeAction(BasicAction):
                 init_latents = vae.encode(image).latent_dist.sample(generator)
 
             init_latents = init_latents.to(dtype=get_dtype(dtype))
-            if shift_factor := getattr(vae.config, 'shift_factor', None) is not None:
-                init_latents = (init_latents-shift_factor)*vae.config.scaling_factor
+            if isinstance(vae, AutoencoderKLQwenImage):
+                shift_factor = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1).to(init_latents.device, dtype=init_latents.dtype)
+                scaling_factor = 1.0/torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1).to(init_latents.device, dtype=init_latents.dtype)
+                init_latents = (init_latents-shift_factor)*scaling_factor
             else:
-                init_latents = init_latents*vae.config.scaling_factor
+                if shift_factor := getattr(vae.config, 'shift_factor', None) is not None:
+                    init_latents = (init_latents-shift_factor)*vae.config.scaling_factor
+                else:
+                    init_latents = init_latents*vae.config.scaling_factor
             if model_offload:
                 to_cpu(vae)
         return {'latents':init_latents}
@@ -58,7 +67,10 @@ class DecodeAction(BasicAction):
         self.output_type = output_type
 
     def forward(self, vae, denoiser, latents, model_offload=False, **states):
-        vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        if hasattr(vae.config, 'block_out_channels'):
+            vae_scale_factor = 2**(len(vae.config.block_out_channels)-1)
+        else:
+            vae_scale_factor = 2 ** len(vae.temperal_downsample)
         if self.image_processor is None:
             self.image_processor = VaeImageProcessor(vae_scale_factor=vae_scale_factor)
 
@@ -67,11 +79,17 @@ class DecodeAction(BasicAction):
             torch.cuda.synchronize()
             to_cuda(vae)
         latents = latents.to(dtype=vae.dtype)
-        if shift_factor := getattr(vae.config, 'shift_factor', None) is not None:
-            latents = latents/vae.config.scaling_factor + shift_factor
+        if hasattr(vae.config, 'latents_mean'):
+            shift_factor = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1).to(latents.device, dtype=latents.dtype)
+            scaling_factor = 1.0/torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1).to(latents.device, dtype=latents.dtype)
+            latents = latents/scaling_factor + shift_factor
+            image = vae.decode(latents.unsqueeze(2), return_dict=False)[0].squeeze(2)
         else:
-            latents = latents/vae.config.scaling_factor
-        image = vae.decode(latents, return_dict=False)[0]
+            if shift_factor := getattr(vae.config, 'shift_factor', None) is not None:
+                latents = latents/vae.config.scaling_factor + shift_factor
+            else:
+                latents = latents/vae.config.scaling_factor
+            image = vae.decode(latents, return_dict=False)[0]
         if model_offload:
             to_cpu(vae)
 

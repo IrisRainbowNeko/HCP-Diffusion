@@ -9,10 +9,10 @@ compose_tokenizer.py
 
 support for SDXL.
 """
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Callable
 
 import torch
-from transformers import AutoTokenizer, CLIPTokenizer, PreTrainedTokenizer, PretrainedConfig
+from transformers import AutoTokenizer, CLIPTokenizer, PreTrainedTokenizer, PretrainedConfig, ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 from rainbowneko.utils import BatchableDict
 
@@ -81,17 +81,26 @@ class ComposeTokenizer(PreTrainedTokenizer):
         return f'ComposeTokenizer(\n' + '\n'.join([f'  {name}: {repr(getattr(self, name))}' for name in self.tokenizer_names]) + ')'
 
     @staticmethod
-    def tokenize_ex(tokenizer, *args, device='cpu', squeeze=False, **kwargs):
-        if isinstance(tokenizer, ComposeTokenizer):
-            max_length = {name: (tok := getattr(tokenizer, name)).model_max_length * getattr(tok, 'N_repeats', 1) for name in tokenizer.tokenizer_names}
-        else:
+    def tokenize_ex(tokenizer, *args, device='cpu', squeeze=False, chat_template:Callable=None, **kwargs):
+        if isinstance(tokenizer, ProcessorMixin):
+            token_processor = tokenizer
+            tokenizer = token_processor.tokenizer
             max_length = tokenizer.model_max_length * getattr(tokenizer, 'N_repeats', 1)
+            messages = chat_template(*args)
+            text_inputs = token_processor.apply_chat_template(
+                messages, max_length=max_length, **kwargs
+            )
+        else:
+            if isinstance(tokenizer, ComposeTokenizer):
+                max_length = {name: (tok := getattr(tokenizer, name)).model_max_length * getattr(tok, 'N_repeats', 1) for name in tokenizer.tokenizer_names}
+            else:
+                max_length = tokenizer.model_max_length * getattr(tokenizer, 'N_repeats', 1)
 
-        text_inputs = tokenizer(
-            *args,
-            max_length=max_length,
-            **kwargs
-        )
+            text_inputs = tokenizer(
+                *args,
+                max_length=max_length,
+                **kwargs
+            )
 
         def proc_tensor(v):
             if v is None:
