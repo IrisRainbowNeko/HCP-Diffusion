@@ -105,7 +105,7 @@ class TokenizeHandler(DataHandler):
                                                   return_tensors="pt", squeeze=True)
         data = {'prompt':token_info.input_ids}
         if 'attention_mask' in token_info:
-            data['attn_mask'] = data['attention_mask']
+            data['attn_mask'] = token_info['attention_mask']
         if 'position_ids' in token_info:
             data['position_ids'] = token_info['position_ids']
         return data
