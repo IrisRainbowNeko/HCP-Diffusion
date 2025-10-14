@@ -24,8 +24,10 @@ class GWLoss(nn.Module):
         '''
         b, c, w, h = pred.shape
 
-        sobel_x = self.sobel_x.expand(c, 1, 3, 3).to(pred.device)
-        sobel_y = self.sobel_y.expand(c, 1, 3, 3).to(pred.device)
+        target = target.to(dtype=torch.float32)
+        pred = pred.to(dtype=torch.float32)
+        sobel_x = self.sobel_x.expand(c, 1, 3, 3).to(pred.device, dtype=torch.float32)
+        sobel_y = self.sobel_y.expand(c, 1, 3, 3).to(pred.device, dtype=torch.float32)
         Ix1 = F.conv2d(pred, sobel_x, stride=1, padding=1, groups=c)
         Ix2 = F.conv2d(target, sobel_x, stride=1, padding=1, groups=c)
         Iy1 = F.conv2d(pred, sobel_y, stride=1, padding=1, groups=c)
