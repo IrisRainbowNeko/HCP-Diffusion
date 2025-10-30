@@ -106,7 +106,6 @@ class SaveImageAction(BasicAction):
                         text=p,
                         file_name=f"{{step}}-{seeds[bid]}.txt"
                     )
-
             else:
                 img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(p)}.{self.image_type}")
                 img.save(img_path, quality=self.quality)
