@@ -1,13 +1,11 @@
 from pathlib import Path
+from types import ModuleType
+from typing import Dict
 
 import torch
+from accelerate.hooks import remove_hook_from_module
 from rainbowneko.evaluate.preview import WorkflowPreviewer
 from rainbowneko.utils import to_cuda
-
-from hcpdiff.models.wrapper import SD15Wrapper
-from accelerate.hooks import remove_hook_from_module
-from typing import Dict
-from types import ModuleType
 
 class HCPPreviewer(WorkflowPreviewer):
     def __init__(self, parser, cfgs_raw, workflow: str | ModuleType | Dict, ds_name=None, interval=100, trainer=None,
@@ -49,6 +47,9 @@ class HCPPreviewer(WorkflowPreviewer):
                                           device=self.device, dtype=self.weight_dtype, preview_root=preview_root, preview_step=step,
                                           world_size=self.world_size, local_rank=self.local_rank,
                                           emb_hook=self.emb_pt.embedding_hook if self.pt_trainable else None)
+
+        if '_logs' in states:
+            self.loggers.log(states['_logs'], step, force=True)
 
         # restore model states
         if model.vae is not None:

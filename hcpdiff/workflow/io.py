@@ -1,4 +1,7 @@
 import os
+from pathlib import Path
+import tempfile
+import shutil
 from functools import partial
 from typing import List, Union
 from addict import Addict
@@ -12,9 +15,10 @@ from rainbowneko.infer import LoadImageAction as Neko_LoadImageAction
 from rainbowneko.utils.img_size_tool import types_support
 from rainbowneko import _share
 from rainbowneko.utils import is_dict
+from rainbowneko.loggers import ImageLog, TextFileLog
 
 class BuildModelsAction(BasicAction):
-    def __init__(self, model_loader: partial[NekoLoader.load], dtype: str=torch.float32, device='cuda', key_map_in=None, key_map_out=None):
+    def __init__(self, model_loader: partial[NekoLoader.load], dtype: str = torch.float32, device='cuda', key_map_in=None, key_map_out=None):
         super().__init__(key_map_in, key_map_out)
         self.model_loader = model_loader
         self.dtype = get_dtype(dtype)
@@ -61,20 +65,59 @@ class SaveImageAction(BasicAction):
 
         os.makedirs(save_root, exist_ok=True)
 
-    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, preview_root=None, preview_step=None, **states):
-        save_root = preview_root or self.save_root
+    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, in_preview=False, preview_step=None, _logs=None, **states):
+        save_root = self.save_root
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
+        if in_preview:
+            if _logs is None:
+                _images = {}
+            _logs['preview'] = []
+
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
-            img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(p)}.{self.image_type}")
-            img.save(img_path, quality=self.quality)
+            if in_preview:
+                _logs['preview'].append(ImageLog(
+                    caption=f'{{step}}-{seeds[bid]}-{p}',
+                    image=img
+                ))
 
-            if self.save_cfg:
-                cfgs.seed = seeds[bid]
-                parser.save_configs(cfgs, os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-info"))
+                if self.save_cfg:
+                    # Create temporary directory to save config files
+                    temp_dir = Path(tempfile.mkdtemp())
+                    try:
+                        cfgs.seed = seeds[bid]
+                        config_filename = f"{seeds[bid]}-info"
+                        parser.save_configs(cfgs, temp_dir/config_filename)
 
-            if self.save_txt:
-                txt_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.txt")
-                with open(txt_path, 'w') as f:
-                    f.write(p)
-            num_img_exist += 1
+                        # Add all saved config files to _logs
+                        for file in temp_dir.rglob("*"):
+                            if file.is_file():
+                                rel_path = file.relative_to(temp_dir)
+                                _logs[f"config/{rel_path.parent}"] = TextFileLog(
+                                    text=file.read_text(encoding='utf-8'),
+                                    file_name='{step}-'+rel_path.name
+                                )
+                    finally:
+                        # Clean up temporary directory
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+
+                if self.save_txt:
+                    _logs["txt"] = TextFileLog(
+                        text=p,
+                        file_name=f"{{step}}-{seeds[bid]}.txt"
+                    )
+
+            else:
+                img_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(p)}.{self.image_type}")
+                img.save(img_path, quality=self.quality)
+
+                if self.save_cfg:
+                    cfgs.seed = seeds[bid]
+                    parser.save_configs(cfgs, os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-info"))
+
+                if self.save_txt:
+                    txt_path = os.path.join(save_root, f"{preview_step or num_img_exist}-{seeds[bid]}-{to_validate_file(prompt[0])}.txt")
+                    with open(txt_path, 'w') as f:
+                        f.write(p)
+                num_img_exist += 1
+        return {'_logs':_logs}
