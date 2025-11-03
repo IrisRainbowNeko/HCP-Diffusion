@@ -51,7 +51,7 @@ class DiffusionImageHandler(DataHandler):
 
 class DiffusionTextHandler(DataHandler):
     def __init__(self, encoder_attention_mask=False, erase=0.0, dropout=0.0, shuffle=0.0, word_names={}, tokenize=True,
-                 key_map_in=('prompt -> prompt', ), key_map_out=('prompt -> prompt', )):
+                 key_map_in=('prompt -> prompt', ), key_map_out=('prompt -> prompt', 'attn_mask -> attn_mask')):
         super().__init__(key_map_in, key_map_out)
 
         text_handlers = {}
