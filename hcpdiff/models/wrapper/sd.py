@@ -35,6 +35,8 @@ class SD15Wrapper(BaseWrapper):
         self.cfg_context = cfg_context
         self.tokenizer.N_repeats = self.TE_hook_cfg.tokenizer_repeats
 
+        self.trainable_parameters_cache = None
+
     def post_init(self):
         self.make_TE_hook(self.TE_hook_cfg)
 
@@ -141,7 +143,9 @@ class SD15Wrapper(BaseWrapper):
 
     @property
     def trainable_parameters(self):
-        return [p for p in self.parameters() if p.requires_grad]
+        if self.trainable_parameters_cache is None:
+            self.trainable_parameters_cache = [p for p in self.parameters() if p.requires_grad]
+        return self.trainable_parameters_cache
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:
