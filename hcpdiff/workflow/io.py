@@ -71,7 +71,7 @@ class SaveImageAction(BasicAction):
 
         if in_preview:
             if _logs is None:
-                _images = {}
+                _logs = {}
             _logs['preview'] = []
 
         for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):

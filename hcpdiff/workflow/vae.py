@@ -38,15 +38,23 @@ class EncodeAction(BasicAction):
                 )
 
             elif isinstance(generator, list):
-                init_latents = [
-                    vae.encode(image[i: i+1]).latent_dist.sample(generator[i]) for i in range(bs)
-                ]
+                if hasattr(vae.config, 'latents_mean'):
+                    init_latents = [
+                        vae.encode(image[i: i+1].unsqueeze(2)).latent_dist.sample(generator[i]).squeeze(2) for i in range(bs)
+                    ]
+                else:
+                    init_latents = [
+                        vae.encode(image[i: i+1]).latent_dist.sample(generator[i]) for i in range(bs)
+                    ]
                 init_latents = torch.cat(init_latents, dim=0)
             else:
-                init_latents = vae.encode(image).latent_dist.sample(generator)
+                if hasattr(vae.config, 'latents_mean'):
+                    init_latents = vae.encode(image.unsqueeze(2)).latent_dist.sample(generator).squeeze(2)
+                else:
+                    init_latents = vae.encode(image).latent_dist.sample(generator)
 
             init_latents = init_latents.to(dtype=get_dtype(dtype))
-            if isinstance(vae, AutoencoderKLQwenImage):
+            if hasattr(vae.config, 'latents_mean'):
                 shift_factor = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1).to(init_latents.device, dtype=init_latents.dtype)
                 scaling_factor = 1.0/torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1).to(init_latents.device, dtype=init_latents.dtype)
                 init_latents = (init_latents-shift_factor)*scaling_factor

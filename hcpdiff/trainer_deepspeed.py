@@ -23,10 +23,12 @@ class HCPTrainerDeepspeed(TrainerDeepspeed, HCPTrainer):
         if self.cfgs.model.gradient_checkpointing:
             self.model_wrapper.enable_gradient_checkpointing()
 
+        self.parameter_names = [k for k, v in self.model_wrapper.named_parameters()]
         if self.is_local_main_process:
             for saver in self.ckpt_saver.values():
                 if isinstance(saver, NekoPluginSaver):
                     saver.plugin_from_raw = True
+
 
 def hcp_train():
     import subprocess
