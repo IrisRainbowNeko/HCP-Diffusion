@@ -38,3 +38,6 @@ class TextSource(DataSource):
                 'caption':self.label_dict[img_name],
             }
         }
+
+    def __len__(self):
+        return len(self.img_ids)

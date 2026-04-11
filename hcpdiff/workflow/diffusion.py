@@ -56,14 +56,16 @@ class PrepareDiffusionAction(BasicAction):
         self.model_offload = model_offload
         self.amp = amp
 
-    def forward(self, device, denoiser, TE, vae, style_encoder=None, **states):
+    def forward(self, device, denoiser, vae, TE=None, style_encoder=None, **states):
         denoiser.to(device)
-        TE.to(device)
         vae.to(device)
 
-        TE.eval()
         denoiser.eval()
         vae.eval()
+
+        if TE is not None:
+            TE.to(device)
+            TE.eval()
 
         if style_encoder is not None:
             style_encoder.to(device)

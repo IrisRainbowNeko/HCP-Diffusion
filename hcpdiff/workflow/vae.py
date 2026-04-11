@@ -38,7 +38,7 @@ class EncodeAction(BasicAction):
                 )
 
             elif isinstance(generator, list):
-                if hasattr(vae.config, 'latents_mean'):
+                if getattr(vae.config, 'latents_mean', None) is not None:
                     init_latents = [
                         vae.encode(image[i: i+1].unsqueeze(2)).latent_dist.sample(generator[i]).squeeze(2) for i in range(bs)
                     ]
@@ -48,13 +48,13 @@ class EncodeAction(BasicAction):
                     ]
                 init_latents = torch.cat(init_latents, dim=0)
             else:
-                if hasattr(vae.config, 'latents_mean'):
+                if getattr(vae.config, 'latents_mean', None) is not None:
                     init_latents = vae.encode(image.unsqueeze(2)).latent_dist.sample(generator).squeeze(2)
                 else:
                     init_latents = vae.encode(image).latent_dist.sample(generator)
 
             init_latents = init_latents.to(dtype=get_dtype(dtype))
-            if hasattr(vae.config, 'latents_mean'):
+            if getattr(vae.config, 'latents_mean', None) is not None:
                 shift_factor = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1).to(init_latents.device, dtype=init_latents.dtype)
                 scaling_factor = 1.0/torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1).to(init_latents.device, dtype=init_latents.dtype)
                 init_latents = (init_latents-shift_factor)*scaling_factor
@@ -87,7 +87,7 @@ class DecodeAction(BasicAction):
             torch.cuda.synchronize()
             to_cuda(vae)
         latents = latents.to(dtype=vae.dtype)
-        if hasattr(vae.config, 'latents_mean'):
+        if getattr(vae.config, 'latents_mean', None) is not None:
             shift_factor = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1).to(latents.device, dtype=latents.dtype)
             scaling_factor = 1.0/torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1).to(latents.device, dtype=latents.dtype)
             latents = latents/scaling_factor + shift_factor

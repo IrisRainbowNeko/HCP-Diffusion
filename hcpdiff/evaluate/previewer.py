@@ -35,15 +35,19 @@ class HCPPreviewer(WorkflowPreviewer):
         if self.loggers is not None:
             self.loggers.info(f'Preview')
 
-        N_repeats = model.text_enc_hook.N_repeats
-        clip_skip = model.text_enc_hook.clip_skip
-        clip_final_norm = model.text_enc_hook.clip_final_norm
-        use_attention_mask = model.text_enc_hook.use_attention_mask
+        if hasattr(model, 'text_enc_hook'):
+            N_repeats = model.text_enc_hook.N_repeats
+            clip_skip = model.text_enc_hook.clip_skip
+            clip_final_norm = model.text_enc_hook.clip_final_norm
+            use_attention_mask = model.text_enc_hook.use_attention_mask
+            te_hook=model.text_enc_hook
+        else:
+            te_hook=None
 
         preview_root = Path(self.exp_dir)/'imgs'
         preview_root.mkdir(parents=True, exist_ok=True)
 
-        states = self.workflow_runner.run(model=model, in_preview=True, te_hook=model.text_enc_hook,
+        states = self.workflow_runner.run(model=model, in_preview=True, te_hook=te_hook,
                                           device=self.device, dtype=self.weight_dtype, preview_root=preview_root, preview_step=step,
                                           world_size=self.world_size, local_rank=self.local_rank,
                                           emb_hook=self.emb_pt.embedding_hook if self.pt_trainable else None)
@@ -60,17 +64,18 @@ class HCPPreviewer(WorkflowPreviewer):
                 model.vae.encode = states['vae_encode_raw']
                 model.vae.decode = states['vae_decode_raw']
 
-        if 'emb_hook' in states and not self.pt_trainable:
+        if 'emb_hook' in states and not self.pt_trainable and states['emb_hook'] is not None:
             states['emb_hook'].remove()
 
         if self.pt_trainable:
             self.emb_pt.embedding_hook.N_repeats = N_repeats
 
-        model.tokenizer.N_repeats = N_repeats
-        model.text_enc_hook.N_repeats = N_repeats
-        model.text_enc_hook.clip_skip = clip_skip
-        model.text_enc_hook.clip_final_norm = clip_final_norm
-        model.text_enc_hook.use_attention_mask = use_attention_mask
+        if te_hook is not None:
+            model.tokenizer.N_repeats = N_repeats
+            model.text_enc_hook.N_repeats = N_repeats
+            model.text_enc_hook.clip_skip = clip_skip
+            model.text_enc_hook.clip_final_norm = clip_final_norm
+            model.text_enc_hook.use_attention_mask = use_attention_mask
         
         to_cuda(model)
 

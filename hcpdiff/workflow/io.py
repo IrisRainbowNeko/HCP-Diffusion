@@ -26,7 +26,9 @@ class BuildModelsAction(BasicAction):
 
     def forward(self, in_preview=False, model=None, **states):
         if in_preview:
-            load_kwargs = dict(dtype=self.dtype, device=self.device, denoiser=model.denoiser, TE=model.TE, vae=model.vae)
+            load_kwargs = dict(dtype=self.dtype, device=self.device, denoiser=model.denoiser, vae=model.vae)
+            if hasattr(model, 'TE'):
+                load_kwargs['TE'] = model.TE
             if hasattr(model, 'style_encoder'):
                 load_kwargs['style_encoder'] = model.style_encoder
             if hasattr(model, 'token_processor'):
