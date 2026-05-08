@@ -67,7 +67,7 @@ class SaveImageAction(BasicAction):
 
         os.makedirs(save_root, exist_ok=True)
 
-    def forward(self, images, prompt, negative_prompt, seeds, cfgs=None, parser=None, in_preview=False, preview_step=None, _logs=None, **states):
+    def forward(self, images, prompt, seeds, negative_prompt=None, cfgs=None, parser=None, in_preview=False, preview_step=None, _logs=None, **states):
         save_root = self.save_root
         num_img_exist = max([0]+[int(x.split('-', 1)[0]) for x in os.listdir(save_root) if x.rsplit('.', 1)[-1] in types_support])+1
 
@@ -76,7 +76,7 @@ class SaveImageAction(BasicAction):
                 _logs = {}
             _logs['preview'] = []
 
-        for bid, (p, pn, img) in enumerate(zip(prompt, negative_prompt, images)):
+        for bid, (p, img) in enumerate(zip(prompt, images)):
             if in_preview:
                 _logs['preview'].append(ImageLog(
                     caption=f'{{step}}-{seeds[bid]}-{p}',

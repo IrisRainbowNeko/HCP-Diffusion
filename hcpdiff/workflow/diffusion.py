@@ -37,7 +37,12 @@ class SeedAction(BasicAction):
 
     def forward(self, device, seed=None, bs=None, **states):
         if bs is None:
-            bs = states['prompt_embeds'].shape[0]//2 if 'prompt_embeds' in states else self.bs
+            if 'prompt' in states:
+                bs = len(states['prompt'])
+            elif 'negative_prompt' in states:
+                bs = len(states['prompt'])*2
+            else:
+                bs = self.bs
         seed = seed or self.seed
         if seed is None:
             seeds = [None]*bs
@@ -158,7 +163,9 @@ class MakeLatentAction(BasicAction):
             crop_info = torch.tensor([height, width, *crop_coord], dtype=torch.float)
         crop_info = crop_info.to(device).repeat(bs, 1)
         if 'negative_prompt' in states:
-                output['crop_info'] = torch.cat([crop_info, crop_info], dim=0)
+            output['crop_info'] = torch.cat([crop_info, crop_info], dim=0)
+        else:
+            output['crop_info'] = crop_info
 
         return output
 
