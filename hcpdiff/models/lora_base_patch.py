@@ -18,6 +18,17 @@ from rainbowneko.models.plugin import PatchPluginBlock, PluginGroup, PatchPlugin
 from typing import Union, Tuple, Dict, Type
 
 class LoraPatchContainer(PatchPluginContainer):
+
+    @property
+    def weight(self):
+        weight_ = None
+        for name in self.plugin_names:
+            if weight_ is None:
+                weight_ = self[name].get_weight()
+            else:
+                weight_ = weight_+self[name].get_weight()
+        return self._host.weight + weight_
+
     def forward(self, x, *args, **kwargs):
         weight_ = None
         bias_ = None
@@ -187,6 +198,142 @@ class LoraBlock(PatchPluginBlock):
     def wrap_model(cls, name:str, host: nn.Module, **kwargs):# -> Dict[str, LoraBlock]:
         return super().wrap_model(name, host, exclude_classes=(LoraBlock,), **kwargs)
 
+class OFTBlock(PatchPluginBlock):
+    container_cls = LoraPatchContainer 
+    wrapable_classes = (nn.Linear, nn.Conv2d)
+
+    def __init__(self, name: int, host: Union[nn.Linear, nn.Conv2d], r, eps, is_coft=True, block_share=False, 
+                 dropout=0.1, alpha=1.0, bias=False, alpha_auto_scale=True, parent_block=None, host_name=None, **kwargs):
+        super().__init__(name, host, parent_block=parent_block, host_name=host_name)
+
+        self.bias = bias
+        self.is_coft = is_coft
+        self.block_share = block_share
+        self.r = r
+        self.eps = eps
+
+        host = self.host()
+        if isinstance(host, nn.Linear):
+            self.host_type = 'linear'
+            self.layer = self.LinearLayer(host, r=r, bias=bias, block=self)
+        elif isinstance(host, nn.Conv2d):
+            self.host_type = 'conv'
+            self.layer = self.Conv2dLayer(host, r=r, bias=bias, block=self)
+        else:
+            raise NotImplementedError(f'No OFT for {type(host)}')
+
+        self.dropout = nn.Dropout(dropout)
+        self.r = self.layer.r
+        self.alpha_auto_scale = alpha_auto_scale
+        self.register_buffer('alpha', torch.tensor(1.0 if alpha_auto_scale else alpha))
+
+    def set_hyper_params(self, alpha=None, **kwargs):
+        if alpha is not None:
+            self.register_buffer('alpha', torch.tensor(1.0 if self.alpha_auto_scale else alpha))
+        super().set_hyper_params(**kwargs)
+
+    def get_weight(self):
+        return self.layer.get_weight() * self.alpha
+
+    def get_bias(self):
+        bias = self.layer.get_bias()
+        return bias * self.alpha if bias is not None else None
+
+    def post_forward(self, x, host_weight, weight, host_bias, bias=None):
+        if host_bias is not None:
+            if bias is not None:
+                bias = host_bias
+            else:
+                bias = host_bias + bias
+        return self.dropout(self.layer(x, weight, bias))
+
+    def init_weights(self, fixed_w_init=True):
+        if fixed_w_init:
+            host = self.host()
+            # self.layer.OFT.weight.data = host.weight.data.clone().detach()
+            # # self.layer.OFT.weight
+            # self.layer.OFT.bias = host.bias
+            # self.layer.register_buffer("OFT_weight", host.weight.detach().clone())
+            # self.register_buffer("OFT_bias", host.bias)
+            if host.bias is None:
+                self.layer.init_fixed_weight(host.weight.detach().clone(), None)
+            else:
+                self.layer.init_fixed_weight(host.weight.detach().clone(), host.bias.clone())
+        else:
+            self.layer.reset_parameters()
+        pass
+
+    def reparameterization_to_host(self, alpha=None, base_alpha=1.0):
+        if alpha is None:
+            alpha = self.alpha
+
+        host = self.host()
+        re_w, re_b = self.layer.get_collapsed_param()
+        host.weight = nn.Parameter(
+            host.weight.data * base_alpha + alpha * re_w.to(host.weight.device, dtype=host.weight.dtype)
+        )
+
+        if re_b is not None:
+            if host.bias is None:
+                host.bias = nn.Parameter(re_b.to(host.weight.device, dtype=host.weight.dtype))
+            else:
+                host.bias = nn.Parameter(
+                    host.bias.data * base_alpha + alpha * re_b.to(host.weight.device, dtype=host.weight.dtype))
+
+    class LinearLayer(nn.Module):
+        def __init__(self, host, r, bias, block):
+            super().__init__()
+            self.r = max(round(self.in_features / r), 1) if isinstance(r, float) else r
+
+        def get_weight(self) -> torch.Tensor:
+            pass
+
+        def get_bias(self) -> torch.Tensor:
+            pass
+
+        def forward(self, x, weight, bias=None):
+            pass
+
+        def get_collapsed_param(self) -> Tuple[torch.Tensor, torch.Tensor]:
+            pass
+
+        def init_fixed_weight(self, weight, bias):
+            self.register_buffer("OFT_weight", weight)
+            self.register_buffer("OFT_bias", bias)
+
+    class Conv2dLayer(nn.Module):
+        def __init__(self, host, r, bias, block):
+            super().__init__()
+            self.r = max(round(self.in_channels / r), 1) if isinstance(r, float) else r
+
+        def get_weight(self) -> torch.Tensor:
+            pass
+
+        def get_bias(self) -> torch.Tensor:
+            pass
+
+        def forward(self, x, weight, bias=None):
+            pass
+
+        def get_collapsed_param(self) -> Tuple[torch.Tensor, torch.Tensor]:
+            pass
+
+        def init_fixed_weight(self, weight, bias):
+            self.register_buffer("OFT_weight", weight)
+            self.register_buffer("OFT_bias", bias)
+
+    @classmethod
+    def wrap_layer(cls, name: str, host: Union[nn.Linear, nn.Conv2d], r=4, eps=1e-5, dropout=0.1, alpha=1.0, fixed_w_init=True,
+                   bias=False, is_coft=True, block_share=False, **kwargs):
+        oft_block = cls(name=name, host=host, r=r, eps=eps, dropout=dropout, alpha=alpha, bias=bias,
+                        is_coft=is_coft, block_share=block_share, **kwargs)
+        oft_block.init_weights(fixed_w_init)
+        return oft_block
+
+    @classmethod
+    def wrap_model(cls, name: str, host: nn.Module, **kwargs):
+        return super().wrap_model(name, host, exclude_classes=(OFTBlock,), **kwargs)
+        
 class LoraGroup(PluginGroup):
     def set_mask(self, batch_mask):
         for item in self.plugin_dict.values():
